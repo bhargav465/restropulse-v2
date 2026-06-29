@@ -196,6 +196,99 @@ button.primary:disabled {
   text-decoration: none;
 }
 
+.metaActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Inline text-style buttons (download, remove, build toggle). */
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0;
+}
+
+button.link:hover {
+  text-decoration: underline;
+}
+
+button.link:disabled {
+  opacity: 0.6;
+  cursor: default;
+  text-decoration: none;
+}
+
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.labelRow button.link {
+  font-weight: 600;
+}
+
+button.primary.small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* Prompt builder. */
+.builder {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.builderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.builderGrid label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.preview {
+  flex: 1;
+  min-width: 200px;
+  font-style: italic;
+}
+
+/* Source image row. */
+.imgRow {
+  align-items: center;
+}
+
+.imgRow input[type="file"] {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 560px) {
+  .builderGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .spinner {
   display: inline-block;
   width: 15px;

@@ -9,10 +9,15 @@ image model from a prompt/context and shows the generated images.
   `owner/name:version`.
 - Quick-pick chips for popular models (FLUX, SDXL, Recraft).
 - A prompt/context box (sent as the model's `prompt` field).
+- **Prompt builder** — fill in restaurant-context fields (dish, cuisine, vibe,
+  setting, lighting, details) and it composes a strong prompt for you.
+- **Image-to-image / editing** — upload a source image and send it to any model
+  that accepts an image input. The input field name is configurable
+  (`image`, `input_image`, `image_prompt`, …) since it varies by model.
 - An optional **Extra input (JSON)** box for model-specific options like
-  `aspect_ratio`, `num_outputs`, or `seed`.
-- Renders all returned images, with a "open ↗" link and a raw-output viewer
-  for unusual models.
+  `aspect_ratio`, `num_outputs`, `seed`, or `prompt_strength`.
+- Renders all returned images, each with a one-click **Download** button, an
+  "open ↗" link, and a raw-output viewer for unusual models.
 - Robust output parsing — handles models that return a single URL, an array,
   `FileOutput` objects, or nested shapes.
 

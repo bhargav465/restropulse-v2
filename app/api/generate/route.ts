@@ -12,6 +12,10 @@ type GenerateBody = {
   prompt?: string;
   /** Optional extra input fields as a JSON object, merged into the model input. */
   extraInput?: Record<string, unknown>;
+  /** A source image as a data URL (data:image/...;base64,...) for image-to-image / editing. */
+  imageDataUrl?: string;
+  /** Which input field the source image should be sent as (defaults to "image"). */
+  imageFieldName?: string;
 };
 
 /**
@@ -93,9 +97,16 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (!prompt && !body.extraInput) {
+  const imageDataUrl = body.imageDataUrl?.trim();
+  if (imageDataUrl && !/^data:image\/[a-z0-9.+-]+;base64,/i.test(imageDataUrl)) {
     return NextResponse.json(
-      { error: "Provide a prompt/context or extra input for the model." },
+      { error: "Source image must be a base64 image data URL (data:image/...;base64,...)." },
+      { status: 400 }
+    );
+  }
+  if (!prompt && !body.extraInput && !imageDataUrl) {
+    return NextResponse.json(
+      { error: "Provide a prompt/context, a source image, or extra input for the model." },
       { status: 400 }
     );
   }
@@ -110,6 +121,14 @@ export async function POST(req: NextRequest) {
     ...(prompt ? { prompt } : {}),
     ...(body.extraInput ?? {}),
   };
+
+  // For image-to-image / editing, attach the source image. Replicate accepts a
+  // base64 data URL directly for file inputs. The field name varies by model
+  // (image, input_image, image_prompt, …), so it's user-configurable.
+  if (imageDataUrl) {
+    const field = (body.imageFieldName?.trim() || "image").replace(/\s+/g, "");
+    input[field] = imageDataUrl;
+  }
 
   try {
     const { ref } = parseModel(model);
