@@ -10,13 +10,22 @@ type GenerateResponse = {
   error?: string;
 };
 
-// A few popular text-to-image / image-to-image models to get going quickly.
-const PRESETS: { label: string; model: string }[] = [
-  { label: "FLUX schnell (fast)", model: "black-forest-labs/flux-schnell" },
-  { label: "FLUX 1.1 pro", model: "black-forest-labs/flux-1.1-pro" },
-  { label: "FLUX dev img2img", model: "black-forest-labs/flux-dev" },
-  { label: "SDXL", model: "stability-ai/sdxl" },
-  { label: "Recraft v3", model: "recraft-ai/recraft-v3" },
+// Popular models. `img2img` marks models that accept a source image; `imageField`
+// is the input field that image should be sent as (it varies by model).
+type Preset = {
+  label: string;
+  model: string;
+  img2img: boolean;
+  imageField?: string;
+};
+
+const PRESETS: Preset[] = [
+  { label: "FLUX schnell · text→image", model: "black-forest-labs/flux-schnell", img2img: false },
+  { label: "FLUX Kontext pro · edit image", model: "black-forest-labs/flux-kontext-pro", img2img: true, imageField: "input_image" },
+  { label: "FLUX Kontext max · edit image", model: "black-forest-labs/flux-kontext-max", img2img: true, imageField: "input_image" },
+  { label: "FLUX dev · img2img", model: "black-forest-labs/flux-dev", img2img: true, imageField: "image" },
+  { label: "SDXL · img2img", model: "stability-ai/sdxl", img2img: true, imageField: "image" },
+  { label: "Recraft v3 · text→image", model: "recraft-ai/recraft-v3", img2img: false },
 ];
 
 const MAX_IMAGE_MB = 6;
@@ -70,6 +79,12 @@ export default function Home() {
 
   // Track which images are downloading, by URL.
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
+
+  // If the chosen model is a known text-to-image-only model, a source image
+  // will be ignored — warn the user so they switch to an image-editing model.
+  const matchedPreset = PRESETS.find((p) => p.model === model.trim());
+  const imageWillBeIgnored =
+    !!imageDataUrl && !!matchedPreset && !matchedPreset.img2img;
 
   function onPickImage(file: File | null) {
     setError(null);
@@ -214,7 +229,10 @@ export default function Home() {
               <span
                 key={p.model}
                 className="chip"
-                onClick={() => setModel(p.model)}
+                onClick={() => {
+                  setModel(p.model);
+                  if (p.imageField) setImageField(p.imageField);
+                }}
               >
                 {p.label}
               </span>
@@ -346,10 +364,29 @@ export default function Home() {
               </div>
               <div className="hint" style={{ alignSelf: "flex-end" }}>
                 {imageName && <>Using <code>{imageName}</code>. </>}
-                Most models use <code>image</code>; some use{" "}
-                <code>input_image</code> or <code>image_prompt</code> — check the
-                model&apos;s API tab.
+                Most editors use <code>input_image</code> (FLUX Kontext) or{" "}
+                <code>image</code> (SDXL/FLUX dev) — check the model&apos;s API
+                tab.
               </div>
+            </div>
+          )}
+          {imageWillBeIgnored && (
+            <div className="warn">
+              ⚠️ <code>{model.trim()}</code> is a <strong>text-to-image</strong>{" "}
+              model — it has no image input, so your source image will be{" "}
+              <strong>ignored</strong> and the result comes only from the prompt.
+              To edit/transform your image, pick an editing model like{" "}
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setModel("black-forest-labs/flux-kontext-pro");
+                  setImageField("input_image");
+                }}
+              >
+                FLUX Kontext pro
+              </button>{" "}
+              and describe the change in the prompt.
             </div>
           )}
         </div>

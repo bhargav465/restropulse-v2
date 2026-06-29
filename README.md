@@ -11,9 +11,10 @@ image model from a prompt/context and shows the generated images.
 - A prompt/context box (sent as the model's `prompt` field).
 - **Prompt builder** — fill in restaurant-context fields (dish, cuisine, vibe,
   setting, lighting, details) and it composes a strong prompt for you.
-- **Image-to-image / editing** — upload a source image and send it to any model
+- **Image-to-image / editing** — upload a source image and send it to a model
   that accepts an image input. The input field name is configurable
-  (`image`, `input_image`, `image_prompt`, …) since it varies by model.
+  (`input_image`, `image`, …) since it varies by model. The app warns you if
+  you attach an image to a text-to-image-only model (which would ignore it).
 - An optional **Extra input (JSON)** box for model-specific options like
   `aspect_ratio`, `num_outputs`, `seed`, or `prompt_strength`.
 - Renders all returned images, each with a one-click **Download** button, an
@@ -69,6 +70,14 @@ Extra input box.
 - **Model:** `stability-ai/sdxl`
   **Prompt:** `Plated gourmet pasta, top-down food photography`
   **Extra input:** `{ "width": 1024, "height": 1024, "num_outputs": 2 }`
+
+- **Editing an existing photo** — **Model:** `black-forest-labs/flux-kontext-pro`
+  **Source image:** upload your photo · **Image input field:** `input_image`
+  **Prompt:** `Make the lighting warm golden hour and add fresh basil garnish`
+
+  > Text-to-image models (e.g. `flux-schnell`) have **no** image input — to
+  > transform an existing image you must use an editing model like FLUX
+  > Kontext. Pure text-to-image models ignore any uploaded image.
 
 ## Notes
 

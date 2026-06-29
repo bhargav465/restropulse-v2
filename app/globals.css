@@ -155,6 +155,27 @@ button.primary:disabled {
   white-space: pre-wrap;
 }
 
+.warn {
+  margin-top: 12px;
+  background: rgba(255, 196, 0, 0.1);
+  border: 1px solid rgba(255, 196, 0, 0.4);
+  color: #ffce5a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.warn code {
+  color: #fff;
+}
+
+.warn button.link {
+  color: #ffce5a;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .results {
   margin-top: 28px;
 }
