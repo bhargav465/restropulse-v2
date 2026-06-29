@@ -418,6 +418,13 @@ export default function Home() {
       )}
 
       {result && (
+        <details className="raw" open>
+          <summary>Input sent to the model</summary>
+          <pre>{JSON.stringify(redactInput(result.input), null, 2)}</pre>
+        </details>
+      )}
+
+      {result && (
         <details className="raw">
           <summary>Raw model output</summary>
           <pre>{JSON.stringify(result.raw, null, 2)}</pre>
@@ -425,4 +432,17 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+// Long base64 image data URLs make the input panel unreadable — shorten them.
+function redactInput(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v === "string" && v.startsWith("data:")) {
+      out[k] = `${v.slice(0, 40)}… (${v.length} chars, source image)`;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
