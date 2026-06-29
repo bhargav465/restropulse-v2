@@ -7,7 +7,10 @@ image model from a prompt/context and shows the generated images.
 
 - Enter any Replicate model identifier — `owner/name` or pinned
   `owner/name:version`.
-- Quick-pick chips for popular models (FLUX, SDXL, Recraft).
+- **Quick recipes** — one-click buttons that pre-fill the model, prompt, image
+  field, and settings for common restaurant tasks (pro dish photo, white-bg
+  product shot, restyle interior, menu hero, social square).
+- Quick-pick chips for popular models (FLUX, FLUX Kontext, SDXL, Recraft).
 - A prompt/context box (sent as the model's `prompt` field).
 - **Prompt builder** — fill in restaurant-context fields (dish, cuisine, vibe,
   setting, lighting, details) and it composes a strong prompt for you.

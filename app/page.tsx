@@ -28,6 +28,78 @@ const PRESETS: Preset[] = [
   { label: "Recraft v3 · text→image", model: "recraft-ai/recraft-v3", img2img: false },
 ];
 
+// One-click recipes that pre-fill model + image field + a strong instruction
+// prompt + sensible extra input for common restaurant tasks.
+type Recipe = {
+  key: string;
+  emoji: string;
+  label: string;
+  desc: string;
+  needsImage: boolean;
+  model: string;
+  imageField?: string;
+  prompt: string;
+  extra?: string;
+};
+
+const RECIPES: Recipe[] = [
+  {
+    key: "pro-dish",
+    emoji: "🍽️",
+    label: "Make my dish photo look pro",
+    desc: "Edits your uploaded dish photo into clean, appetizing food photography.",
+    needsImage: true,
+    model: "black-forest-labs/flux-kontext-pro",
+    imageField: "input_image",
+    prompt:
+      "Make this dish look like professional food photography: appetizing, clean plating, soft natural window light, shallow depth of field, fresh garnish, vibrant but natural colors, crisp high detail. Keep the same dish and composition.",
+  },
+  {
+    key: "white-bg",
+    emoji: "🛍️",
+    label: "Clean white-background product shot",
+    desc: "Puts your dish/product on a seamless white studio background.",
+    needsImage: true,
+    model: "black-forest-labs/flux-kontext-pro",
+    imageField: "input_image",
+    prompt:
+      "Place this dish on a clean seamless white studio background with soft, even lighting and a subtle natural shadow, e-commerce product photography style. Keep the dish exactly as it is.",
+  },
+  {
+    key: "cozy-interior",
+    emoji: "🏮",
+    label: "Restyle my restaurant interior",
+    desc: "Edits an interior photo to feel warm, cozy and inviting.",
+    needsImage: true,
+    model: "black-forest-labs/flux-kontext-pro",
+    imageField: "input_image",
+    prompt:
+      "Restyle this restaurant interior to look warm, cozy and inviting: golden-hour lighting, soft ambient glow, tasteful plants and decor, modern yet homely. Keep the existing layout and structure.",
+  },
+  {
+    key: "menu-hero",
+    emoji: "📸",
+    label: "Menu hero image (from text)",
+    desc: "Generates a fresh hero photo from a description — no source image needed. Edit the dish name in the prompt.",
+    needsImage: false,
+    model: "black-forest-labs/flux-schnell",
+    prompt:
+      "A mouth-watering gourmet dish, professional food photography, top-down on a rustic wooden table, soft natural window light, fresh ingredients scattered around, high detail, appetizing, 35mm",
+    extra: '{ "aspect_ratio": "4:5" }',
+  },
+  {
+    key: "social-square",
+    emoji: "📱",
+    label: "Social post (square, 2 options)",
+    desc: "Generates two square images for social media from a description.",
+    needsImage: false,
+    model: "black-forest-labs/flux-schnell",
+    prompt:
+      "A vibrant, mouth-watering dish styled for social media, professional food photography, soft natural light, colorful fresh ingredients, high detail, appetizing",
+    extra: '{ "aspect_ratio": "1:1", "num_outputs": 2 }',
+  },
+];
+
 const MAX_IMAGE_MB = 6;
 
 // Compose a strong image prompt from a few restaurant-context fields.
@@ -58,6 +130,7 @@ export default function Home() {
   const [extra, setExtra] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
 
   // Image-to-image / editing state.
@@ -114,6 +187,25 @@ export default function Home() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function applyRecipe(r: Recipe) {
+    setError(null);
+    setModel(r.model);
+    setPrompt(r.prompt);
+    setExtra(r.extra ?? "");
+    if (r.imageField) setImageField(r.imageField);
+    if (r.needsImage && !imageDataUrl) {
+      setNotice(
+        `“${r.label}” edits a photo — upload your source image below, then Generate.`
+      );
+    } else if (!r.needsImage) {
+      setNotice(
+        `“${r.label}” generates from text — tweak the prompt (e.g. the dish), then Generate.`
+      );
+    } else {
+      setNotice(`“${r.label}” is ready — adjust the prompt if needed, then Generate.`);
+    }
+  }
+
   function applyBuiltPrompt() {
     const built = buildPrompt(b);
     if (!built) {
@@ -150,6 +242,7 @@ export default function Home() {
 
   async function onGenerate() {
     setError(null);
+    setNotice(null);
     setResult(null);
 
     let extraInput: Record<string, unknown> | undefined;
@@ -208,6 +301,32 @@ export default function Home() {
           Enter any Replicate model and a prompt/context — optionally with a
           source image — then generate.
         </p>
+      </div>
+
+      <div className="panel recipes">
+        <label>Quick recipes</label>
+        <div className="hint">
+          One click pre-fills the model, prompt, and settings for a common task.
+        </div>
+        <div className="recipeGrid">
+          {RECIPES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              className="recipe"
+              onClick={() => applyRecipe(r)}
+            >
+              <span className="recipeTitle">
+                {r.emoji} {r.label}
+              </span>
+              <span className="recipeDesc">{r.desc}</span>
+              <span className={`recipeTag ${r.needsImage ? "edit" : "text"}`}>
+                {r.needsImage ? "needs a source image" : "text → image"}
+              </span>
+            </button>
+          ))}
+        </div>
+        {notice && <div className="notice">{notice}</div>}
       </div>
 
       <div className="panel grid">

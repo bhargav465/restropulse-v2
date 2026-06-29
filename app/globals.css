@@ -155,6 +155,76 @@ button.primary:disabled {
   white-space: pre-wrap;
 }
 
+/* Quick recipes. */
+.recipes {
+  margin-bottom: 18px;
+}
+
+.recipeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+button.recipe {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color 0.12s ease;
+}
+
+button.recipe:hover {
+  border-color: var(--accent);
+}
+
+.recipeTitle {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.recipeDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.recipeTag {
+  font-size: 11px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.recipeTag.edit {
+  color: #ffce5a;
+  border-color: rgba(255, 196, 0, 0.4);
+}
+
+.recipeTag.text {
+  color: var(--accent);
+  border-color: rgba(109, 139, 255, 0.4);
+}
+
+.notice {
+  margin-top: 14px;
+  background: rgba(109, 139, 255, 0.12);
+  border: 1px solid rgba(109, 139, 255, 0.4);
+  color: #b9c6ff;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+}
+
 .warn {
   margin-top: 12px;
   background: rgba(255, 196, 0, 0.1);
