@@ -17,6 +17,13 @@ export {
   getCostEventsCollection,
   getCurrentAffairsCacheCollection,
   getMediaJobsCollection,
+  getMenuCategoriesCollection,
+  getMenuItemsCollection,
+  getOrdersCollection,
+  getReservationsCollection,
+  getStorefrontContentCollection,
+  getCustomersCollection,
+  getEventsCollection,
   getSessionsCollection,
   getOtpChallengesCollection,
   getOauthSessionsCollection,
@@ -53,3 +60,5 @@ export * from './invoices.js';
 export * from './archived-accounts.js';
 export * from './cost-events.js';
 export * from './media-jobs.js';
+export * from './ordering.js';
+export * from './seeds/ordering-demo.js';

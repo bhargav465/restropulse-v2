@@ -155,6 +155,36 @@ export function getMediaJobsCollection(): Collection {
   return getDB().collection('mediaJobs');
 }
 
+// ----- Online ordering collections (v1) -----
+
+export function getMenuCategoriesCollection(): Collection {
+  return getDB().collection('menu_categories');
+}
+
+export function getMenuItemsCollection(): Collection {
+  return getDB().collection('menu_items');
+}
+
+export function getOrdersCollection(): Collection {
+  return getDB().collection('orders');
+}
+
+export function getReservationsCollection(): Collection {
+  return getDB().collection('reservations');
+}
+
+export function getStorefrontContentCollection(): Collection {
+  return getDB().collection('storefront_content');
+}
+
+export function getCustomersCollection(): Collection {
+  return getDB().collection('customers');
+}
+
+export function getEventsCollection(): Collection {
+  return getDB().collection('events');
+}
+
 // ----- Helpers -----
 
 /**
