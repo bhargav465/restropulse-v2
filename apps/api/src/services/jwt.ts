@@ -15,6 +15,8 @@ export interface TokenPayload {
     restaurantId: string;
     role: string;
     type: 'access' | 'refresh';
+    /** Present on storefront customer tokens (role 'customer'). */
+    email?: string;
 }
 
 export interface TokenPair {
@@ -27,6 +29,30 @@ export interface TokenPair {
  */
 export function generateTokens(userId: string, phone: string, restaurantId: string, role: string): TokenPair {
     const payload: TokenPayload = { userId, phone, restaurantId, role, type: 'access' };
+
+    const accessToken = jwt.sign(
+        { ...payload } as TokenPayload,
+        JWT_SECRET,
+        { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+
+    const refreshToken = jwt.sign(
+        { ...payload, type: 'refresh' } as TokenPayload,
+        JWT_SECRET,
+        { expiresIn: REFRESH_TOKEN_EXPIRY }
+    );
+
+    return { accessToken, refreshToken };
+}
+
+/**
+ * Generate access and refresh tokens for a storefront CUSTOMER account.
+ * Distinct from merchant auth: role is always 'customer' and the token
+ * carries the customer's email. restaurantId scopes the token to one
+ * storefront (multi-tenant).
+ */
+export function generateCustomerTokens(customerId: string, email: string, restaurantId: string): TokenPair {
+    const payload: TokenPayload = { userId: customerId, phone: '', email, restaurantId, role: 'customer', type: 'access' };
 
     const accessToken = jwt.sign(
         { ...payload } as TokenPayload,
