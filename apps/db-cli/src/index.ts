@@ -9,6 +9,7 @@ import { resetCommand } from './commands/reset.js';
 import { razorpaySetupCommand } from './commands/razorpay-setup.js';
 import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
+import { seedOrderingCommand } from './commands/seed-ordering.js';
 
 const program = new Command();
 
@@ -57,6 +58,11 @@ program
     .description('Seed database with sample data')
     .option('--clean', 'Clear existing data before seeding')
     .action(seedCommand);
+
+program
+    .command('seed-ordering')
+    .description('Seed the demo online-ordering storefront (slug "demo") with sample menu, content, owner and customer')
+    .action(seedOrderingCommand);
 
 program
     .command('reset')
