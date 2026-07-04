@@ -1,0 +1,43 @@
+{
+  "name": "@restropulse/content-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Content generation worker -- creates posts from strategies and adhoc requests",
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsc",
+    "start": "node dist/worker.js",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:coverage": "vitest run --coverage",
+    "test:generate": "tsx scripts/test-generate.ts",
+    "download-assets": "node scripts/download-assets.mjs",
+    "playground": "tsx scripts/playground/index.ts",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "@restropulse/db": "*",
+    "@restropulse/shared": "*",
+    "@restropulse/telemetry": "*",
+    "ai": "^4.0.0",
+    "node-cron": "^4.2.1",
+    "zod": "^3.23.0",
+    "@restropulse/secrets": "*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
+    "@types/node": "^22.14.0",
+    "@types/node-cron": "^3.0.11",
+    "dotenv": "^16.6.1",
+    "mongodb-memory-server": "^11.0.1",
+    "tsx": "^4.7.0",
+    "typescript": "~5.8.2",
+    "vitest": "^4.0.18"
+  }
+}

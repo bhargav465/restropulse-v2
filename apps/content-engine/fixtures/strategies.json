@@ -1,0 +1,92 @@
+[
+  {
+    "_id": "pg-cs1",
+    "id": "pg-cs1",
+    "restaurantId": "pg-r1",
+    "postsPerWeek": 2,
+    "focusCategories": ["biryani", "old-city-heritage", "festive-specials", "weekend-family"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-08T19:30:00.000Z",
+    "theme": "authentic hyderabadi flavors and old city charm"
+  },
+  {
+    "_id": "pg-cs2",
+    "id": "pg-cs2",
+    "restaurantId": "pg-r2",
+    "postsPerWeek": 2,
+    "focusCategories": ["south-indian-thali", "andhra-spice", "sunday-specials", "regional-heritage"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-06T19:30:00.000Z",
+    "theme": "bold andhra flavors and the warmth of a south indian kitchen"
+  },
+  {
+    "_id": "pg-cs3",
+    "id": "pg-cs3",
+    "restaurantId": "pg-r3",
+    "postsPerWeek": 2,
+    "focusCategories": ["dal-makhani", "tandoor-stories", "punjabi-comfort", "north-indian-classics"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-10T19:30:00.000Z",
+    "theme": "hearty punjabi comfort food that feels like home"
+  },
+  {
+    "_id": "pg-cs4",
+    "id": "pg-cs4",
+    "restaurantId": "pg-r4",
+    "postsPerWeek": 4,
+    "focusCategories": ["dim-sum", "business-lunch", "indo-chinese-fusion", "weekend-dining"],
+    "bestTime": "12:30",
+    "nextScheduledDate": "2026-06-07T12:30:00.000Z",
+    "theme": "east-meets-hyderabad — bold wok flavors for the city's working crowd"
+  },
+  {
+    "_id": "pg-cs5",
+    "id": "pg-cs5",
+    "restaurantId": "pg-r5",
+    "postsPerWeek": 4,
+    "focusCategories": ["wood-fired", "date-night", "european-classics", "seasonal-menu"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-09T19:30:00.000Z",
+    "theme": "european craftsmanship in the heart of banjara hills"
+  },
+  {
+    "_id": "pg-cs6",
+    "id": "pg-cs6",
+    "restaurantId": "pg-r6",
+    "postsPerWeek": 4,
+    "focusCategories": ["smash-burgers", "loaded-fries", "happy-hour", "casual-dining"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-11T19:30:00.000Z",
+    "theme": "unapologetically indulgent street-style grill food"
+  },
+  {
+    "_id": "pg-cs7",
+    "id": "pg-cs7",
+    "restaurantId": "pg-r7",
+    "postsPerWeek": 5,
+    "focusCategories": ["morning-rituals", "artisan-bakes", "weekend-brunch", "specialty-coffee"],
+    "bestTime": "09:00",
+    "nextScheduledDate": "2026-06-05T09:00:00.000Z",
+    "theme": "slow mornings and great coffee — your neighbourhood cafe in jubilee hills"
+  },
+  {
+    "_id": "pg-cs8",
+    "id": "pg-cs8",
+    "restaurantId": "pg-r8",
+    "postsPerWeek": 5,
+    "focusCategories": ["healthy-eating", "millet-meals", "power-bowls", "fitness-community"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-13T19:30:00.000Z",
+    "theme": "fuelling hyderabad's fitness community with honest food"
+  },
+  {
+    "_id": "pg-cs9",
+    "id": "pg-cs9",
+    "restaurantId": "pg-r9",
+    "postsPerWeek": 5,
+    "focusCategories": ["modern-indian", "tasting-menu", "fine-dining", "chef-stories"],
+    "bestTime": "19:30",
+    "nextScheduledDate": "2026-06-12T19:30:00.000Z",
+    "theme": "reimagining india on a plate — where tradition meets the avant-garde"
+  }
+]

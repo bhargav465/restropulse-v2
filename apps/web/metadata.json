@@ -1,0 +1,9 @@
+{
+  "name": "RestroPulse",
+  "description": "AI-powered social media content creation and engagement framework for restaurants.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

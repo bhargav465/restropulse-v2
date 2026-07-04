@@ -1,0 +1,85 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        // -----------------------------------------------------------------------
+        // REMOTE: Azure App Service staging slot (apps/api)
+        //
+        // Prerequisites (one-time, staging only):
+        //   1. Set startup command on the staging slot:
+        //      az webapp config set \
+        //        --resource-group restropulse-prod-rg \
+        //        --name restropulse-prod-api \
+        //        --slot staging \
+        //        --startup-file "node --inspect=0.0.0.0:9229 dist/server.js"
+        //
+        //   2. Open SSH tunnel before hitting F5 (keep this terminal open):
+        //      az webapp create-remote-connection \
+        //        --resource-group restropulse-prod-rg \
+        //        --name restropulse-prod-api \
+        //        --slot staging \
+        //        --port 9229
+        // -----------------------------------------------------------------------
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "Attach: API (App Service Staging)",
+            "port": 9229,
+            "localRoot": "${workspaceFolder}/apps/api",
+            "remoteRoot": "/home/site/wwwroot",
+            "sourceMaps": true,
+            "skipFiles": ["<node_internals>/**"],
+            "restart": false,
+            "timeout": 30000
+        },
+        // -----------------------------------------------------------------------
+        // REMOTE: Azure Static Web App staging environment (apps/web)
+        //
+        // Prerequisites:
+        //   - Deploy a build with source maps enabled (vite.config.ts: build.sourcemap=true)
+        //     Source maps are now enabled -- deploy to staging to pick them up.
+        //   - Requires the "JavaScript Debugger" extension (bundled in VS Code >= 1.60)
+        // -----------------------------------------------------------------------
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Debug: SWA Frontend (Staging)",
+            "url": "https://victorious-plant-04bc9e400-staging.6.azurestaticapps.net",
+            "webRoot": "${workspaceFolder}/apps/web",
+            "sourceMapPathOverrides": {
+                "/assets/*": "${webRoot}/src/*"
+            },
+            "skipFiles": ["<node_internals>/**"]
+        },
+        // -----------------------------------------------------------------------
+        // LOCAL: apps/api (tsx --inspect)
+        //
+        // Run first: npm run dev:debug --filter=@restropulse/api
+        // Then hit F5 with this config selected to attach.
+        // -----------------------------------------------------------------------
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "Debug: API (Local)",
+            "port": 9229,
+            "localRoot": "${workspaceFolder}/apps/api",
+            "remoteRoot": "${workspaceFolder}/apps/api",
+            "sourceMaps": true,
+            "skipFiles": ["<node_internals>/**"],
+            "restart": true
+        },
+        // -----------------------------------------------------------------------
+        // LOCAL: apps/web (Vite dev server at localhost:3000)
+        //
+        // Run first: npm run dev --filter=@restropulse/web
+        // Then hit F5 to open a debug Chrome session against the Vite dev server.
+        // -----------------------------------------------------------------------
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Debug: Web (Local)",
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}/apps/web",
+            "skipFiles": ["<node_internals>/**"]
+        }
+    ]
+}

@@ -1,0 +1,361 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Deploy all services regardless of changed files
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.changes.outputs.web }}
+      api: ${{ steps.changes.outputs.api }}
+      publisher: ${{ steps.changes.outputs.publisher }}
+      content-engine: ${{ steps.changes.outputs.content-engine }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        uses: ./.github/actions/detect-changes
+
+  build:
+    name: Build
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch sensitive web vars from Key Vault
+        run: |
+          MAPS_KEY=$(az keyvault secret show \
+            --vault-name restropulse-prod-kv \
+            --name STAGING-WEB-GOOGLE-MAPS-API-KEY \
+            --query "value" -o tsv)
+          echo "::add-mask::$MAPS_KEY"
+          echo "VITE_GOOGLE_MAPS_API_KEY=$MAPS_KEY" >> $GITHUB_ENV
+
+          APPINSIGHTS=$(az keyvault secret show \
+            --vault-name restropulse-prod-kv \
+            --name STAGING-WEB-APPINSIGHTS-CONNECTION-STRING \
+            --query "value" -o tsv)
+          echo "::add-mask::$APPINSIGHTS"
+          echo "VITE_APPINSIGHTS_CONNECTION_STRING=$APPINSIGHTS" >> $GITHUB_ENV
+
+      # Build everything in the full monorepo so turbo's cache works correctly
+      # across all packages. Splitting the build (e.g. web-only then pruned) causes
+      # cache misses inside the pruned dir because the cache keys differ.
+      - name: Build all
+        run: npx turbo build --filter=!@restropulse/db-cli
+        env:
+          NODE_ENV: production
+          VITE_API_URL: ${{ vars.STAGING_API_URL }}/api
+          VITE_APP_URL: ${{ vars.STAGING_WEB_URL }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_RAZORPAY_KEY_ID: ${{ vars.VITE_RAZORPAY_KEY_ID }}
+          VITE_TELEMETRY_SAMPLE_RATE: ${{ vars.VITE_TELEMETRY_SAMPLE_RATE }}
+          # VITE_GOOGLE_MAPS_API_KEY and VITE_APPINSIGHTS_CONNECTION_STRING
+          # are injected via $GITHUB_ENV by the KV fetch step above
+
+      - name: Upload web artifact
+        if: inputs.force || needs.detect-changes.outputs.web == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: apps/web/dist/
+          retention-days: 3
+
+      # `turbo prune` produces a minimal monorepo subtree whose package.json +
+      # package-lock.json correctly list only the needed workspaces. Running
+      # `npm ci` inside it creates workspace symlinks that resolve @restropulse/*
+      # packages at runtime. We then copy the already-built dist/ outputs from
+      # the full repo into the pruned tree so the symlinks resolve immediately
+      # without re-building. The loop is keyed on what turbo prune included, so
+      # adding a new @restropulse/* dep just works.
+      - name: Prune for API deployment
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        run: >-
+          npx turbo prune
+          @restropulse/api
+          @restropulse/publisher
+          @restropulse/content-engine
+          --out-dir=pruned
+
+      # Run from repo root with --prefix so npm uses pruned/ as the install
+      # target rather than detecting the parent monorepo as the workspace root
+      # (which would hoist packages to the top-level node_modules instead).
+      - name: Install pruned dependencies
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        run: |
+          npm ci --prefix pruned --omit=dev --ignore-scripts
+          echo "pruned/node_modules package count: $(ls pruned/node_modules | wc -l)"
+
+      - name: Copy dist outputs into pruned tree
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        run: |
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            if [ -d "packages/$pkg_name/dist" ]; then
+              cp -r "packages/$pkg_name/dist/." "$pkg_dir/dist/"
+            fi
+          done
+          for app in api publisher content-engine; do
+            cp -r "apps/$app/dist/." "pruned/apps/$app/dist/"
+          done
+
+      # npm workspace packages are symlinks in node_modules/@restropulse/.
+      # The zip-mount deploy (WEBSITE_RUN_FROM_PACKAGE=1) needs real directories,
+      # not symlinks, so we materialize each workspace package into node_modules.
+      - name: Materialize workspace packages into node_modules
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        run: |
+          mkdir -p pruned/node_modules/@restropulse
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            target="pruned/node_modules/@restropulse/$pkg_name"
+            rm -rf "$target"
+            cp -r "$pkg_dir" "$target"
+          done
+
+      - name: Add WebJob run scripts
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        run: |
+          mkdir -p pruned/App_Data/jobs/continuous/publisher
+          cat > pruned/App_Data/jobs/continuous/publisher/run.sh << 'SCRIPT'
+          #!/bin/bash
+          node "$(dirname "$0")/../../../apps/publisher/dist/worker.js"
+          SCRIPT
+          chmod +x pruned/App_Data/jobs/continuous/publisher/run.sh
+
+          mkdir -p pruned/App_Data/jobs/continuous/content-engine
+          cat > pruned/App_Data/jobs/continuous/content-engine/run.sh << 'SCRIPT'
+          #!/bin/bash
+          node "$(dirname "$0")/../../../apps/content-engine/dist/worker.js"
+          SCRIPT
+          chmod +x pruned/App_Data/jobs/continuous/content-engine/run.sh
+
+      - name: Upload API bundle artifact
+        if: >-
+          inputs.force ||
+          needs.detect-changes.outputs.api == 'true' ||
+          needs.detect-changes.outputs.publisher == 'true' ||
+          needs.detect-changes.outputs.content-engine == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-bundle
+          path: pruned/
+          retention-days: 3
+
+  deploy-web-staging:
+    name: Deploy Web (Staging)
+    needs: [detect-changes, build]
+    if: inputs.force || needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download web artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web-dist/
+
+      # azure/static-web-apps-deploy does not support OIDC inputs directly.
+      # Login with OIDC first, then fetch the SWA deployment token via CLI
+      # so no long-lived secret needs to be stored in GitHub.
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get SWA deployment token
+        id: swa_token
+        run: |
+          token=$(az staticwebapp secrets list \
+            --name ${{ vars.AZURE_SWA_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$token"
+          echo "token=$token" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Azure Static Web Apps (staging environment)
+        uses: azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa_token.outputs.token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          skip_app_build: true
+          app_location: web-dist/
+          deployment_environment: staging
+
+  deploy-api-staging:
+    name: Deploy API + Workers (Staging)
+    needs: [detect-changes, build]
+    if: >-
+      inputs.force ||
+      needs.detect-changes.outputs.api == 'true' ||
+      needs.detect-changes.outputs.publisher == 'true' ||
+      needs.detect-changes.outputs.content-engine == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download API bundle artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: api-bundle
+          path: api-bundle/
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # All settings are slot-sticky so staging and production maintain
+      # separate configs (different DBs, secrets, URLs) across slot swaps.
+      # WEBSITE_RUN_FROM_PACKAGE=1 mounts the zip as a read-only filesystem,
+      # bypassing Oryx entirely. SCM_DO_BUILD_DURING_DEPLOYMENT=false is
+      # belt-and-suspenders.
+      - name: Configure staging slot for zip-mount deploy
+        run: |
+          az webapp config appsettings set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --slot-settings \
+              NODE_ENV=staging \
+              CORS_ORIGIN="${{ vars.STAGING_WEB_URL }}" \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              WEBSITE_NODE_DEFAULT_VERSION="~22" \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false
+
+      - name: Deploy to Azure App Service (staging slot)
+        run: |
+          rm -rf api-bundle/node_modules/@restropulse/api \
+                 api-bundle/node_modules/@restropulse/publisher \
+                 api-bundle/node_modules/@restropulse/content-engine
+          cd api-bundle && zip -r ../api-deploy.zip . && cd ..
+          az webapp deploy \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --src-path api-deploy.zip \
+            --type zip \
+            --clean true \
+            --async false
+          az webapp config set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --startup-file "node apps/api/dist/server.js"
+
+  smoke-test-api:
+    name: Smoke Test API
+    needs: deploy-api-staging
+    if: needs.deploy-api-staging.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/smoke-test.sh
+
+      - name: Smoke test API
+        run: bash scripts/smoke-test.sh api "${{ vars.STAGING_API_URL }}"
+
+  smoke-test-web:
+    name: Smoke Test Web
+    needs: deploy-web-staging
+    if: needs.deploy-web-staging.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/smoke-test.sh
+
+      - name: Smoke test Web
+        run: bash scripts/smoke-test.sh web "${{ vars.STAGING_WEB_URL }}"
+
+  tag-staging:
+    name: Tag Staging
+    needs: [smoke-test-api, smoke-test-web]
+    if: always() && !failure() && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create staging tag
+        run: |
+          TAG="staging/$(date -u +'%Y-%m-%d-%H%M%S')"
+          git tag "$TAG"
+          git push origin "$TAG"

@@ -1,0 +1,65 @@
+name: Detect Changes
+description: Path-based change detection for monorepo services
+
+outputs:
+  packages:
+    description: Whether shared packages changed
+    value: ${{ steps.filter.outputs.packages }}
+  web:
+    description: Whether web app or its dependencies changed
+    value: ${{ steps.combine.outputs.web }}
+  api:
+    description: Whether API app or its dependencies changed
+    value: ${{ steps.combine.outputs.api }}
+  publisher:
+    description: Whether publisher app or its dependencies changed
+    value: ${{ steps.combine.outputs.publisher }}
+  content-engine:
+    description: Whether content-engine app or its dependencies changed
+    value: ${{ steps.combine.outputs.content-engine }}
+  docs-only:
+    description: Whether only documentation files changed
+    value: ${{ steps.combine.outputs.docs-only }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect file changes
+      uses: AurorNZ/paths-filter@v5
+      id: filter
+      with:
+        filters: |
+          packages:
+            - 'packages/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'turbo.json'
+          web:
+            - 'apps/web/**'
+          api:
+            - 'apps/api/**'
+          publisher:
+            - 'apps/publisher/**'
+          content-engine:
+            - 'apps/content-engine/**'
+          src:
+            - 'apps/**'
+            - 'packages/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'turbo.json'
+            - '.github/workflows/**'
+            - '.github/actions/**'
+            - 'scripts/**'
+            - 'config/**'
+
+    - name: Combine with package changes
+      id: combine
+      shell: bash
+      run: |
+        echo "web=${{ steps.filter.outputs.web == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        echo "api=${{ steps.filter.outputs.api == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        echo "publisher=${{ steps.filter.outputs.publisher == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        echo "content-engine=${{ steps.filter.outputs.content-engine == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        # docs-only is true when no source/config/workflow files changed
+        echo "docs-only=${{ steps.filter.outputs.src == 'false' }}" >> "$GITHUB_OUTPUT"

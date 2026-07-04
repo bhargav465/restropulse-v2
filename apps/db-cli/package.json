@@ -1,0 +1,78 @@
+{
+  "name": "@restropulse/db-cli",
+  "version": "1.0.0",
+  "description": "Database setup, schema validation, and test data seeding CLI for RestroPulse",
+  "main": "dist/index.js",
+  "bin": {
+    "rp-db": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/bundle.js",
+    "build:exe": "npm run build && pkg dist/bundle.cjs -t node18-win-x64 -o dist/rp-db.exe",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "setup": "tsx src/index.ts setup",
+    "validate": "tsx src/index.ts validate",
+    "seed": "tsx src/index.ts seed",
+    "seed:clean": "tsx src/index.ts seed --clean",
+    "reset": "tsx src/index.ts reset",
+    "razorpay:setup": "tsx src/index.ts razorpay-setup",
+    "razorpay:setup:dry-run": "tsx src/index.ts razorpay-setup --dry-run",
+    "delete-account": "tsx src/index.ts delete-account",
+    "migrate": "tsx src/index.ts migrate",
+    "migrate:staging": "tsx src/index.ts --env staging migrate",
+    "migrate:prod": "tsx src/index.ts --env production migrate",
+    "setup:staging": "tsx src/index.ts --env staging setup",
+    "setup:prod": "tsx src/index.ts --env production setup",
+    "validate:staging": "tsx src/index.ts --env staging validate",
+    "validate:prod": "tsx src/index.ts --env production validate",
+    "seed:staging": "tsx src/index.ts --env staging seed",
+    "seed:clean:staging": "tsx src/index.ts --env staging seed --clean",
+    "seed:prod": "tsx src/index.ts --env production seed",
+    "seed:clean:prod": "tsx src/index.ts --env production seed --clean",
+    "reset:staging": "tsx src/index.ts --env staging reset",
+    "reset:prod": "tsx src/index.ts --env production reset",
+    "razorpay:setup:staging": "tsx src/index.ts --env staging razorpay-setup",
+    "razorpay:setup:staging:dry-run": "tsx src/index.ts --env staging razorpay-setup --dry-run",
+    "razorpay:setup:prod": "tsx src/index.ts --env production razorpay-setup",
+    "razorpay:setup:prod:dry-run": "tsx src/index.ts --env production razorpay-setup --dry-run",
+    "delete-account:staging": "tsx src/index.ts --env staging delete-account",
+    "delete-account:prod": "tsx src/index.ts --env production delete-account"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "src/data/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "keywords": [
+    "restropulse",
+    "database",
+    "cosmos-db",
+    "cli"
+  ],
+  "author": "RestroPulse Team",
+  "license": "MIT",
+  "dependencies": {
+    "@restropulse/db": "*",
+    "@restropulse/secrets": "*",
+    "@restropulse/shared": "*",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "mongodb": "^6.12.0",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "esbuild": "^0.24.2",
+    "pkg": "^5.8.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
