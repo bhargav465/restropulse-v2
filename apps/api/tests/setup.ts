@@ -45,15 +45,24 @@ beforeAll(async () => {
     process.env.PORT = '3002';
     process.env.CORS_ORIGIN = 'http://localhost:3000';
 
-    // Start in-memory MongoDB server
-    console.log('[Test Setup] Starting MongoDB Memory Server...');
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    console.log('[Test Setup] MongoDB Memory Server started:', mongoUri);
+    // Start in-memory MongoDB server.
+    // If the mongod binary cannot be provisioned (e.g. sandboxed/offline CI
+    // where fastdl.mongodb.org is unreachable), continue without a database so
+    // pure unit tests still run; DB-dependent tests will fail on connection.
+    let mongoAvailable = true;
+    try {
+        console.log('[Test Setup] Starting MongoDB Memory Server...');
+        mongoServer = await MongoMemoryServer.create();
+        const mongoUri = mongoServer.getUri();
+        console.log('[Test Setup] MongoDB Memory Server started:', mongoUri);
 
-    // Use in-memory MongoDB
-    process.env.MONGODB_URI = mongoUri;
-    process.env.MONGODB_DB_NAME = 'restropulse-test';
+        // Use in-memory MongoDB
+        process.env.MONGODB_URI = mongoUri;
+        process.env.MONGODB_DB_NAME = 'restropulse-test';
+    } catch (err) {
+        mongoAvailable = false;
+        console.warn('[Test Setup] MongoDB Memory Server unavailable — running without a database:', (err as Error).message);
+    }
 
     // Mock Encryption Key (64 hex characters)
     process.env.ENCRYPTION_KEY = '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
@@ -64,15 +73,17 @@ beforeAll(async () => {
     console.error = vi.fn();
     console.warn = vi.fn();
 
-    // Connect to in-memory test database
-    await connectDB();
-    console.log('[Test Setup] Connected to test database');
+    if (mongoAvailable) {
+        // Connect to in-memory test database
+        await connectDB();
+        console.log('[Test Setup] Connected to test database');
 
-    // Seed test data
-    console.log('[Test Setup] Seeding test data...');
-    const { seedTestData } = await import('./helpers/seedData.js');
-    await seedTestData();
-    console.log('[Test Setup] Test data seeded successfully');
+        // Seed test data
+        console.log('[Test Setup] Seeding test data...');
+        const { seedTestData } = await import('./helpers/seedData.js');
+        await seedTestData();
+        console.log('[Test Setup] Test data seeded successfully');
+    }
 }, 60000);
 
 afterAll(async () => {
@@ -81,7 +92,7 @@ afterAll(async () => {
     console.warn = originalConsoleWarn;
 
     console.log('[Test Teardown] Disconnecting from database...');
-    // Cleanup and disconnect
+    // Cleanup and disconnect (no-op when the memory server never started)
     await disconnectDB();
 
     // Stop in-memory MongoDB server
