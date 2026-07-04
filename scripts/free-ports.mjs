@@ -9,7 +9,7 @@ function getDefaultPorts() {
     const configPath = resolve(process.cwd(), 'config', 'ports.json');
     const raw = readFileSync(configPath, 'utf8');
     const config = JSON.parse(raw);
-    const ports = [config.web, config.api, config.publisher]
+    const ports = [config.web, config.api, config.publisher, config.storefront]
       .map((value) => Number.parseInt(String(value), 10))
       .filter((value) => Number.isInteger(value) && value > 0);
 
@@ -19,7 +19,7 @@ function getDefaultPorts() {
   } catch {
   }
 
-  return [3000, 3001, 3002];
+  return [3000, 3001, 3002, 3003];
 }
 
 function parseArgs() {

@@ -11,6 +11,10 @@ procs:
     cmd: ["cmd", "/c", "npm run dev"]
     cwd: apps/api
 
+  storefront:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/storefront
+
   publisher:
     cmd: ["cmd", "/c", "npm run dev"]
     cwd: apps/publisher
