@@ -22,6 +22,8 @@ import creditPackRoutes from './routes/credit-packs.js';
 import invoiceRoutes from './routes/invoices.js';
 import configRoutes from './routes/config.js';
 import accountRoutes from './routes/account.js';
+import storefrontRoutes from './routes/storefront.js';
+import adminOrderingRoutes from './routes/admin-ordering.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,6 +151,9 @@ app.use('/api/credit-packs', creditPackRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/account', accountRoutes);
+// Online ordering (v1): public storefront + merchant admin
+app.use('/api/storefront/:slug', storefrontRoutes);
+app.use('/api/admin/ordering', adminOrderingRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).
 // Allows the single ngrok tunnel to serve both API routes and placeholder media
