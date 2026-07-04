@@ -4,6 +4,8 @@
 // the monorepo (web, api, publisher, content-engine, db-cli).
 // -------------------------------------------------------
 
+import type { RestaurantOrderingSettings } from './ordering.js';
+
 // ----- Enums / Literal Unions -----
 
 export type SubscriptionTier = 'STARTER' | 'GROWTH' | 'PREMIUM';
@@ -193,6 +195,13 @@ export interface Restaurant {
    * via Perplexity Sonar image search. Used as img2img reference in AI media generation.
    */
   dishImages?: Record<string, string[]>;
+  // ----- Online ordering (v1, additive) -----
+  /** URL slug for the public storefront, e.g. /api/storefront/:slug. Unique. */
+  slug?: string;
+  /** Whether the storefront is currently accepting orders. */
+  storeOpen?: boolean;
+  /** Ordering configuration: tax rate, delivery fee/min order, enabled order types. */
+  ordering?: RestaurantOrderingSettings;
 }
 
 export interface PostStats {
@@ -529,3 +538,4 @@ export type { TimingConstraintConfig } from './approval-deadlines.js';
 
 export * from './cost-events.js';
 export * from './media-jobs.js';
+export * from './ordering.js';
