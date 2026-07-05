@@ -10,6 +10,8 @@ interface ImportMetaEnv {
     readonly VITE_FIREBASE_APP_ID: string;
     /** 'true' = static demo preview (fixtures-backed API, dummy login). */
     readonly VITE_DEMO_MODE?: string;
+    /** 'v2' = render the alternative bucketed-sidebar admin shell (deployed at /admin-v2/). */
+    readonly VITE_ADMIN_SHELL?: string;
 }
 
 interface ImportMeta {

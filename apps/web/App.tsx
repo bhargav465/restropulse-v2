@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import InstagramCallback from './components/InstagramCallback';
 import Onboarding from './components/Onboarding';
 import Ordering from './components/ordering/Ordering';
+import ShellV2 from './components/v2/ShellV2';
 import { ViewState, Restaurant, User, Post, FeatureFlags, Platform } from '@restropulse/shared';
 import { authAPI, restaurantAPI, postsAPI, configAPI } from './api';
 import { trackPageView, browserEvents } from '@restropulse/telemetry/browser';
@@ -20,6 +21,10 @@ function getUserInitials(name: string): string {
 }
 
 const App: React.FC = () => {
+    // V2 admin shell flag — read at render time so default builds (flag unset)
+    // behave exactly as before and tests can stub the env value.
+    const adminShellV2 = import.meta.env.VITE_ADMIN_SHELL === 'v2';
+
     const [currentView, setCurrentView] = useState<ViewState>('LOGIN');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [restaurantData, setRestaurantData] = useState<Restaurant | null>(null);
@@ -325,6 +330,22 @@ const App: React.FC = () => {
 
     return (
         <ErrorBoundary>
+            {adminShellV2 && restaurantData ? (
+                /* Alternative bucketed-sidebar shell (VITE_ADMIN_SHELL=v2 builds only). */
+                <ShellV2
+                    restaurantData={restaurantData}
+                    userInitials={getUserInitials(userData?.name || '')}
+                    featureFlags={featureFlags}
+                    metaConnected={restaurantData.integrations?.instagram || false}
+                    instagramEnabled={instagramEnabled}
+                    facebookEnabled={facebookEnabled}
+                    onCreatePost={restaurantData.integrations?.instagram ? () => setIsAdhocModalOpen(true) : undefined}
+                    onConnectInstagram={handleConnectInstagram}
+                    onProfileOpen={() => setIsProfileOpen(true)}
+                    onRefreshRestaurant={refreshRestaurantData}
+                    refreshKey={refreshKey}
+                />
+            ) : (
             <Layout
                 currentView={currentView}
                 setView={navigateTo}
@@ -338,6 +359,7 @@ const App: React.FC = () => {
             >
                 {renderView()}
             </Layout>
+            )}
 
             {/* Profile Sheet */}
             {restaurantData && (

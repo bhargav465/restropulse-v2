@@ -3,6 +3,7 @@ name: Deploy Demo (GitHub Pages)
 # Publishes the static demo preview (VITE_DEMO_MODE=true, no backend):
 #   - storefront at https://<user>.github.io/restropulse-v2/
 #   - merchant dashboard (admin) at https://<user>.github.io/restropulse-v2/admin/
+#   - merchant dashboard v2 shell at https://<user>.github.io/restropulse-v2/admin-v2/
 
 on:
   push:
@@ -45,12 +46,22 @@ jobs:
         env:
           VITE_DEMO_MODE: "true"
           VITE_API_URL: /api
-      - name: Assemble site (storefront at root, admin under /admin) + SPA fallbacks + nojekyll
+      - name: Build demo admin dashboard v2 shell (under /admin-v2/)
+        run: npx vite build --base=/restropulse-v2/admin-v2/ --outDir dist-demo-v2
+        working-directory: apps/web
+        env:
+          VITE_DEMO_MODE: "true"
+          VITE_ADMIN_SHELL: "v2"
+          VITE_API_URL: /api
+      - name: Assemble site (storefront at root, admin under /admin, v2 under /admin-v2) + SPA fallbacks + nojekyll
         run: |
           mkdir -p apps/storefront/dist/admin
           cp -R apps/web/dist-demo/. apps/storefront/dist/admin/
+          mkdir -p apps/storefront/dist/admin-v2
+          cp -R apps/web/dist-demo-v2/. apps/storefront/dist/admin-v2/
           cp apps/storefront/dist/index.html apps/storefront/dist/404.html
           cp apps/storefront/dist/admin/index.html apps/storefront/dist/admin/404.html
+          cp apps/storefront/dist/admin-v2/index.html apps/storefront/dist/admin-v2/404.html
           touch apps/storefront/dist/.nojekyll
       - name: Push to gh-pages
         run: |
@@ -59,5 +70,5 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "github-actions"
           git add -A
-          git commit -qm "deploy: storefront + admin demo ($GITHUB_SHA)"
+          git commit -qm "deploy: storefront + admin + admin-v2 demo ($GITHUB_SHA)"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
