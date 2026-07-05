@@ -10,6 +10,7 @@ import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstagramCallback from './components/InstagramCallback';
 import Onboarding from './components/Onboarding';
+import Ordering from './components/ordering/Ordering';
 import { ViewState, Restaurant, User, Post, FeatureFlags, Platform } from '@restropulse/shared';
 import { authAPI, restaurantAPI, postsAPI, configAPI } from './api';
 import { trackPageView, browserEvents } from '@restropulse/telemetry/browser';
@@ -238,6 +239,8 @@ const App: React.FC = () => {
                 return <Inputs restaurantData={restaurantData} onRefresh={refreshRestaurantData} />;
             case 'STRATEGY':
                 return <Strategy restaurantData={restaurantData} instagramConnected={instagramConnected} onConnectInstagram={handleConnectInstagram} cycleApprovalBufferMins={featureFlags?.cycleApprovalBufferMins} instagramEnabled={instagramEnabled} />;
+            case 'ORDERING':
+                return <Ordering restaurantData={restaurantData} />;
             default:
                 return <Dashboard setView={navigateTo} restaurantData={restaurantData} userName={userData?.name} />;
         }
@@ -249,6 +252,7 @@ const App: React.FC = () => {
             case 'STUDIO': return 'Content Studio';
             case 'INPUTS': return 'Updates';
             case 'STRATEGY': return 'Strategy';
+            case 'ORDERING': return 'Ordering';
             default: return 'RestroPulse';
         }
     };

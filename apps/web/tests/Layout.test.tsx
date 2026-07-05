@@ -49,6 +49,14 @@ describe('Layout Component', () => {
         expect(screen.getByText('Studio')).toBeInTheDocument();
         expect(screen.getByText('Updates')).toBeInTheDocument();
         expect(screen.getByText('Strategy')).toBeInTheDocument();
+        expect(screen.getByText('Ordering')).toBeInTheDocument();
+    });
+
+    it('should call setView when Ordering nav item is clicked', () => {
+        render(<Layout {...defaultProps}>{mockChildren}</Layout>);
+        const orderingButton = screen.getByText('Ordering').closest('button');
+        fireEvent.click(orderingButton!);
+        expect(mockSetView).toHaveBeenCalledWith('ORDERING');
     });
 
     it('should highlight the active navigation item', () => {

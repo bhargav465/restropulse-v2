@@ -56,7 +56,7 @@ export type TokenStatus = 'valid' | 'expiring_soon' | 'expired';
 
 export type EmailVerificationStatus = 'idle' | 'sending' | 'sent' | 'link_ready' | 'verifying' | 'verified' | 'error';
 
-export type ViewState = 'LOGIN' | 'ONBOARDING' | 'DASHBOARD' | 'STUDIO' | 'INPUTS' | 'STRATEGY';
+export type ViewState = 'LOGIN' | 'ONBOARDING' | 'DASHBOARD' | 'STUDIO' | 'INPUTS' | 'STRATEGY' | 'ORDERING';
 
 export type InstagramConnectionError =
   | 'NO_PAGES_FOUND'

@@ -90,7 +90,9 @@ describe('Inputs Component', () => {
             render(<Inputs restaurantData={mockRestaurant} onRefresh={mockOnRefresh} />);
 
             expect(screen.getByText(/Last updated:/i)).toBeInTheDocument();
-            expect(screen.getByText(/1\/15\/2024/i)).toBeInTheDocument();
+            // Timezone/locale-robust: compare against the component's own formatting
+            const expected = new Date('2024-01-15').toLocaleDateString();
+            expect(screen.getByText((content) => content.includes(expected))).toBeInTheDocument();
         });
 
         it('should show message when no active offers', () => {

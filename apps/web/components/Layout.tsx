@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, PenTool, Lightbulb, Megaphone, Plus, Bell } from 'lucide-react';
+import { Home, PenTool, Lightbulb, Megaphone, Plus, Bell, UtensilsCrossed } from 'lucide-react';
 import { ViewState, FeatureFlags } from '@restropulse/shared';
 
 interface LayoutProps {
@@ -92,6 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, title, 
               </div>
           )}
           <NavItem view="STRATEGY" icon={Lightbulb} label="Strategy" />
+          <NavItem view="ORDERING" icon={UtensilsCrossed} label="Ordering" />
         </div>
       </nav>
     </div>

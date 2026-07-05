@@ -1,4 +1,5 @@
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform } from '@restropulse/shared';
+import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
 
@@ -571,5 +572,213 @@ export const accountManagerAPI = {
             `/restaurant/account-managers?${params.toString()}`
         );
         return response.data!;
+    },
+};
+
+// ============================================
+// Ordering Admin API (merchant JWT, /api/admin/ordering)
+// ============================================
+
+export interface MenuCsvImportReport {
+    created: number;
+    updated: number;
+    failed: number;
+    errors: Array<{ row: number; errors: string[] }>;
+}
+
+/** Item create/update payload — variant/addon ids are optional (server generates them). */
+export type MenuItemUpsertInput = Omit<Partial<OrderingMenuItem>, 'variants' | 'addons'> & {
+    variants?: Array<{ id?: string; name: string; price: number }>;
+    addons?: Array<{ id?: string; name: string; price: number }>;
+};
+
+export interface ContentDraftResponse {
+    draft: StorefrontContent;
+    publishedVersion: number | null;
+    versions: Array<{ version: number; publishedAt: string }>;
+}
+
+export interface OrderingAnalyticsSummary {
+    from: string;
+    to: string;
+    events: Array<{ name: string; count: number; uniqueSessions: number }>;
+}
+
+export const orderingAdminAPI = {
+    // ----- Menu: categories -----
+    getCategories: async (): Promise<MenuCategory[]> => {
+        const res = await fetchAPI<ApiResponse<MenuCategory[]>>('/admin/ordering/menu/categories');
+        return res.data ?? [];
+    },
+
+    createCategory: async (data: { name: string; description?: string; sortOrder?: number }): Promise<MenuCategory> => {
+        const res = await fetchAPI<ApiResponse<MenuCategory>>('/admin/ordering/menu/categories', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return res.data!;
+    },
+
+    updateCategory: async (id: string, data: Partial<Pick<MenuCategory, 'name' | 'description' | 'sortOrder'>>): Promise<MenuCategory> => {
+        const res = await fetchAPI<ApiResponse<MenuCategory>>(`/admin/ordering/menu/categories/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+        return res.data!;
+    },
+
+    deleteCategory: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse>(`/admin/ordering/menu/categories/${id}`, { method: 'DELETE' });
+    },
+
+    reorderCategories: async (orderedIds: string[]): Promise<MenuCategory[]> => {
+        const res = await fetchAPI<ApiResponse<MenuCategory[]>>('/admin/ordering/menu/categories/reorder', {
+            method: 'PUT',
+            body: JSON.stringify({ orderedIds }),
+        });
+        return res.data ?? [];
+    },
+
+    // ----- Menu: items -----
+    getItems: async (): Promise<OrderingMenuItem[]> => {
+        const res = await fetchAPI<ApiResponse<OrderingMenuItem[]>>('/admin/ordering/menu/items');
+        return res.data ?? [];
+    },
+
+    createItem: async (data: MenuItemUpsertInput & { categoryId: string; name: string; price: number }): Promise<OrderingMenuItem> => {
+        const res = await fetchAPI<ApiResponse<OrderingMenuItem>>('/admin/ordering/menu/items', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return res.data!;
+    },
+
+    updateItem: async (id: string, data: MenuItemUpsertInput): Promise<OrderingMenuItem> => {
+        const res = await fetchAPI<ApiResponse<OrderingMenuItem>>(`/admin/ordering/menu/items/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+        return res.data!;
+    },
+
+    deleteItem: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse>(`/admin/ordering/menu/items/${id}`, { method: 'DELETE' });
+    },
+
+    setItemAvailability: async (id: string, availability: MenuItemAvailability): Promise<OrderingMenuItem> => {
+        const res = await fetchAPI<ApiResponse<OrderingMenuItem>>(`/admin/ordering/menu/items/${id}/availability`, {
+            method: 'PATCH',
+            body: JSON.stringify({ availability }),
+        });
+        return res.data!;
+    },
+
+    reorderItems: async (categoryId: string, orderedIds: string[]): Promise<void> => {
+        await fetchAPI<ApiResponse>('/admin/ordering/menu/items/reorder', {
+            method: 'PUT',
+            body: JSON.stringify({ categoryId, orderedIds }),
+        });
+    },
+
+    // CSV bulk import (multipart — bypasses the JSON fetch helper)
+    importMenuCsv: async (file: File): Promise<MenuCsvImportReport> => {
+        const token = localStorage.getItem('rp_token');
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch(`${API_BASE_URL}/admin/ordering/menu/import`, {
+            method: 'POST',
+            headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+            body: formData,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(body.message || body.error || `HTTP ${response.status}`);
+        }
+        return body.data as MenuCsvImportReport;
+    },
+
+    // ----- Orders -----
+    getOrders: async (filters?: { status?: OrderStatus; from?: string; to?: string; limit?: number }): Promise<Order[]> => {
+        const params = new URLSearchParams();
+        if (filters?.status) params.set('status', filters.status);
+        if (filters?.from) params.set('from', filters.from);
+        if (filters?.to) params.set('to', filters.to);
+        if (filters?.limit) params.set('limit', String(filters.limit));
+        const qs = params.toString();
+        const res = await fetchAPI<ApiResponse<Order[]>>(`/admin/ordering/orders${qs ? `?${qs}` : ''}`);
+        return res.data ?? [];
+    },
+
+    updateOrderStatus: async (id: string, status: OrderStatus, note?: string): Promise<Order> => {
+        const res = await fetchAPI<ApiResponse<Order>>(`/admin/ordering/orders/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status, ...(note ? { note } : {}) }),
+        });
+        return res.data!;
+    },
+
+    setStoreOpen: async (open: boolean): Promise<boolean> => {
+        const res = await fetchAPI<ApiResponse<{ storeOpen: boolean }>>('/admin/ordering/store', {
+            method: 'PATCH',
+            body: JSON.stringify({ open }),
+        });
+        return res.data?.storeOpen === true;
+    },
+
+    // ----- Reservations -----
+    getReservations: async (filters?: { status?: ReservationStatus; date?: string }): Promise<Reservation[]> => {
+        const params = new URLSearchParams();
+        if (filters?.status) params.set('status', filters.status);
+        if (filters?.date) params.set('date', filters.date);
+        const qs = params.toString();
+        const res = await fetchAPI<ApiResponse<Reservation[]>>(`/admin/ordering/reservations${qs ? `?${qs}` : ''}`);
+        return res.data ?? [];
+    },
+
+    decideReservation: async (id: string, status: Extract<ReservationStatus, 'confirmed' | 'declined' | 'no_show'>): Promise<Reservation> => {
+        const res = await fetchAPI<ApiResponse<Reservation>>(`/admin/ordering/reservations/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        });
+        return res.data!;
+    },
+
+    // ----- Site content (draft / publish / rollback) -----
+    getContentDraft: async (): Promise<ContentDraftResponse> => {
+        const res = await fetchAPI<ApiResponse<ContentDraftResponse>>('/admin/ordering/content/draft');
+        return res.data!;
+    },
+
+    saveContentDraft: async (draft: StorefrontContent): Promise<StorefrontContent> => {
+        const res = await fetchAPI<ApiResponse<{ draft: StorefrontContent }>>('/admin/ordering/content/draft', {
+            method: 'PUT',
+            body: JSON.stringify({ draft }),
+        });
+        return res.data!.draft;
+    },
+
+    publishContent: async (): Promise<number> => {
+        const res = await fetchAPI<ApiResponse<{ publishedVersion: number }>>('/admin/ordering/content/publish', {
+            method: 'POST',
+        });
+        return res.data!.publishedVersion;
+    },
+
+    rollbackContent: async (version?: number): Promise<{ restoredFromVersion: number; publishedVersion: number }> => {
+        const res = await fetchAPI<ApiResponse<{ restoredFromVersion: number; publishedVersion: number }>>('/admin/ordering/content/rollback', {
+            method: 'POST',
+            body: JSON.stringify(version !== undefined ? { version } : {}),
+        });
+        return res.data!;
+    },
+
+    // ----- Analytics (funnel) -----
+    getAnalyticsSummary: async (from?: string, to?: string): Promise<OrderingAnalyticsSummary> => {
+        const params = new URLSearchParams();
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        const qs = params.toString();
+        const res = await fetchAPI<ApiResponse<OrderingAnalyticsSummary>>(`/admin/ordering/analytics/summary${qs ? `?${qs}` : ''}`);
+        return res.data!;
     },
 };
