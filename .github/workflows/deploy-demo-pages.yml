@@ -1,0 +1,49 @@
+name: Deploy Storefront Demo (GitHub Pages)
+
+on:
+  push:
+    branches: [feat/monorepo-import, main]
+    paths:
+      - "apps/storefront/**"
+      - "packages/**"
+      - ".github/workflows/deploy-demo-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-demo
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build demo storefront
+        run: npx vite build --base=/restropulse-v2/
+        working-directory: apps/storefront
+        env:
+          VITE_DEMO_MODE: "true"
+          VITE_API_URL: /api
+      - name: SPA fallback for Pages
+        run: cp apps/storefront/dist/index.html apps/storefront/dist/404.html
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/storefront/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

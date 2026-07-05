@@ -93,7 +93,7 @@ const NotFoundPage: React.FC = () => (
 );
 
 const App: React.FC = () => (
-  <BrowserRouter>
+  <BrowserRouter basename={import.meta.env.BASE_URL}>
     <Routes>
       {/* DEMO MODE: the root path jumps straight to the demo storefront */}
       <Route path="/" element={isDemoMode() ? <Navigate to={`/${DEMO_SLUG}`} replace /> : <LandingPage />} />
