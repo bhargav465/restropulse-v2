@@ -1,0 +1,32 @@
+procs:
+  env-editor:
+    cmd: ["cmd", "/c", "node scripts/env-editor.mjs"]
+    cwd: .
+
+  web:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/web
+
+  api:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/api
+
+  storefront:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/storefront
+
+  publisher:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/publisher
+
+  content-engine:
+    cmd: ["cmd", "/c", "npm run dev"]
+    cwd: apps/content-engine
+
+  webhook-tunnel:
+    cmd: ["cmd", "/c", "node scripts/start-ngrok.mjs"]
+    cwd: .
+
+  asset-tunnel:
+    cmd: ["cmd", "/c", "node scripts/start-asset-tunnel.mjs"]
+    cwd: .

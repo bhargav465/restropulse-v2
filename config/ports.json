@@ -1,0 +1,7 @@
+{
+    "web": 3000,
+    "api": 3001,
+    "publisher": 3002,
+    "storefront": 3003,
+    "strictInDevelopment": true
+}

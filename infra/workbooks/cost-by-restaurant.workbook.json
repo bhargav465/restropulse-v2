@@ -1,0 +1,85 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# RestroPulse - AI Cost by Restaurant\n\nStacked-bar of LLM / image / video / sonar costs per restaurant per month. Source: Application Insights `customEvents` table where `name == 'ai.request.completed'`.\n\nUse the time-range parameter at the top to scope the window. Costs are denormalized at write time -- if pricing tables change, historical rows reflect the rate at the time of the call."
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "tr-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": { "durationMs": 2592000000 },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 },
+                { "durationMs": 7776000000 }
+              ]
+            }
+          }
+        ]
+      },
+      "name": "params"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend restaurantId = tostring(customDimensions.restaurantId)\n| extend surface = tostring(customDimensions.surface)\n| extend costUsd = todouble(customDimensions.costUsd)\n| where isnotempty(restaurantId)\n| summarize TotalUsd = round(sum(costUsd), 4) by restaurantId, surface, MonthBin = bin(timestamp, 30d)\n| order by MonthBin desc, TotalUsd desc",
+        "size": 0,
+        "title": "Per-restaurant monthly cost by surface",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "restaurantId",
+          "yAxis": ["TotalUsd"],
+          "group": "surface",
+          "createOtherGroup": 0,
+          "showLegend": true
+        }
+      },
+      "name": "cost-by-restaurant-stacked"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend restaurantId = tostring(customDimensions.restaurantId)\n| extend costUsd = todouble(customDimensions.costUsd)\n| where isnotempty(restaurantId)\n| summarize TotalUsd = round(sum(costUsd), 4), CallCount = count() by restaurantId\n| order by TotalUsd desc",
+        "size": 0,
+        "title": "Restaurant leaderboard (total cost + call count)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "leaderboard"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend surface = tostring(customDimensions.surface)\n| extend costUsd = todouble(customDimensions.costUsd)\n| summarize TotalUsd = round(sum(costUsd), 4) by surface, bin(timestamp, 1d)\n| render timechart",
+        "size": 0,
+        "title": "Platform-wide daily cost by surface",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "platform-trend"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

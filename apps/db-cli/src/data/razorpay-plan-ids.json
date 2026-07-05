@@ -1,0 +1,44 @@
+{
+  "development": {
+    "plan-starter-v1": {
+      "monthly": "plan_SZQe54UnuEsAh8",
+      "annual": "plan_SZQe5WYXN5UHDB"
+    },
+    "plan-growth-v1": {
+      "monthly": "plan_SZQe6F7Zrm2lKz",
+      "annual": "plan_SZQe7GOEnt1J9z"
+    },
+    "plan-premium-v1": {
+      "monthly": "plan_SZQe80azDmwHf5",
+      "annual": "plan_SZQe9gCHnyEcfW"
+    }
+  },
+  "staging": {
+    "plan-starter-v1": {
+      "monthly": "",
+      "annual": ""
+    },
+    "plan-growth-v1": {
+      "monthly": "",
+      "annual": ""
+    },
+    "plan-premium-v1": {
+      "monthly": "",
+      "annual": ""
+    }
+  },
+  "production": {
+    "plan-starter-v1": {
+      "monthly": "",
+      "annual": ""
+    },
+    "plan-growth-v1": {
+      "monthly": "",
+      "annual": ""
+    },
+    "plan-premium-v1": {
+      "monthly": "",
+      "annual": ""
+    }
+  }
+}

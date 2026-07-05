@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  /* Storefront theme variables — overridden per-restaurant from published content */
+  --sf-primary: #ea580c;
+  --sf-secondary: #1e293b;
+  --sf-accent: #f59e0b;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

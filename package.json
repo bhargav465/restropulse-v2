@@ -1,23 +1,58 @@
 {
-  "name": "restropulse-v2",
-  "version": "0.1.0",
+  "name": "restropulse",
+  "version": "1.0.0",
   "private": true,
+  "description": "AI-powered social media management platform for restaurants",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "^14.2.35",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "replicate": "^1.4.0"
+    "// --- App ---": "",
+    "ports:check": "node scripts/free-ports.mjs --check",
+    "ports:free": "node scripts/free-ports.mjs --force",
+    "ports:check:dev": "node scripts/free-ports.mjs --check",
+    "ports:free:dev": "node scripts/free-ports.mjs --force",
+    "dev": "npm run ports:free:dev && npm run build:packages && mprocs",
+    "dev:test": "npm run env:test && npm run dev",
+    "dev:prod": "npm run env:prod && npm run dev",
+    "build:packages": "turbo run build --filter=!@restropulse/web --filter=!@restropulse/storefront --filter=!@restropulse/api --filter=!@restropulse/publisher --filter=!@restropulse/content-engine --filter=!@restropulse/db-cli",
+    "ngrok": "node scripts/start-ngrok.mjs",
+    "ngrok:assets": "node scripts/start-asset-tunnel.mjs",
+    "env:test": "node scripts/set-env-profile.mjs test",
+    "env:prod": "node scripts/set-env-profile.mjs prod",
+    "env:show": "node scripts/set-env-profile.mjs show",
+    "build": "turbo build",
+    "test": "turbo test",
+    "test:unit": "turbo run test:unit --filter=@restropulse/api --filter=@restropulse/web --filter=@restropulse/publisher --filter=@restropulse/content-engine",
+    "test:coverage": "node scripts/run-coverage-all.mjs",
+    "generate": "npm run test:generate --workspace=@restropulse/content-engine --",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:integration:kv:dev": "node scripts/test-integration.mjs kv:dev",
+    "test:integration:kv:staging": "node scripts/test-integration.mjs kv:staging",
+    "test:integration:kv:prod": "node scripts/test-integration.mjs kv:prod",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "clean": "turbo clean && rimraf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "// --- AI Tooling ---": "",
+    "setup:dev": "node scripts/setup-dev.mjs",
+    "setup:mcp": "node scripts/setup-mcp.mjs",
+    "setup:rtk": "node scripts/setup-rtk.mjs",
+    "reindex": "node scripts/reindex-rag.mjs",
+    "playground": "npm run playground --workspace=@restropulse/content-engine --",
+    "prepare": "husky",
+    "env:edit": "node scripts/env-editor.mjs"
   },
   "devDependencies": {
-    "@types/node": "20.14.10",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "typescript": "5.5.3"
-  }
+    "@clack/prompts": "^0.9.1",
+    "@playwright/test": "^1.59.1",
+    "husky": "^9.1.7",
+    "prettier": "^3.2.0",
+    "turbo": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "npm@10.0.0"
 }

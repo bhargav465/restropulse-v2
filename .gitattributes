@@ -1,0 +1,7 @@
+# Ensure shell scripts always use LF line endings on checkout (Windows-safe)
+*.sh    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+
+# Default: normalize all text files to LF in the repo
+*       text=auto

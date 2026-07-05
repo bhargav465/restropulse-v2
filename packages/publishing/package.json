@@ -1,0 +1,32 @@
+{
+  "name": "@restropulse/publishing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@restropulse/db": "*",
+    "@restropulse/shared": "*",
+    "@restropulse/telemetry": "*",
+    "axios": "^1.13.2",
+    "form-data": "^4.0.5",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "~5.8.2"
+  }
+}

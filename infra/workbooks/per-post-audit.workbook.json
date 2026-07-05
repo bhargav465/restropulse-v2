@@ -1,0 +1,87 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# RestroPulse - Per-Post API Call Audit\n\nDrill into a single post's AI generation chain. Enter a `postId` and see every API call emitted for that post: surface (LLM / image / video / sonar / calendar), step, model, tokens, cost, latency. Source: Application Insights `customEvents` where `name == 'ai.request.completed'`."
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "tr-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": { "durationMs": 604800000 },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 }
+              ]
+            }
+          },
+          {
+            "id": "post-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "PostId",
+            "label": "Post id",
+            "type": 1,
+            "isRequired": true,
+            "value": ""
+          }
+        ]
+      },
+      "name": "params"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend postId = tostring(customDimensions.postId)\n| where postId == '{PostId}'\n| extend surface = tostring(customDimensions.surface)\n| extend step = tostring(customDimensions.step)\n| extend operation = tostring(customDimensions.operation)\n| extend model = tostring(customDimensions.model)\n| extend inputTokens = toint(customDimensions.inputTokens)\n| extend outputTokens = toint(customDimensions.outputTokens)\n| extend costUsd = round(todouble(customDimensions.costUsd), 6)\n| extend durationMs = toint(customDimensions.durationMs)\n| project timestamp, surface, step, operation, model, inputTokens, outputTokens, costUsd, durationMs\n| order by timestamp asc",
+        "size": 0,
+        "title": "Call timeline for postId",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "post-timeline"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend postId = tostring(customDimensions.postId)\n| where postId == '{PostId}'\n| extend costUsd = todouble(customDimensions.costUsd)\n| extend surface = tostring(customDimensions.surface)\n| summarize TotalUsd = round(sum(costUsd), 6), Calls = count() by surface\n| order by TotalUsd desc",
+        "size": 0,
+        "title": "Cost breakdown by surface for this post",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      },
+      "name": "post-cost-pie"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where timestamp {TimeRange}\n| where name == 'ai.request.completed'\n| extend postId = tostring(customDimensions.postId)\n| where postId == '{PostId}'\n| extend durationMs = toint(customDimensions.durationMs)\n| extend step = tostring(customDimensions.step)\n| project timestamp, step, durationMs\n| render barchart kind=unstacked",
+        "size": 0,
+        "title": "Latency per step (ms)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "post-latency"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
