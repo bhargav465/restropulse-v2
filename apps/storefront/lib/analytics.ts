@@ -3,7 +3,8 @@
  * Fires fire-and-forget events to POST /api/storefront/:slug/events with a
  * sessionId persisted in localStorage.
  */
-import { getApiBaseUrl } from '../api';
+import { getApiBaseUrl } from './api-core';
+import { isDemoMode } from './demo';
 
 const SESSION_KEY = 'sf_session_id';
 
@@ -44,6 +45,11 @@ export function track(
   customerId?: string,
 ): void {
   if (!slug) return;
+  if (isDemoMode()) {
+    // DEMO MODE: no backend — analytics events become console.debug no-ops.
+    console.debug(`[demo] analytics event: ${name}`, { slug, sessionId: getSessionId(), ...(payload ?? {}) });
+    return;
+  }
   try {
     void fetch(`${getApiBaseUrl()}/storefront/${encodeURIComponent(slug)}/events`, {
       method: 'POST',

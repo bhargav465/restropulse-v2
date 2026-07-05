@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, useParams, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useParams, useLocation } from 'react-router-dom';
 import { StorefrontProvider, useStorefront } from './store/StorefrontContext';
 import { AuthProvider } from './store/AuthContext';
 import { CartProvider } from './store/CartContext';
 import Layout from './components/Layout';
 import { ErrorState, EmptyState } from './components/States';
 import { track } from './lib/analytics';
+import { DEMO_SLUG, isDemoMode } from './lib/demo';
 import HomePage from './pages/HomePage';
 import MenuPage from './pages/MenuPage';
 import CartPage from './pages/CartPage';
@@ -94,7 +95,8 @@ const NotFoundPage: React.FC = () => (
 const App: React.FC = () => (
   <BrowserRouter>
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      {/* DEMO MODE: the root path jumps straight to the demo storefront */}
+      <Route path="/" element={isDemoMode() ? <Navigate to={`/${DEMO_SLUG}`} replace /> : <LandingPage />} />
       <Route path="/:slug" element={<StorefrontShell />}>
         <Route index element={<HomePage />} />
         <Route path="menu" element={<MenuPage />} />

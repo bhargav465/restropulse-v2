@@ -2,6 +2,12 @@
  * Storefront API client — all calls are scoped to /api/storefront/:slug.
  * Follows apps/web/api.ts conventions (thin fetch wrapper + grouped API objects).
  * Customer JWT is kept in memory and mirrored to localStorage per slug.
+ *
+ * DEMO MODE: when built with VITE_DEMO_MODE=true the exported API objects are
+ * swapped for the fixtures-backed implementations in demo-api.ts (no network,
+ * no backend). Consumers keep importing from this module either way — the
+ * `typeof real*` annotations below guarantee both clients expose the exact
+ * same interface.
  */
 import type {
   ApiResponse,
@@ -12,70 +18,21 @@ import type {
   PublicCustomer,
 } from '@restropulse/shared';
 import type { OrderTrackingInfo, PublicMenuCategory, StorefrontConfig } from './types';
+import { ApiError, clearToken, getApiBaseUrl, getToken, setToken, storeCustomer } from './lib/api-core';
+import { isDemoMode } from './lib/demo';
+import * as demoApi from './demo-api';
 
-export function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_URL || '/api';
-}
-
-export class ApiError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
-}
-
-// ----- Customer token store (memory + localStorage) -----
-
-const tokenMemory = new Map<string, string>();
-
-function tokenKey(slug: string): string {
-  return `sf_token_${slug}`;
-}
-
-function customerKey(slug: string): string {
-  return `sf_customer_${slug}`;
-}
-
-export function getToken(slug: string): string | null {
-  const inMemory = tokenMemory.get(slug);
-  if (inMemory) return inMemory;
-  try {
-    const stored = localStorage.getItem(tokenKey(slug));
-    if (stored) tokenMemory.set(slug, stored);
-    return stored;
-  } catch {
-    return null;
-  }
-}
-
-export function setToken(slug: string, token: string): void {
-  tokenMemory.set(slug, token);
-  try { localStorage.setItem(tokenKey(slug), token); } catch { /* ignore */ }
-}
-
-export function clearToken(slug: string): void {
-  tokenMemory.delete(slug);
-  try {
-    localStorage.removeItem(tokenKey(slug));
-    localStorage.removeItem(customerKey(slug));
-  } catch { /* ignore */ }
-}
-
-export function getStoredCustomer(slug: string): PublicCustomer | null {
-  try {
-    const raw = localStorage.getItem(customerKey(slug));
-    return raw ? (JSON.parse(raw) as PublicCustomer) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function storeCustomer(slug: string, customer: PublicCustomer): void {
-  try { localStorage.setItem(customerKey(slug), JSON.stringify(customer)); } catch { /* ignore */ }
-}
+// Base URL, ApiError and the customer token store live in lib/api-core.ts
+// (shared with demo-api.ts); re-exported so consumers keep one import site.
+export {
+  ApiError,
+  clearToken,
+  getApiBaseUrl,
+  getStoredCustomer,
+  getToken,
+  setToken,
+  storeCustomer,
+} from './lib/api-core';
 
 // ----- Fetch helper -----
 
@@ -118,7 +75,7 @@ async function request<T>(
 
 // ----- Public: config + menu -----
 
-export const storefrontAPI = {
+const realStorefrontAPI = {
   getConfig: async (slug: string): Promise<StorefrontConfig> => {
     const res = await request<ApiResponse<StorefrontConfig>>(slug, '/config');
     return res.data!;
@@ -138,7 +95,7 @@ export interface CustomerAuthResult {
   refreshToken: string;
 }
 
-export const customerAuthAPI = {
+const realCustomerAuthAPI = {
   register: async (
     slug: string,
     data: { email: string; password: string; name?: string; phone?: string },
@@ -175,7 +132,7 @@ export const customerAuthAPI = {
 
 // ----- Addresses -----
 
-export const addressAPI = {
+const realAddressAPI = {
   list: async (slug: string): Promise<CustomerAddress[]> => {
     const res = await request<ApiResponse<CustomerAddress[]>>(slug, '/addresses', {}, { auth: true });
     return res.data ?? [];
@@ -199,7 +156,7 @@ export interface PlaceOrderPayload {
   notes?: string;
 }
 
-export const orderAPI = {
+const realOrderAPI = {
   place: async (slug: string, payload: PlaceOrderPayload, idempotencyKey: string): Promise<Order> => {
     const res = await request<ApiResponse<Order>>(slug, '/orders', {
       method: 'POST',
@@ -248,7 +205,7 @@ export interface ReservationPayload {
   notes?: string;
 }
 
-export const reservationAPI = {
+const realReservationAPI = {
   create: async (slug: string, payload: ReservationPayload): Promise<void> => {
     await request<ApiResponse>(slug, '/reservations', {
       method: 'POST',
@@ -256,3 +213,14 @@ export const reservationAPI = {
     });
   },
 };
+
+// ----- Demo-mode switch -----
+// Resolved once at module load: VITE_DEMO_MODE is a build-time constant.
+
+const demo = isDemoMode();
+
+export const storefrontAPI: typeof realStorefrontAPI = demo ? demoApi.storefrontAPI : realStorefrontAPI;
+export const customerAuthAPI: typeof realCustomerAuthAPI = demo ? demoApi.customerAuthAPI : realCustomerAuthAPI;
+export const addressAPI: typeof realAddressAPI = demo ? demoApi.addressAPI : realAddressAPI;
+export const orderAPI: typeof realOrderAPI = demo ? demoApi.orderAPI : realOrderAPI;
+export const reservationAPI: typeof realReservationAPI = demo ? demoApi.reservationAPI : realReservationAPI;

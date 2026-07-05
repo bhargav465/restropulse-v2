@@ -3,6 +3,8 @@ import { Link, NavLink, useParams } from 'react-router-dom';
 import { useStorefront } from '../store/StorefrontContext';
 import { useCart } from '../store/CartContext';
 import { useAuth } from '../store/AuthContext';
+import { isDemoMode } from '../lib/demo';
+import DemoNotice from './DemoNotice';
 
 const NAV_LINKS: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '', label: 'Home', end: true },
@@ -63,6 +65,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 className={`hidden sm:inline text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${storeOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
               >
                 {storeOpen ? 'Open' : 'Closed'}
+              </span>
+            )}
+            {isDemoMode() && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300"
+                title="Demo preview — backend not connected"
+              >
+                Demo
               </span>
             )}
           </Link>
@@ -165,6 +175,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           Powered by RestroPulse
         </div>
       </footer>
+
+      {/* Demo-mode toast ("backend not connected") — renders nothing otherwise */}
+      <DemoNotice />
     </div>
   );
 };
