@@ -191,7 +191,7 @@ const App: React.FC = () => {
             setRestaurantData(null);
             setUserData(null);
             setIsProfileOpen(false);
-            window.history.replaceState({ view: 'LOGIN' }, '', '/');
+            window.history.replaceState({ view: 'LOGIN' }, '', import.meta.env.BASE_URL);
             setCurrentView('LOGIN');
         }
     };
@@ -278,7 +278,7 @@ const App: React.FC = () => {
                         setUserData(sessionData.user ?? null);
                         setIsLoggedIn(true);
                         setIsInstagramCallback(false);
-                        window.history.replaceState({ view: 'DASHBOARD' }, '', '/');
+                        window.history.replaceState({ view: 'DASHBOARD' }, '', import.meta.env.BASE_URL);
                         setCurrentView('DASHBOARD');
                         return;
                     } catch { /* fall through to manual navigation */ }
@@ -286,7 +286,7 @@ const App: React.FC = () => {
             }
             // On error or missing session: clear callback state so user can retry
             setIsInstagramCallback(false);
-            window.history.replaceState({}, '', '/');
+            window.history.replaceState({}, '', import.meta.env.BASE_URL);
         };
 
         return (

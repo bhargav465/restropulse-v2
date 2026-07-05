@@ -3,6 +3,7 @@ import { Smartphone, ShieldCheck, ArrowRight, KeyRound } from 'lucide-react';
 import { initRecaptcha, sendOTP, verifyOTP, auth } from '../firebase';
 import { RecaptchaVerifier } from 'firebase/auth';
 import { getFirebaseApiKey } from '../utils/env';
+import { isDemoMode } from '../lib/demo';
 
 interface LoginProps {
     onLogin: (firebaseIdToken: string) => Promise<void>;
@@ -33,6 +34,28 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
     const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
     const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
+    // DEMO MODE: simple email/password form — any credentials sign in the
+    // sample owner via the fixtures-backed auth client (no Firebase, no OTP).
+    const demoMode = isDemoMode();
+    const [demoEmail, setDemoEmail] = useState('');
+    const [demoPassword, setDemoPassword] = useState('');
+
+    const handleDemoLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onFallbackLogin) return;
+        setIsLoading(true);
+        setError(null);
+        try {
+            // The demo auth client ignores the values — any credentials work.
+            await onFallbackLogin(demoEmail || 'demo-owner@example.com', demoPassword || 'demo');
+        } catch (err) {
+            console.error('Demo login error:', err);
+            setError('Demo sign-in failed. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Countdown timer for resend
     useEffect(() => {
         if (countdown > 0) {
@@ -43,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
 
     // Initialize reCAPTCHA when component mounts (Firebase mode)
     useEffect(() => {
-        if (useFirebase && step === 'phone') {
+        if (!demoMode && useFirebase && step === 'phone') {
             // Small delay to ensure button is rendered
             const timer = setTimeout(() => {
                 try {
@@ -300,7 +323,56 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
                     </div>
                 )}
 
-                {step === 'phone' ? (
+                {demoMode ? (
+                    /* DEMO MODE: any email/password works */
+                    <form onSubmit={handleDemoLogin} className="space-y-6">
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/40 rounded-xl text-amber-300 text-sm text-center font-medium">
+                            Demo — any credentials work
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label htmlFor="demo-email" className="block text-slate-400 text-sm mb-2">Email</label>
+                                <input
+                                    id="demo-email"
+                                    type="email"
+                                    value={demoEmail}
+                                    onChange={(e) => setDemoEmail(e.target.value)}
+                                    placeholder="owner@demokitchen.example"
+                                    autoFocus
+                                    className="w-full bg-slate-800 text-white px-4 py-3.5 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="demo-password" className="block text-slate-400 text-sm mb-2">Password</label>
+                                <input
+                                    id="demo-password"
+                                    type="password"
+                                    value={demoPassword}
+                                    onChange={(e) => setDemoPassword(e.target.value)}
+                                    placeholder="anything"
+                                    className="w-full bg-slate-800 text-white px-4 py-3.5 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? (
+                                <span className="animate-pulse">Signing in...</span>
+                            ) : (
+                                <>
+                                    <span>Sign in to the demo</span>
+                                    <ArrowRight size={18} />
+                                </>
+                            )}
+                        </button>
+                        <p className="text-center text-xs text-slate-500">
+                            Static preview with sample data — no real account is created.
+                        </p>
+                    </form>
+                ) : step === 'phone' ? (
                     /* Phone Input Step */
                     <div className="space-y-6">
                         <div>

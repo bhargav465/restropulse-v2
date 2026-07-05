@@ -1,7 +1,18 @@
+/**
+ * Merchant dashboard API client.
+ *
+ * DEMO MODE: when built with VITE_DEMO_MODE=true the exported API objects are
+ * swapped for the fixtures-backed implementations in demo-api.ts (no network,
+ * no backend, no Firebase). Consumers keep importing from this module either
+ * way — the `typeof real*` annotations at the bottom guarantee both clients
+ * expose the exact same interface. With the flag off, behavior is unchanged.
+ */
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
+import { isDemoMode } from './lib/demo';
+import * as demoApi from './demo-api';
 
 const API_BASE_URL = getApiUrl();
 
@@ -47,7 +58,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, retry = true
 }
 
 // Authentication API
-export const authAPI = {
+const realAuthAPI = {
     // Firebase Authentication (Primary - Production)
     loginWithFirebase: async (firebaseIdToken: string): Promise<AuthResponse & { refreshToken?: string }> => {
         const response = await fetchAPI<AuthResponse & { refreshToken?: string }>('/auth/firebase', {
@@ -148,7 +159,7 @@ export const authAPI = {
 };
 
 // Restaurant API
-export const restaurantAPI = {
+const realRestaurantAPI = {
     create: async (data: {
         name: string;
         cuisine: string;
@@ -215,7 +226,7 @@ export const restaurantAPI = {
 };
 
 // Posts API
-export const postsAPI = {
+const realPostsAPI = {
     getAll: async (): Promise<Post[]> => {
         const response = await fetchAPI<ApiResponse<Post[]>>('/posts');
         return response.data!;
@@ -263,7 +274,7 @@ export const postsAPI = {
 };
 
 // Strategy API
-export const strategyAPI = {
+const realStrategyAPI = {
     getStrategy: async (): Promise<ContentStrategy & { suggestCreateCycle?: boolean }> => {
         const response = await fetchAPI<ApiResponse<ContentStrategy & { suggestCreateCycle?: boolean }>>('/strategy');
         return response.data!;
@@ -305,7 +316,7 @@ export const strategyAPI = {
 };
 
 // Instagram Integration API
-export const instagramAPI = {
+const realInstagramAPI = {
     // Get OAuth URL to initiate connection
     // useOnboarding: true for guided setup (new users), false for standard OAuth (existing setup)
     getOAuthUrl: async (restaurantId: string, useOnboarding: boolean = false): Promise<{ oauthUrl: string; state: string }> => {
@@ -420,7 +431,7 @@ export const instagramAPI = {
 };
 
 // Subscription API
-export const subscriptionAPI = {
+const realSubscriptionAPI = {
     getPlans: async (): Promise<SubscriptionPlan[]> => {
         const response = await fetchAPI<ApiResponse<SubscriptionPlan[]>>('/subscriptions/plans');
         return response.data!;
@@ -506,7 +517,7 @@ export const subscriptionAPI = {
 };
 
 // Coupon API
-export const couponAPI = {
+const realCouponAPI = {
     validate: async (code: string, planSlug?: string, billingCycle?: BillingCycle): Promise<{ valid: boolean; reason?: string; type?: string; value?: number; maxBillingCycles?: number }> => {
         const response = await fetchAPI<ApiResponse<{ valid: boolean; reason?: string; type?: string; value?: number; maxBillingCycles?: number }>>('/coupons/validate', {
             method: 'POST',
@@ -517,7 +528,7 @@ export const couponAPI = {
 };
 
 // Credit Packs API
-export const creditPacksAPI = {
+const realCreditPacksAPI = {
     getAll: async (): Promise<CreditPack[]> => {
         const response = await fetchAPI<ApiResponse<CreditPack[]>>('/credit-packs');
         return response.data!;
@@ -525,7 +536,7 @@ export const creditPacksAPI = {
 };
 
 // Invoice API
-export const invoiceAPI = {
+const realInvoiceAPI = {
     getAll: async (): Promise<Invoice[]> => {
         const response = await fetchAPI<ApiResponse<Invoice[]>>('/invoices');
         return response.data!;
@@ -538,7 +549,7 @@ export const invoiceAPI = {
 };
 
 // Config API
-export const configAPI = {
+const realConfigAPI = {
     getFeatures: async (): Promise<FeatureFlags> => {
         const res = await fetchAPI<ApiResponse<FeatureFlags>>('/config/features');
         // Fallback: if the endpoint returns no data, default every flag to false.
@@ -549,14 +560,14 @@ export const configAPI = {
 };
 
 // Account API
-export const accountAPI = {
+const realAccountAPI = {
     delete: async (): Promise<void> => {
         await fetchAPI<ApiResponse<void>>('/account', { method: 'DELETE' });
     },
 };
 
 // Cities API
-export const citiesAPI = {
+const realCitiesAPI = {
     getAll: async (): Promise<City[]> => {
         const response = await fetchAPI<ApiResponse<City[]>>('/restaurant/cities');
         return response.data!;
@@ -564,7 +575,7 @@ export const citiesAPI = {
 };
 
 // Account Manager API
-export const accountManagerAPI = {
+const realAccountManagerAPI = {
     getByCityAndZone: async (city: string, zone?: string): Promise<AccountManager[]> => {
         const params = new URLSearchParams({ city });
         if (zone) params.set('zone', zone);
@@ -604,7 +615,7 @@ export interface OrderingAnalyticsSummary {
     events: Array<{ name: string; count: number; uniqueSessions: number }>;
 }
 
-export const orderingAdminAPI = {
+const realOrderingAdminAPI = {
     // ----- Menu: categories -----
     getCategories: async (): Promise<MenuCategory[]> => {
         const res = await fetchAPI<ApiResponse<MenuCategory[]>>('/admin/ordering/menu/categories');
@@ -782,3 +793,24 @@ export const orderingAdminAPI = {
         return res.data!;
     },
 };
+
+// ----- DEMO MODE switch -----
+//
+// Resolved once at module load. `typeof real*` keeps demo-api.ts honest: both
+// clients must expose the exact same interface.
+const demo = isDemoMode();
+
+export const authAPI: typeof realAuthAPI = demo ? demoApi.authAPI : realAuthAPI;
+export const restaurantAPI: typeof realRestaurantAPI = demo ? demoApi.restaurantAPI : realRestaurantAPI;
+export const postsAPI: typeof realPostsAPI = demo ? demoApi.postsAPI : realPostsAPI;
+export const strategyAPI: typeof realStrategyAPI = demo ? demoApi.strategyAPI : realStrategyAPI;
+export const instagramAPI: typeof realInstagramAPI = demo ? demoApi.instagramAPI : realInstagramAPI;
+export const subscriptionAPI: typeof realSubscriptionAPI = demo ? demoApi.subscriptionAPI : realSubscriptionAPI;
+export const couponAPI: typeof realCouponAPI = demo ? demoApi.couponAPI : realCouponAPI;
+export const creditPacksAPI: typeof realCreditPacksAPI = demo ? demoApi.creditPacksAPI : realCreditPacksAPI;
+export const invoiceAPI: typeof realInvoiceAPI = demo ? demoApi.invoiceAPI : realInvoiceAPI;
+export const configAPI: typeof realConfigAPI = demo ? demoApi.configAPI : realConfigAPI;
+export const accountAPI: typeof realAccountAPI = demo ? demoApi.accountAPI : realAccountAPI;
+export const citiesAPI: typeof realCitiesAPI = demo ? demoApi.citiesAPI : realCitiesAPI;
+export const accountManagerAPI: typeof realAccountManagerAPI = demo ? demoApi.accountManagerAPI : realAccountManagerAPI;
+export const orderingAdminAPI: typeof realOrderingAdminAPI = demo ? demoApi.orderingAdminAPI : realOrderingAdminAPI;

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Home, PenTool, Lightbulb, Megaphone, Plus, Bell, UtensilsCrossed } from 'lucide-react';
 import { ViewState, FeatureFlags } from '@restropulse/shared';
+import { isDemoMode } from '../lib/demo';
+import DemoNotice from './DemoNotice';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -44,6 +46,11 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, title, 
             <h1 className="font-extrabold text-base text-slate-800 leading-tight tracking-tight">{restaurantName}</h1>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</span>
           </div>
+          {isDemoMode() && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 border border-amber-300 text-[10px] font-extrabold tracking-widest">
+              DEMO
+            </span>
+          )}
         </div>
 
         {/* Right side actions */}
@@ -71,6 +78,9 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, title, 
           </button>
         </div>
       </header>
+
+      {/* DEMO MODE: once-per-session "backend not connected" toast */}
+      <DemoNotice />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 no-scrollbar">
