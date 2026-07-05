@@ -44,6 +44,8 @@ CLAUDE.local.md
 # Root-level screenshots and scratch snapshots from AI-driven testing sessions
 /*.png
 /*.md
+# ...but the root README is real documentation, not an AI scratch file
+!/README.md
 
 # Old directory names (moved to apps/)
 restropulse-pwa/

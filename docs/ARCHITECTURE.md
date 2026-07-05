@@ -9,7 +9,8 @@ RestroPulse is a social media management platform for restaurants, organized as 
 ```
 restropulse/
   apps/
-    web/          @restropulse/web          React SPA (Vite)
+    web/          @restropulse/web          React SPA (Vite) -- merchant dashboard (social SaaS + ordering admin)
+    storefront/   @restropulse/storefront   React SPA (Vite) -- public customer ordering site (/:slug)
     api/          @restropulse/api          Express REST API
     publisher/    @restropulse/publisher    Cron worker -- publishing + token refresh
     content-engine/ @restropulse/content-engine  Worker -- content generation
@@ -20,6 +21,8 @@ restropulse/
     publishing/   @restropulse/publishing   Meta API, encryption, publishing/token-refresh crons
     tsconfig/     @restropulse/tsconfig     Shared tsconfig presets
     eslint-config/ @restropulse/eslint-config Shared ESLint flat config
+  tools/
+    image-studio/ (not a workspace)         Next.js 14 Replicate image generator (own lockfile)
 ```
 
 ## Application Architecture Diagram
@@ -437,8 +440,245 @@ calling `GET /v1/customers?contact=:phone` then backfills `razorpayCustomerId`.
 | creditPurchases     | ObjectId                     | API                  |
 | creditPacks         | ObjectId                     | API                  |
 | invoices            | ObjectId                     | API                  |
+| menu_categories     | ObjectId                     | API (ordering)       |
+| menu_items          | ObjectId                     | API (ordering)       |
+| orders              | ObjectId                     | API (ordering)       |
+| reservations        | ObjectId                     | API (ordering)       |
+| storefront_content  | ObjectId, unique restaurantId| API (ordering)       |
+| customers           | ObjectId, unique (restaurantId,email) | API (ordering) |
+| events              | ObjectId                     | API (ordering analytics) |
 
 Database name: `restropulse` (configurable via `MONGODB_DB_NAME`)
+
+## Online Ordering Platform (v1)
+
+Multi-tenant, customer-facing online ordering added on top of the social-media SaaS.
+Each restaurant gets a public storefront at `/:slug` (menu, cart, checkout, order
+tracking, reservations, story/about pages), managed from a new **Ordering** hub in the
+existing merchant dashboard. Everything is additive: no existing SaaS route, type, or
+collection was modified beyond extending the `Restaurant` document with `slug`,
+`storeOpen`, and embedded `ordering` settings.
+
+### Stack
+
+Identical to the audited SaaS stack (hard constraint):
+
+- **Storefront**: React 19 + Vite 6 SPA, TypeScript, Tailwind CSS 4, react-router-dom 7
+- **Admin**: new components inside `apps/web` (same React 19 SPA, tab-based `Ordering` hub)
+- **API**: new Express routers inside `apps/api` (same server, ports, middleware chain)
+- **DB**: MongoDB (driver v6) — 7 new collections + 3 new fields on `restaurants`
+- **Auth**: merchant Firebase-OTP JWT (existing) + new customer email/password JWT (bcryptjs), both signed with the same `JWT_SECRET`
+- **Types**: `packages/shared/src/ordering.ts`; DB helpers in `packages/db/src/ordering.ts`
+
+### App Map
+
+| App / tool | Role in ordering v1 |
+|---|---|
+| `apps/storefront` (`@restropulse/storefront`, port 3003) | Customer-facing ordering SPA. Slug-scoped: all routes live under `/:slug/*`. Dev server proxies `/api` → API port from `config/ports.json`. |
+| `apps/web` (port 3000) | Merchant dashboard. New `components/ordering/` hub (Orders feed, Menu manager, Reservations, Site Content editor, Funnel analytics) behind the existing merchant login. |
+| `apps/api` (port 3001) | Two new routers: `/api/storefront/:slug` (public + customer JWT) and `/api/admin/ordering` (merchant JWT, OWNER). Services under `src/services/ordering/` (totals, status machine, CSV import, events). |
+| `apps/publisher`, `apps/content-engine` | Unchanged social-SaaS workers. Not involved in ordering v1; future order-driven automation would be a sibling worker (see docs/NEXT.md). |
+| `apps/db-cli` | New `seed-ordering` command (`npm run seed:ordering --workspace=@restropulse/db-cli`): creates ordering indexes + demo storefront (slug `demo`, demo owner, demo customer, menu, published content). |
+| `tools/image-studio` | Standalone Next.js 14 Replicate image generator (menu/dish imagery). Intentionally NOT an npm workspace (React 18 vs workspace React 19); has its own lockfile. |
+
+### Data Model (new collections)
+
+```mermaid
+erDiagram
+    restaurants ||--o{ menu_categories : "restaurantId"
+    restaurants ||--o{ menu_items : "restaurantId"
+    restaurants ||--o{ orders : "restaurantId"
+    restaurants ||--o{ reservations : "restaurantId"
+    restaurants ||--|| storefront_content : "restaurantId (unique)"
+    restaurants ||--o{ customers : "restaurantId"
+    restaurants ||--o{ events : "restaurantId"
+    menu_categories ||--o{ menu_items : "categoryId"
+    customers ||--o{ orders : "customerId"
+
+    restaurants {
+        string slug "UNIQUE (partial index), storefront URL key"
+        boolean storeOpen "gate for new orders"
+        object ordering "taxRatePercent, currency, delivery/pickup/dineIn settings"
+    }
+    menu_categories {
+        string restaurantId
+        string name
+        string description
+        number sortOrder
+    }
+    menu_items {
+        string restaurantId
+        string categoryId
+        string name
+        number price "base price"
+        array variants "absolute-priced (Half/Full)"
+        array addons "additive-priced"
+        boolean isVeg
+        string availability "in_stock | out_of_stock | hidden"
+        array images
+        number sortOrder
+    }
+    orders {
+        string restaurantId
+        string customerId
+        string orderNumber "ORD-XXXXXXXX"
+        string orderType "delivery | pickup | dine_in"
+        array items "OrderItemSnapshot[] (server-priced)"
+        object totals "subtotal, tax, deliveryFee, discount, total"
+        string status "state machine, see below"
+        array statusHistory
+        object address "delivery only"
+        string idempotencyKey "UNIQUE per restaurant (partial index)"
+    }
+    reservations {
+        string restaurantId
+        string date "YYYY-MM-DD"
+        string time "HH:mm"
+        number partySize
+        string name
+        string phone
+        string status "pending | confirmed | declined | no_show"
+    }
+    storefront_content {
+        string restaurantId "UNIQUE - one doc per restaurant"
+        object draft "StorefrontContent"
+        object published
+        number publishedVersion
+        array versions "snapshots, capped at 20"
+    }
+    customers {
+        string restaurantId "UNIQUE with email (tenant-scoped accounts)"
+        string email
+        string passwordHash "bcryptjs, never returned by API"
+        array addresses
+        string role "always 'customer'"
+    }
+    events {
+        string restaurantId
+        string name "event name"
+        string sessionId "'server' for server-emitted"
+        string customerId "optional"
+        object payload
+        date ts
+    }
+```
+
+Indexes are created by `ensureOrderingIndexes()` (`packages/db/src/ordering.ts`), run by
+both `db-cli setup` and `seed-ordering`. Key uniques: `restaurants.slug` (partial),
+`orders.{restaurantId,idempotencyKey}` (partial), `storefront_content.restaurantId`,
+`customers.{restaurantId,email}`.
+
+**Order status machine** (`apps/api/src/services/ordering/status.ts`):
+
+```
+PENDING_PAYMENT -> RECEIVED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> COMPLETED
+                                                  \-> COMPLETED (pickup/dine-in only)
+any non-terminal state -> CANCELLED
+```
+
+`OUT_FOR_DELIVERY` is delivery-only; `READY -> COMPLETED` is pickup/dine-in-only.
+Payment is stubbed in v1: orders are written with history `PENDING_PAYMENT -> RECEIVED`
+in a single insert (auto-confirm).
+
+### API Routes
+
+#### Public storefront — `apps/api/src/routes/storefront.ts`, mounted at `/api/storefront/:slug`
+
+Every route first resolves `:slug` → restaurant (404 otherwise). Auth column:
+**public** = no auth; **customer** = customer JWT + same-restaurant check.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/storefront/:slug/config` | public | Restaurant basics + published content + `storeOpen` |
+| GET | `/api/storefront/:slug/menu` | public | Categories with items; `hidden` excluded, `out_of_stock` → `soldOut: true` |
+| POST | `/api/storefront/:slug/events` | public (rate-limited 60/min) | Analytics ingest → `events` collection |
+| POST | `/api/storefront/:slug/auth/register` | public (rate-limited 20/min) | Email/password signup, returns customer + JWT pair |
+| POST | `/api/storefront/:slug/auth/login` | public (rate-limited 20/min) | Returns customer + JWT pair |
+| GET | `/api/storefront/:slug/me` | customer | Profile (no passwordHash) |
+| GET | `/api/storefront/:slug/addresses` | customer | Saved addresses |
+| POST | `/api/storefront/:slug/addresses` | customer | Add address |
+| POST | `/api/storefront/:slug/orders` | customer | Place order. Server-side price recompute, `Idempotency-Key` header dedupe, `storeOpen` + order-type gates |
+| GET | `/api/storefront/:slug/orders` | customer | Own orders (latest 50) |
+| GET | `/api/storefront/:slug/orders/:id` | customer | Own order detail |
+| GET | `/api/storefront/:slug/orders/:id/track` | customer JWT **or** `?orderNumber=&phone=` match | Public-ish tracking (status + history only) |
+| POST | `/api/storefront/:slug/reservations` | public (rate-limited 10/min) | Creates `pending` reservation |
+
+#### Merchant admin — `apps/api/src/routes/admin-ordering.ts`, mounted at `/api/admin/ordering`
+
+All routes: merchant JWT (`requireAuth`) + `requireRole('OWNER')`; scoped to
+`req.user.restaurantId`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/admin/ordering/menu/categories` | List categories |
+| POST | `/api/admin/ordering/menu/categories` | Create category |
+| PATCH | `/api/admin/ordering/menu/categories/:id` | Update name/description/sortOrder |
+| DELETE | `/api/admin/ordering/menu/categories/:id` | 409 if category still has items |
+| PUT | `/api/admin/ordering/menu/categories/reorder` | Body `{ orderedIds }` |
+| GET | `/api/admin/ordering/menu/items` | List items (incl. hidden) |
+| POST | `/api/admin/ordering/menu/items` | Create item (variants/addons validated) |
+| PATCH | `/api/admin/ordering/menu/items/:id` | Partial update |
+| DELETE | `/api/admin/ordering/menu/items/:id` | Delete item |
+| PATCH | `/api/admin/ordering/menu/items/:id/availability` | Quick toggle `in_stock / out_of_stock / hidden` |
+| PUT | `/api/admin/ordering/menu/items/reorder` | Body `{ orderedIds }` |
+| POST | `/api/admin/ordering/menu/import` | CSV bulk upsert (multipart field `file`, 2 MB cap) |
+| GET | `/api/admin/ordering/orders` | Feed; filters `status`, `from`, `to`, `limit` (≤200) |
+| PATCH | `/api/admin/ordering/orders/:id/status` | State-machine-validated transition; optimistic-concurrency guarded |
+| PATCH | `/api/admin/ordering/store` | Body `{ open: boolean }` — store open/close toggle |
+| GET | `/api/admin/ordering/reservations` | Filters `status`, `date` |
+| PATCH | `/api/admin/ordering/reservations/:id` | Decide: `confirmed / declined / no_show` |
+| GET | `/api/admin/ordering/content/draft` | Draft + version list |
+| PUT | `/api/admin/ordering/content/draft` | Save draft |
+| POST | `/api/admin/ordering/content/publish` | Draft → published, version history (cap 20) |
+| POST | `/api/admin/ordering/content/rollback` | Body `{ version? }` — restore snapshot as new version |
+| GET | `/api/admin/ordering/analytics/summary` | Event counts + unique sessions by name, date range |
+
+### Storefront Page Map (`apps/storefront/App.tsx`)
+
+| Route | Page | Notes |
+|---|---|---|
+| `/` | LandingPage | Platform placeholder ("visit /:your-restaurant") |
+| `/:slug` | HomePage | Hero, announcement, highlights (published content) |
+| `/:slug/menu` | MenuPage | Category-grouped menu, item modal (variants/addons), add to cart |
+| `/:slug/cart` | CartPage | Cart review (cart state persisted per slug in localStorage) |
+| `/:slug/checkout` | CheckoutPage | Order type, address, place order (login required) |
+| `/:slug/track/:orderId` | TrackOrderPage | Status timeline; JWT or orderNumber+phone fallback |
+| `/:slug/account` | AccountPage | Login/register, profile, addresses, order history |
+| `/:slug/dine-in` | DineInPage | Dine-in info + reservation form |
+| `/:slug/story` | StoryPage | Story timeline + chef bios |
+| `/:slug/{about,contact,faqs,privacy,terms,refund}` | StaticPage | Content-driven static pages |
+| `/:slug/*` | NotFoundPage | Slug-scoped 404 |
+
+### Analytics Events
+
+All land in the `events` collection; the merchant Funnel tab reads
+`GET /api/admin/ordering/analytics/summary`.
+
+Client-side (`apps/storefront/lib/analytics.ts`, fire-and-forget POST `/events`,
+sessionId persisted in localStorage): `page_view`, `menu_view`, `item_view`,
+`add_to_cart`, `view_cart`, `begin_checkout`, `login_prompt`, `order_placed`.
+
+Server-side (`apps/api/src/services/ordering/events.ts`, `sessionId: 'server'`):
+`customer_registered`, `customer_login`, `customer_login_failed`, `order_placed`,
+`order_status_changed`, `store_toggled`, `reservation_requested`,
+`reservation_confirmed` / `reservation_declined` / `reservation_no_show`,
+`menu_csv_imported`, `content_published`, `content_rolled_back`.
+
+### Auth Model (two distinct domains, one JWT secret)
+
+| | Merchant (SaaS + ordering admin) | Storefront customer |
+|---|---|---|
+| Identity | Firebase phone-OTP → `POST /api/auth/firebase` | Email + password (bcryptjs) per restaurant |
+| Token issuer | `generateTokens` (`apps/api/src/services/jwt.ts`) | `generateCustomerTokens` (same file) |
+| Payload role | `OWNER` / `ADMIN` | `customer` (always) |
+| Tenancy | `restaurantId` from the user document | `restaurantId` baked into the token; `requireSameStorefront` rejects cross-tenant use |
+| Middleware | `requireAuth` + `requireRole('OWNER')` | `requireCustomerAuth` + same-storefront check |
+| Storage (client) | `rp_token` / `rp_refresh_token` | `sf_token_<slug>` (per-slug, memory + localStorage) |
+
+Merchant tokens are rejected on customer routes (role !== 'customer') and vice versa
+(role !== OWNER) — the two auth domains cannot cross even though both verify against
+the same `JWT_SECRET`. Customer accounts are tenant-scoped: the same email can register
+independently at two different restaurants.
 
 ## MCP Context Stack
 
