@@ -149,7 +149,7 @@ const publishedContent = {
     'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+2',
   ],
   // Small public sample clip; heroImages[0] doubles as the poster/fallback.
-  videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+  videoUrl: '/media/hero-demo.mp4', // [SAMPLE] replace with real restaurant video; served from web root
   announcement: { text: '[SAMPLE] Free delivery on orders above Rs. 499 this week!', enabled: true },
   about: '[SAMPLE] Demo Kitchen is a placeholder restaurant used to showcase the RestroPulse online ordering storefront.',
   hours: [
