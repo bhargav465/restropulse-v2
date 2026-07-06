@@ -218,26 +218,67 @@ const Strategy: React.FC<StrategyProps> = ({ restaurantData, instagramConnected 
                             <Target size={14} /> Planned Content Mix
                         </h4>
                         <div className="space-y-3">
-                            {cycle.plannedPosts.map((post, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-sm">
-                                    <span className="text-slate-600 font-medium">{post.category}</span>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full rounded-full ${idx % 2 === 0 ? 'bg-orange-400' : 'bg-blue-400'}`}
-                                                style={{ width: `${Math.min((post.count / 8) * 100, 100)}%` }}
-                                            ></div>
+                            {(() => {
+                                const totalPlanned = cycle.plannedPosts.reduce((acc, curr) => acc + curr.count, 0);
+                                return cycle.plannedPosts.map((post, idx) => (
+                                    <div key={idx} className="text-sm">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-slate-600 font-medium flex items-center gap-1.5 min-w-0">
+                                                {post.emoji && <span aria-hidden="true">{post.emoji}</span>}
+                                                <span className="truncate">{post.category}</span>
+                                                {totalPlanned > 0 && (
+                                                    <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                                                        {Math.round((post.count / totalPlanned) * 100)}%
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full ${idx % 2 === 0 ? 'bg-orange-400' : 'bg-blue-400'}`}
+                                                        style={{ width: `${Math.min((post.count / 8) * 100, 100)}%` }}
+                                                    ></div>
+                                                </div>
+                                                <span className="font-bold text-slate-800 w-4 text-right">{post.count}</span>
+                                            </div>
                                         </div>
-                                        <span className="font-bold text-slate-800 w-4 text-right">{post.count}</span>
+                                        {post.description && (
+                                            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{post.description}</p>
+                                        )}
+                                        {post.examplePost && (
+                                            <p className="text-[11px] text-slate-500 italic mt-0.5 leading-snug">e.g. {post.examplePost}</p>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                ));
+                            })()}
                             <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between items-center text-xs font-bold text-slate-500">
                                 <span>Total Planned Posts</span>
                                 <span>{cycle.plannedPosts.reduce((acc, curr) => acc + curr.count, 0)}</span>
                             </div>
                         </div>
                     </div>
+
+                    {/* Weekly cadence recommendation (optional, theme-catalog strategies) */}
+                    {cycle.weeklyCadence?.length ? (
+                        <div className="bg-slate-100/50 rounded-2xl p-4 border border-slate-100">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                                <CalendarCheck size={14} /> Weekly Cadence
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {cycle.weeklyCadence.map((slot) => (
+                                    <div key={slot.day} className="bg-white rounded-xl border border-slate-100 px-3 py-2 flex items-start gap-2">
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wide text-orange-600 bg-orange-50 rounded-md px-1.5 py-0.5 mt-0.5 shrink-0">
+                                            {slot.day}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold text-slate-700 leading-snug">{slot.theme}</p>
+                                            {slot.note && <p className="text-[11px] text-slate-400 leading-snug">{slot.note}</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {/* Planned Schedule */}
                     {/* plannedSchedule added to StrategyCycle in packages/shared -- type will be available after merge */}
