@@ -6,9 +6,10 @@ import OrdersFeed from '../ordering/OrdersFeed';
 import ReservationsPanel from '../ordering/ReservationsPanel';
 import SiteContentEditor from '../ordering/SiteContentEditor';
 import FunnelAnalytics from '../ordering/FunnelAnalytics';
+import Campaigns from '../ordering/Campaigns';
 import { StatCard, SubNav, SubNavTab } from './primitives';
 
-type OrderingTab = 'OVERVIEW' | 'ORDERS' | 'MENU' | 'RESERVATIONS' | 'CONTENT' | 'FUNNEL';
+type OrderingTab = 'OVERVIEW' | 'ORDERS' | 'MENU' | 'RESERVATIONS' | 'CONTENT' | 'FUNNEL' | 'CAMPAIGNS';
 
 const STOREFRONT_URL = 'https://bhargav465.github.io/restropulse-v2/demo';
 
@@ -58,6 +59,7 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
         { tab: 'RESERVATIONS', emoji: '📅', label: 'Reservations' },
         { tab: 'CONTENT', emoji: '🎨', label: 'Site Content' },
         { tab: 'FUNNEL', emoji: '📈', label: 'Funnel' },
+        { tab: 'CAMPAIGNS', emoji: '📣', label: 'Campaigns' },
     ];
 
     return (
@@ -134,6 +136,7 @@ const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData }) => {
         { id: 'RESERVATIONS', label: 'Reservations', emoji: '📅' },
         { id: 'CONTENT', label: 'Site Content', emoji: '🎨' },
         { id: 'FUNNEL', label: 'Funnel', emoji: '📈' },
+        { id: 'CAMPAIGNS', label: 'Campaigns', emoji: '📣' },
     ];
 
     return (
@@ -147,6 +150,7 @@ const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData }) => {
                     {tab === 'RESERVATIONS' && <ReservationsPanel />}
                     {tab === 'CONTENT' && <SiteContentEditor />}
                     {tab === 'FUNNEL' && <FunnelAnalytics />}
+                    {tab === 'CAMPAIGNS' && <Campaigns />}
                 </div>
             )}
         </div>
