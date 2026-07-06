@@ -6,9 +6,20 @@ import type { PublicMenuItem } from '../types';
 import { formatMoney } from '../lib/format';
 import { Loading, ErrorState } from '../components/States';
 
+/** Best-effort human label from a placehold.co-style URL (`?text=Dining+Hall`). */
+function galleryLabel(url: string): string | null {
+  try {
+    return new URL(url).searchParams.get('text');
+  } catch {
+    return null;
+  }
+}
+
 const HomePage: React.FC = () => {
   const { slug, content, restaurantName, currency, loading, error, reload, storeOpen } = useStorefront();
   const [featured, setFeatured] = useState<PublicMenuItem[] | null>(null);
+  // Graceful fallback: if the hero video fails to load, drop back to the poster image.
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +38,8 @@ const HomePage: React.FC = () => {
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const hero = content?.heroImages?.[0];
+  const videoUrl = videoFailed ? undefined : content?.videoUrl;
+  const gallery = content?.gallery ?? [];
   const base = `/${slug}`;
 
   return (
@@ -36,13 +49,26 @@ const HomePage: React.FC = () => {
         className="relative rounded-3xl overflow-hidden bg-[var(--sf-secondary)] text-white min-h-56 flex items-end"
         aria-label="Welcome"
       >
-        {hero && (
+        {videoUrl ? (
+          <video
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+            src={videoUrl}
+            poster={hero}
+            muted
+            autoPlay
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            onError={() => setVideoFailed(true)}
+          />
+        ) : hero ? (
           <img
             src={hero}
             alt={`${restaurantName} — featured dish`}
             className="absolute inset-0 w-full h-full object-cover opacity-60"
           />
-        )}
+        ) : null}
         <div className="relative p-6 sm:p-8">
           <h1 className="text-2xl sm:text-4xl font-extrabold mb-2">{restaurantName}</h1>
           {content?.about && <p className="text-sm sm:text-base text-slate-200 max-w-xl line-clamp-2 mb-4">{content.about}</p>}
@@ -64,6 +90,33 @@ const HomePage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Photo strip: inside the restaurant */}
+      {gallery.length > 0 && (
+        <section aria-labelledby="gallery-heading">
+          <h2 id="gallery-heading" className="sr-only">Inside the restaurant</h2>
+          <ul className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+            {gallery.slice(0, 6).map((url, i) => {
+              const label = galleryLabel(url);
+              return (
+                <li key={`${url}-${i}`} className="shrink-0">
+                  <figure>
+                    <img
+                      src={url}
+                      alt={label ?? `Restaurant photo ${i + 1}`}
+                      loading="lazy"
+                      className="w-44 h-28 object-cover rounded-2xl border border-slate-200"
+                    />
+                    {label && (
+                      <figcaption className="mt-1 text-[11px] font-semibold text-slate-500 text-center">{label}</figcaption>
+                    )}
+                  </figure>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Featured items */}
       <section aria-labelledby="featured-heading">

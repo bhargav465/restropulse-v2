@@ -15,16 +15,25 @@ import type { PublicMenuCategory, PublicMenuItem, StorefrontConfig } from '../ty
 
 const DEMO_RESTAURANT_ID = 'demo-r1';
 
-const img = (name: string): string[] => [
-  `https://placehold.co/600x400?text=${encodeURIComponent(name)}`,
-];
+/** Per-category placeholder palette (kept in sync with the db seed) so demo menu images look like food, not grey boxes. */
+const CATEGORY_IMAGE_COLORS: Record<string, { bg: string; text: string }> = {
+  'demo-cat-starters': { bg: 'f97316', text: 'ffffff' },     // warm orange
+  'demo-cat-mains': { bg: 'b91c1c', text: 'ffffff' },        // deep red
+  'demo-cat-breads-rice': { bg: 'f59e0b', text: '7c2d12' },  // amber
+  'demo-cat-desserts': { bg: 'ec4899', text: 'ffffff' },     // pink
+};
+
+const img = (categoryId: string, name: string): string[] => {
+  const { bg, text } = CATEGORY_IMAGE_COLORS[categoryId] ?? { bg: '64748b', text: 'ffffff' };
+  return [`https://placehold.co/600x400/${bg}/${text}?text=${encodeURIComponent(name)}`];
+};
 
 type ItemInput =
   Omit<PublicMenuItem, 'images' | 'variants' | 'addons'> &
   Partial<Pick<PublicMenuItem, 'images' | 'variants' | 'addons'>>;
 
 const item = (partial: ItemInput): PublicMenuItem => ({
-  images: img(partial.name),
+  images: img(partial.categoryId, partial.name),
   variants: [],
   addons: [],
   ...partial,
@@ -36,6 +45,8 @@ const DEMO_FIXTURE_CONTENT: StorefrontContent = {
     'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+1',
     'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+2',
   ],
+  // Small public sample clip; heroImages[0] doubles as the poster/fallback.
+  videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
   announcement: { text: '[SAMPLE] Free delivery on orders above Rs. 499 this week!', enabled: true },
   about: '[SAMPLE] Demo Kitchen is a placeholder restaurant used to showcase the RestroPulse online ordering storefront.',
   hours: [
@@ -57,9 +68,11 @@ const DEMO_FIXTURE_CONTENT: StorefrontContent = {
     { name: '[SAMPLE] Chef Demo', title: 'Head Chef', bio: 'Placeholder chef biography for the demo storefront.', photo: 'https://placehold.co/400x400?text=%5BSAMPLE%5D+Chef' },
   ],
   gallery: [
-    'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+1',
-    'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+2',
-    'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+3',
+    'https://placehold.co/800x600/c2410c/ffffff?text=Dining+Hall',
+    'https://placehold.co/800x600/9a3412/ffffff?text=Kitchen',
+    'https://placehold.co/800x600/ea580c/ffffff?text=Chef%27s+Counter',
+    'https://placehold.co/800x600/f59e0b/7c2d12?text=Tandoor+Station',
+    'https://placehold.co/800x600/78350f/ffffff?text=Courtyard+Seating',
   ],
   dineIn: [
     { title: '[SAMPLE] Private dining', text: 'A 12-seater private room for celebrations.', image: 'https://placehold.co/800x600?text=%5BSAMPLE%5D+Dine-in' },
