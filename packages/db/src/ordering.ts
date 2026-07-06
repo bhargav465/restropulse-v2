@@ -64,6 +64,8 @@ export async function ensureOrderingIndexes(db?: Db): Promise<void> {
     { collection: 'customers', spec: { restaurantId: 1, email: 1 }, options: { unique: true } },
     { collection: 'events', spec: { restaurantId: 1, name: 1, ts: -1 } },
     { collection: 'events', spec: { sessionId: 1 } },
+    // Growth campaigns (queued sends; delivery worker is a NEXT.md seam)
+    { collection: 'campaigns', spec: { restaurantId: 1, createdAt: -1 } },
   ];
 
   for (const { collection, spec, options } of specs) {
