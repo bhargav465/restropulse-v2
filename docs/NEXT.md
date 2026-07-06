@@ -125,3 +125,41 @@ by `orderId`), or inline in the status route. Redemption plugs into
 already carries a `discount` field that is 0 in v1, so a redeemed-points discount slots
 in without changing the `OrderTotals` contract. Surface balance via the existing
 `GET /api/storefront/:slug/me` response.
+
+## 8. AI Post Generation ("Create a new post" in Content Studio)
+
+**Plugs in at:** `POST /api/posts/generate` (`apps/api/src/routes/posts.ts`) and the
+client method `postsAPI.generatePost({ brief, tone })` (`apps/web/api.ts`, demo twin in
+`apps/web/demo-api.ts`).
+
+**Contract:** the Content Studio generator card (`apps/web/components/GeneratePostCard.tsx`)
+sends `{ brief, tone, concept, type }` — `concept`/`type: 'IMAGE'` keep the call working
+against today's adhoc-generate route (which creates a `PENDING_CONTENT` stub for the
+content-engine), while `brief` + `tone` (`'fun' | 'elegant' | 'spicy'`) are the new
+inputs the server does not consume yet. To finish the seam: read `brief`/`tone` in the
+route, persist them on the post stub, and thread them into the content-engine prompt
+(`generator.generatePost`) so the tone shapes the caption. Response shape stays
+`ApiResponse<Post>` — the card only needs the created post back. Demo mode already
+models the target UX: ~800 ms latency, then a `PENDING_APPROVAL` post with a
+tone-flavoured caption template (hook from brief + body + hashtags incl. `#DemoKitchen`).
+
+## 9. Campaign Delivery (WhatsApp sends for Growth Campaigns)
+
+**Plugs in at:** the `campaigns` collection (`getCampaignsCollection`,
+`packages/db/src/connection.ts`) and the `campaign_queued` analytics event emitted by
+`POST /api/admin/ordering/campaigns` (`apps/api/src/routes/admin-ordering.ts`).
+
+**Contract:** v1 records intent only. Each queued send is a `CampaignRecord`
+(`packages/shared/src/ordering.ts`): `{ restaurantId, cohortId, kind: 'whatsapp_nudge' |
+'discount_offer', discount?, audienceCount, status: 'QUEUED', createdAt }`. Build a
+poll-based delivery worker (same pattern as §2 — standalone Node process tailing either
+the `campaigns` collection by `status: 'QUEUED'` or the `events` outbox): resolve the
+cohort membership at send time via `computeCohorts`
+(`apps/api/src/services/ordering/cohorts.ts` — pure, unit-tested), map cohort + kind to
+a WhatsApp Business API template (discount fields fill template variables), send, then
+advance the doc `QUEUED → SENDING → SENT/FAILED` with per-recipient results.
+Compliance is a hard requirement the UI already promises ("Messages go only to opted-in
+customers"): add an `optIn: boolean` (default false) to `Customer` and filter cohort
+membership on it before sending. Cohort definitions: drop-off = `add_to_cart`/
+`begin_checkout` sessions with no `order_placed` in 7 days; non-transacted = customers
+with 0 orders; lapsed = latest order older than 30 days.
