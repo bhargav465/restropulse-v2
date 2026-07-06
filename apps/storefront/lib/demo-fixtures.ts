@@ -42,8 +42,8 @@ const item = (partial: ItemInput): PublicMenuItem => ({
 /** Published storefront content (mirrors DEMO_STOREFRONT_CONTENT.published). */
 const DEMO_FIXTURE_CONTENT: StorefrontContent = {
   heroImages: [
-    'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+1',
-    'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+2',
+    'https://placehold.co/1600x900/b33a1e/ffffff?text=%5BSAMPLE%5D+Demo+Kitchen',
+    'https://placehold.co/1600x900/e8674a/ffffff?text=%5BSAMPLE%5D+Fresh+from+the+tandoor',
   ],
   // Small public sample clip; heroImages[0] doubles as the poster/fallback.
   videoUrl: `${import.meta.env.BASE_URL}media/hero-demo.mp4`, // bundled sample video (no external dependency)
