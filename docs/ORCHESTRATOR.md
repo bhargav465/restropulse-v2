@@ -1,0 +1,184 @@
+# RestroPulse v2 — Orchestrator
+
+> Master build document for `bhargav465/restropulse-v2`. This is the file an engineering agent (or a new senior hire) reads first: what the product is, how the system is shaped, what has shipped, what is in flight, what comes next, and the reasoning that governs every change. Keep it current — when the project changes, this file changes in the same PR.
+
+**Owner:** Bhargav (bhargav.tinku@gmail.com)
+**Repo:** https://github.com/bhargav465/restropulse-v2 · working branch `feat/monorepo-import`
+**Live previews:** [Storefront](https://bhargav465.github.io/restropulse-v2/demo) · [Admin v2](https://bhargav465.github.io/restropulse-v2/admin-v2/) · [Admin v1](https://bhargav465.github.io/restropulse-v2/admin/)
+
+---
+
+## 1. Product vision
+
+RestroPulse is one platform for independent restaurants, combining what competitors sell separately:
+
+| Pillar | What it does | Status |
+|---|---|---|
+| **Content Engine** | AI social-media marketing: strategy, post generation, approval workflow, auto-publishing to Instagram/Facebook | Live (from original SaaS) + new post generator |
+| **Online Ordering** | Per-restaurant storefront: menu, cart, checkout, tracking, reservations, dine-in | Built in v1 run (payments stubbed) |
+| **Growth / CRM** | Cohorts, WhatsApp nudges, discount campaigns, funnel analytics | v1 shipped; ROI attribution planned |
+| **Restaurant Intelligence** | Benchmarks, peak-hour heatmaps, dish P&L, review sentiment | Placeholder |
+| **Website Design** | Template gallery, theme editor, live preview | Placeholder |
+
+**Positioning:** Reelo (reelo.io) proves the retention-marketing market (loyalty, WhatsApp campaigns, guest 360, ROI attribution) but does not do ordering or AI content. RestroPulse's wedge is *"Reelo + ordering + AI content in one dashboard."* The differentiating investments, in order: campaign ROI attribution → guest 360 → churn automation → loyalty.
+
+---
+
+## 2. System overview
+
+### Monorepo (npm workspaces + Turborepo, Node ≥18)
+
+```
+apps/
+  web/              Merchant admin SPA — React 19 + Vite 6 + Tailwind
+                    • v1 shell (bottom-nav, view-state in App.tsx)
+                    • v2 shell (components/v2/ShellV2.tsx, flag VITE_ADMIN_SHELL=v2)
+                    • demo mode (flag VITE_DEMO_MODE, demo-api.ts + lib/demo-fixtures.ts)
+  storefront/       Customer ordering site — React 19 + Vite + react-router
+                    multi-tenant by /:slug, same demo-mode pattern
+  api/              Express 4 + TS. SaaS routes + /api/storefront/:slug/* + /api/admin/ordering/*
+  publisher/        Cron worker — post publishing + token refresh (Meta)
+  content-engine/   Poll worker — AI content generation
+  db-cli/           Commander CLI (incl. `seed:ordering` → demo restaurant, slug "demo")
+packages/
+  shared/           All TypeScript types (SaaS + ordering.ts)
+  db/               Mongo connection, collection helpers, indexes, seeds
+  telemetry/        Browser + server analytics events
+  publishing/ secrets/ tsconfig/ eslint-config/
+tools/
+  image-studio/     Next 14 Replicate image generator (standalone, own lockfile — React 18)
+docs/
+  AUDIT.md          Phase-0 audit of the imported baxeltech codebase
+  ARCHITECTURE.md   ER diagram, route tables, auth model, page maps
+  NEXT.md           Every deferred feature → exact extension point in code
+  ORCHESTRATOR.md   This file
+```
+
+### Data model (MongoDB)
+`restaurants` (+slug, storeOpen, ordering settings) · `menu_categories` · `menu_items` (variants, addons, availability) · `orders` (status machine, idempotency key, totals snapshot) · `reservations` · `storefront_content` (draft + published + version history ≤20) · `customers` (bcrypt email/password, addresses) · `events` (client+server analytics — the funnel and cohorts read from this) · `campaigns` (QUEUED records) · plus original SaaS collections (posts, strategy, subscriptions…).
+
+### Auth model
+Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles incl. OWNER) and **storefront customers** (email/password + bcrypt → customer-role JWT). Demo mode replaces both with dummy sign-in.
+
+### Environments
+| Env | What | How |
+|---|---|---|
+| **Demo (live now)** | 3 static bundles on GitHub Pages (`gh-pages` branch): storefront at root, admin at `/admin/`, admin-v2 at `/admin-v2/` | CI `.github/workflows/deploy-demo-pages.yml` builds all three on push and force-pushes `gh-pages`. Note: Pages CDN caches `index.html` ~10 min. |
+| **Production (path exists, not yet enabled)** | Azure App Service (zip-mount + WebJobs for workers) + Key Vault `restropulse-prod-kv`, GitHub Actions OIDC | Workflows imported from baxeltech; need `AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID` repo vars + MongoDB Atlas URI + Firebase keys + Meta keys. See §7. |
+
+---
+
+## 3. How I think when building this (principles)
+
+1. **Audit before building.** The v1 run started by cloning every accessible repo and writing `AUDIT.md`. The plan assumed portable ordering code existed; the audit showed a social-media SaaS instead. Finding that out on day 0 — not week 3 — is the whole point.
+2. **Adopt the incumbent stack; don't invent.** React+Vite SPA, Express, Mongo, Firebase were already there. Every new feature uses them, even where I'd choose differently greenfield (e.g. Next.js for storefront SEO — documented as a known tradeoff, not silently "fixed").
+3. **Additive changes only; flags for divergence.** The SaaS kept working through every commit. New shells and demo behavior sit behind `VITE_ADMIN_SHELL` / `VITE_DEMO_MODE`; default builds stay byte-equivalent. 549+ pre-existing tests are the regression harness and must stay green.
+4. **Demo/real is one interface, two implementations.** `api.ts` exports a typed client; demo mode swaps the implementation (`typeof realX` annotations enforce parity). The demo is never a fork of the app — it's the same app with a fixtures backend. When real infra arrives, delete one flag, not one codebase.
+5. **Data model first, UI second.** Ordering v1 started with `packages/shared/ordering.ts` + indexes + seeds; routes and three frontends followed from the types. Cohorts/campaigns were server-computed from the `events` collection before any button existed.
+6. **Every deferral is a documented seam.** Payments stop at `PENDING_PAYMENT`; WhatsApp campaigns stop at `QUEUED`; both have a NEXT.md entry naming the exact file/function and payload contract where the real integration plugs in. "Later" never means "lost".
+7. **Own your placeholders.** The external sample-video host 503'd, so the hero video is now generated with ffmpeg and shipped inside the bundle — zero external runtime dependencies in the demo. Sample data is loudly `[SAMPLE]`-marked and lives in seeds/fixtures, never hard-coded in components.
+8. **Ship something viewable at every step.** Phase gates: build green → tests green → deployed URL → verified in a real browser (screenshots, not hope). When the platform blocked one deploy path (Pages API permission), fall back deliberately (gh-pages branch auto-enable) and encode the working path into CI.
+9. **Server-side events from day one.** Analytics that survive ad-blockers make the funnel, cohorts, campaign ROI, and future Intelligence tab possible without retrofitting.
+10. **Secrets never enter the repo.** `.env.example` documents; Key Vault / deployment env vars hold real values. (Also: rotate any token ever pasted in chat.)
+
+---
+
+## 4. Changelog — shipped so far (branch `feat/monorepo-import`)
+
+### Phase 0-1 · Audit & monorepo assembly
+- `2990c40` image studio relocated to `tools/image-studio` (preserved intact)
+- `54e9da3` **import: baxeltech/restropulse snapshot** (staging branch — 333 files ahead of main), no git history
+- `698f35a` `docs/AUDIT.md` — stack audit, portability verdicts, layout decision
+
+### Phase 2-3 · Ordering platform v1 (backend → storefront → admin)
+- `3a64cc1`→`2d1ab6d` shared ordering types; db collections/indexes/seeds; public storefront routes (menu, customer auth, orders w/ idempotency + server-side price validation, reservations, tracking, events ingest); admin routes (menu CRUD, CSV import w/ per-row errors, order status machine, reservations, content draft/publish/rollback, funnel summary); 32 unit tests
+- `810f1fa` `seed:ordering` — demo restaurant, 4 categories/14 items, demo owner+customer
+- `1f7cf69` **apps/storefront** — full customer site (Home/Menu/Cart/Checkout-stubbed/Tracking/Account/Dine-in/Story/static), analytics events, cart persistence
+- `cd72c93` admin Ordering views in apps/web (menu manager, orders feed, reservations, site content editor, funnel)
+- `a89fed1` handoff docs (ARCHITECTURE, NEXT, README, .env.examples)
+
+### Phase 4 · Demo deployments (no DB/keys available → static demo mode)
+- `27d3fb3` storefront demo mode (fixtures behind same client interface)
+- `02fb59e`/`752c0ec` GitHub Pages CI; pivot to gh-pages branch after GITHUB_TOKEN Pages-create permission failure
+- `8200f13` admin demo mode (dummy login, full fixture backend for every API)
+- `99f3f99` **v2 admin shell** — dark-sidebar 4-bucket layout (Content Engine / Online Ordering / Restaurant Intelligence / Website Design), per owner's reference mock
+
+### Feature pass (owner requests + senior judgment)
+- `dcd32e4` ✨ Create-a-post generator (brief + tone → draft in review queue); real seam = `POST /api/posts/generate`
+- `be0a582` Strategy upgraded to an 8-theme restaurant-marketing system with weights + weekly cadence
+- `d41f5c8`/`68947f2` **Growth Campaigns**: server-computed cohorts (drop-off carts / non-transacted / lapsed-30d) + WhatsApp nudge & discount actions (QUEUED + event; delivery = NEXT.md seam); surfaced in both shells
+- `4ff5374` storefront media: colorful per-category menu images, video hero, restaurant photo strip, popular dishes
+- `314470d`/`62c36e4` self-hosted ffmpeg-generated hero video (external host 503'd) + branded poster fallback
+
+**Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
+
+---
+
+## 5. In flight (uncommitted WIP on the working tree)
+
+An elegance pass was interrupted mid-run; partial work exists and should be completed before anything else:
+- `components/v2/theme.ts` — design tokens (warm off-white bg, ink text, coral used sparingly, sage success, 1px soft borders, single shadow level)
+- `components/v2/DashboardV2.tsx` — new cross-product **Dashboard** bucket (default landing): KPI row, "Today" panel, 7-day CSS sparkline, "Needs attention" list
+- `components/v2/GetStartedV2.tsx` + `onboarding.ts` — **Onboarding** checklist page (5-step stepper: profile → Instagram → menu → storefront → first campaign; progress chip in sidebar; completion computed from demo data)
+- Restyle edits to ShellV2 / ContentEngineV2 / primitives (declutter: fewer emojis, quiet underline sub-nav, number-first KPI cards, calmer sidebar)
+
+**Definition of done for this pass:** all web tests green + both admin bundles rebuilt + deployed + screenshot-verified; commit as `feat(web): design-system pass, Dashboard bucket, onboarding checklist`.
+
+---
+
+## 6. Roadmap — next changes, in build order
+
+Each item lists its plug-in point; details in `docs/NEXT.md`.
+
+### Near term (demo-able, high leverage vs Reelo)
+1. **Campaign ROI attribution** — attach coupon code per campaign; join orders ⨝ campaigns → "34 sent → 9 redeemed → ₹4,200". Plugs into `campaigns` collection + `computeOrderTotals.discount` + a `campaign_attributed` event. This is the single most persuasive owner-facing number.
+2. **Customers (guest 360)** — new Ordering sub-tab: per-customer visits, last order, favorites, spend, opt-in, at-risk badge. Reads existing `customers`+`orders`+`events`; no schema change.
+3. **Churn automation rules** — toggleable triggers ("nudge 24 h after abandoned cart", "offer at 30 d inactive"). Needs a `campaign_rules` doc + a worker loop (pattern already exists in `apps/publisher`).
+4. **Restaurant Intelligence v1** — replace placeholder with: repeat rate, new-vs-returning revenue, campaign ROI trend, peak-hours heatmap from `events`.
+
+### Mid term
+5. **Loyalty program** (points per order, redemption at checkout) — order totals seam + customer balance; table stakes in this market.
+6. **Smart QR codes** — `?src=table12` on storefront URLs + funnel dimension; pairs with dine-in.
+7. **Reviews & feedback loop** — post-order request → Reviews tab; gate Google-review ask on 4-5★.
+8. **Payments** — replace `PENDING_PAYMENT` stub with Razorpay (service already in repo for SaaS billing).
+9. **WhatsApp delivery** — worker consuming QUEUED campaigns via WhatsApp Business API; opt-in filter mandatory.
+10. **Template gallery / Website Design bucket** — builds on `storefront_content` versioning + demo-mode fixture pattern (a template = a content+theme preset previewable with the restaurant's own menu).
+
+### Later
+Delivery-dispatch microservice (spec §6), multi-location, RBAC beyond OWNER, i18n, PWA.
+
+---
+
+## 7. Go-live checklist (demo → production)
+
+1. Merge `feat/monorepo-import` (PR: `/pull/new/feat/monorepo-import`); make it the default branch.
+2. Provision MongoDB Atlas; run `seed:ordering`; set `MONGODB_URI` (+ `JWT_SECRET`, `ENCRYPTION_KEY`).
+3. Firebase project keys (merchant OTP login) → `VITE_FIREBASE_*` + `FIREBASE_SERVICE_ACCOUNT`.
+4. Azure: set `AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID` repo vars; populate Key Vault (`scripts/set-keyvault-secrets.sh`, `provision-azure.sh` on `feature/azure-zero-secrets` upstream); staging deploy on push, production via `workflow_dispatch` promotion.
+5. Meta app credentials for publisher/content-engine; Replicate key for image studio.
+6. Turn off demo flags in hosted builds; smoke-test the E2E happy path (browse → order → admin feed → status → tracking).
+7. Rotate every credential that ever appeared in chat or CI logs.
+
+---
+
+## 8. Working agreements
+
+- Conventional commits; one logical change per commit; PR per phase.
+- Every change ends green: `turbo build` + `turbo test` + type-check before commit.
+- Assumptions are labelled `ASSUMPTION:` in reports and PR descriptions.
+- Demo parity rule: any new API client method gets a demo implementation the same day, or the feature doesn't ship to the demo.
+- Sample data is `[SAMPLE]`-marked, lives only in seeds/fixtures.
+- This file + NEXT.md updated in the same PR as the change they describe.
+
+## 9. Decision log
+
+| Decision | Why | Revisit when |
+|---|---|---|
+| Import `staging` not `main` | 333 files / ~48k lines ahead; most mature | — |
+| Ordering built greenfield on audited stack | No ordering code existed anywhere in the org | — |
+| `OrderingMenuItem` type name | `MenuItem` already taken by SaaS content types | If SaaS type retired |
+| Static demo w/ fixtures over hosted preview | No DB/Firebase available; zero-cost, zero-secret, instantly shareable | Real infra provisioned (§7) |
+| gh-pages branch deploys (not Pages API) | `GITHUB_TOKEN` lacks Pages-create permission; branch push auto-enables | Repo admin enables "GitHub Actions" Pages source |
+| Self-hosted ffmpeg hero video | External sample host returned 503; no runtime deps | Owner uploads real footage |
+| SPA (no SSR) for storefront | Stack-adoption rule; SEO tradeoff documented | SEO becomes a growth channel — consider prerender/SSR |
+| Two shells (v1 + v2) behind a flag | Owner wanted a redesign without risking the working v1 | v2 accepted → retire v1 shell |
