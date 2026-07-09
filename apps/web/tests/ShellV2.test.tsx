@@ -35,6 +35,7 @@ vi.mock('../api', () => ({
     orderingAdminAPI: {
         getOrders: vi.fn().mockResolvedValue([]),
         getReservations: vi.fn().mockResolvedValue([]),
+        getItems: vi.fn().mockResolvedValue([]),
         getAnalyticsSummary: vi.fn().mockResolvedValue({ from: '', to: '', events: [] }),
     },
 }));

@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Restaurant, FeatureFlags } from '@restropulse/shared';
 import { isDemoMode } from '../../lib/demo';
+import { orderingAdminAPI } from '../../api';
 import DemoNotice from '../DemoNotice';
 import DashboardV2 from './DashboardV2';
+import GetStartedV2 from './GetStartedV2';
 import ContentEngineV2 from './ContentEngineV2';
 import OrderingV2 from './OrderingV2';
 import IntelligenceV2 from './IntelligenceV2';
 import WebsiteDesignV2 from './WebsiteDesignV2';
 import { GRADIENT } from './theme';
+import { computeOnboardingProgress, isOnboardingDismissed } from './onboarding';
 
 /**
  * V2 admin shell — desktop-first sidebar layout, enabled only when the app is
@@ -18,10 +21,11 @@ import { GRADIENT } from './theme';
  * nav subtitles (title attr instead), 1100px centered content column.
  *
  * Navigation mirrors the existing view-state pattern: plain local state, no
- * router. Dashboard is the default landing bucket.
+ * router. Dashboard is the default landing bucket; Get Started surfaces the
+ * onboarding checklist with a sidebar progress chip until it's dismissed.
  */
 
-type BucketV2 = 'DASHBOARD' | 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
+type BucketV2 = 'DASHBOARD' | 'GET_STARTED' | 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
 
 interface ShellV2Props {
     restaurantData: Restaurant;
@@ -47,6 +51,7 @@ const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> 
 
 const PAGE_META: Record<BucketV2, { title: string; subtitle: string }> = {
     DASHBOARD: { title: 'Dashboard', subtitle: "Today's orders, revenue and anything that needs your attention." },
+    GET_STARTED: { title: 'Get started', subtitle: 'A few quick steps to get your restaurant fully live.' },
     CONTENT: { title: 'Content Engine', subtitle: 'Plan, create and publish your social content — on autopilot.' },
     ORDERING: { title: 'Online Ordering', subtitle: 'Menu, orders, reservations and your storefront in one place.' },
     INTELLIGENCE: { title: 'Restaurant Intelligence', subtitle: 'Insights that help you run a smarter restaurant.' },
@@ -66,8 +71,26 @@ const ShellV2: React.FC<ShellV2Props> = ({
     onRefreshRestaurant,
     refreshKey,
 }) => {
-    const [bucket, setBucket] = React.useState<BucketV2>('DASHBOARD');
+    const [bucket, setBucket] = useState<BucketV2>('DASHBOARD');
+    const [dismissed, setDismissed] = useState<boolean>(() => isOnboardingDismissed(restaurantData.id));
+    const [menuItemCount, setMenuItemCount] = useState(0);
     const meta = PAGE_META[bucket];
+
+    // Onboarding progress for the sidebar chip — menu count is the one signal
+    // not already on `restaurantData`; everything else is derived from it.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const items = await orderingAdminAPI.getItems();
+                if (!cancelled) setMenuItemCount(items.length);
+            } catch { /* new restaurants have no menu yet */ }
+        })();
+        return () => { cancelled = true; };
+    }, [restaurantData.id]);
+
+    const progress = computeOnboardingProgress({ restaurant: restaurantData, menuItemCount });
+    const showGetStarted = !dismissed && !progress.allDone;
 
     const navItemClass = (isActive: boolean) =>
         `w-full text-left rounded-lg pl-3 pr-4 py-2.5 flex items-center gap-3 border-l-[3px] transition-colors ${
@@ -87,6 +110,21 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     <p className="text-xs text-sidebar-ink/70 mt-2 leading-snug">Social media made simple for restaurants</p>
                 </div>
                 <nav className="flex-1 px-3 space-y-1" aria-label="Main navigation">
+                    {showGetStarted && (
+                        <button
+                            type="button"
+                            onClick={() => setBucket('GET_STARTED')}
+                            aria-current={bucket === 'GET_STARTED' ? 'page' : undefined}
+                            title="Finish setting up your restaurant"
+                            className={navItemClass(bucket === 'GET_STARTED')}
+                        >
+                            <span className="text-base leading-none" aria-hidden="true">🚀</span>
+                            <span className="flex-1 font-semibold text-sm">Get started</span>
+                            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-soft text-primary-strong tabular-nums">
+                                {progress.completed}/{progress.total}
+                            </span>
+                        </button>
+                    )}
                     {NAV.map((item) => {
                         const isActive = bucket === item.id;
                         return (
@@ -147,6 +185,13 @@ const ShellV2: React.FC<ShellV2Props> = ({
                         <DashboardV2
                             restaurantData={restaurantData}
                             onNavigate={(b) => setBucket(b)}
+                        />
+                    )}
+                    {bucket === 'GET_STARTED' && (
+                        <GetStartedV2
+                            restaurantData={restaurantData}
+                            onNavigate={(b) => setBucket(b)}
+                            onDismiss={() => { setDismissed(true); setBucket('DASHBOARD'); }}
                         />
                     )}
                     {bucket === 'CONTENT' && (
