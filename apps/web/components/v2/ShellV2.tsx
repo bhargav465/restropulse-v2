@@ -2,6 +2,7 @@ import React from 'react';
 import { Restaurant, FeatureFlags } from '@restropulse/shared';
 import { isDemoMode } from '../../lib/demo';
 import DemoNotice from '../DemoNotice';
+import DashboardV2 from './DashboardV2';
 import ContentEngineV2 from './ContentEngineV2';
 import OrderingV2 from './OrderingV2';
 import IntelligenceV2 from './IntelligenceV2';
@@ -17,11 +18,10 @@ import { GRADIENT } from './theme';
  * nav subtitles (title attr instead), 1100px centered content column.
  *
  * Navigation mirrors the existing view-state pattern: plain local state, no
- * router. The four sidebar buckets group the existing v1 views (mounted
- * unchanged) plus new overview/placeholder pages.
+ * router. Dashboard is the default landing bucket.
  */
 
-type BucketV2 = 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
+type BucketV2 = 'DASHBOARD' | 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
 
 interface ShellV2Props {
     restaurantData: Restaurant;
@@ -38,6 +38,7 @@ interface ShellV2Props {
 }
 
 const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> = [
+    { id: 'DASHBOARD', emoji: '🏠', label: 'Dashboard', title: 'Your restaurant at a glance' },
     { id: 'CONTENT', emoji: '🎯', label: 'Content Engine', title: 'Strategy, posts & publishing' },
     { id: 'ORDERING', emoji: '🛒', label: 'Online Ordering', title: 'Menu, orders & storefront' },
     { id: 'INTELLIGENCE', emoji: '📊', label: 'Restaurant Intelligence', title: 'Insights coming soon' },
@@ -45,6 +46,7 @@ const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> 
 ];
 
 const PAGE_META: Record<BucketV2, { title: string; subtitle: string }> = {
+    DASHBOARD: { title: 'Dashboard', subtitle: "Today's orders, revenue and anything that needs your attention." },
     CONTENT: { title: 'Content Engine', subtitle: 'Plan, create and publish your social content — on autopilot.' },
     ORDERING: { title: 'Online Ordering', subtitle: 'Menu, orders, reservations and your storefront in one place.' },
     INTELLIGENCE: { title: 'Restaurant Intelligence', subtitle: 'Insights that help you run a smarter restaurant.' },
@@ -64,7 +66,7 @@ const ShellV2: React.FC<ShellV2Props> = ({
     onRefreshRestaurant,
     refreshKey,
 }) => {
-    const [bucket, setBucket] = React.useState<BucketV2>('CONTENT');
+    const [bucket, setBucket] = React.useState<BucketV2>('DASHBOARD');
     const meta = PAGE_META[bucket];
 
     const navItemClass = (isActive: boolean) =>
@@ -141,6 +143,12 @@ const ShellV2: React.FC<ShellV2Props> = ({
                         </div>
                     </header>
 
+                    {bucket === 'DASHBOARD' && (
+                        <DashboardV2
+                            restaurantData={restaurantData}
+                            onNavigate={(b) => setBucket(b)}
+                        />
+                    )}
                     {bucket === 'CONTENT' && (
                         <ContentEngineV2
                             restaurantData={restaurantData}
