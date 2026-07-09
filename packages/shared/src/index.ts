@@ -254,6 +254,10 @@ export interface PlannedPost {
   category: string;
   count: number;
   themes?: string[];   // current-affairs/cultural context keywords (e.g. 'Eid', 'India-cricket-win')
+  // --- Optional presentation metadata (additive; used by theme-catalog strategies) ---
+  emoji?: string;         // e.g. '🍛'
+  description?: string;   // one-line owner-facing description of the theme
+  examplePost?: string;   // sample caption the owner would recognise
 }
 
 export interface PlannedSlot {
@@ -275,6 +279,8 @@ export interface StrategyCycle {
   focus: string[];
   feedback?: string;
   plannedSchedule?: PlannedSlot[];  // computed at PENDING_APPROVAL, consumed by rolling-window
+  /** Optional weekly posting cadence recommendation (additive, fixture/AM-authored). */
+  weeklyCadence?: Array<{ day: string; theme: string; note?: string }>;
 }
 
 // ----- Subscription & Billing -----

@@ -22,6 +22,9 @@
  */
 import type {
     AuthResponse,
+    CampaignQueuedResponse,
+    CampaignSendRequest,
+    CustomerCohort,
     City,
     ContentStrategy,
     FeatureFlags,
@@ -47,12 +50,13 @@ import type {
     InstagramAccount,
     InstagramConnectionError,
 } from '@restropulse/shared';
-import type { ContentDraftResponse, MenuCsvImportReport, MenuItemUpsertInput, OrderingAnalyticsSummary } from './api';
+import type { ContentDraftResponse, GeneratePostTone, MenuCsvImportReport, MenuItemUpsertInput, OrderingAnalyticsSummary } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
 import {
     DEMO_ACCOUNT_MANAGERS,
     DEMO_ANALYTICS,
     DEMO_CITIES,
+    DEMO_COHORTS,
     DEMO_CREDIT_PACKS,
     DEMO_CYCLES,
     DEMO_FEATURE_FLAGS,
@@ -77,6 +81,11 @@ import {
 const DEMO_LATENCY_MS = 200;
 
 const delay = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, DEMO_LATENCY_MS));
+
+/** Longer simulated latency for "AI" generation so the loading state reads as real work. */
+const DEMO_GENERATE_LATENCY_MS = 800;
+
+const generateDelay = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, DEMO_GENERATE_LATENCY_MS));
 
 const randomSuffix = (): string => Math.random().toString(36).slice(2, 8);
 
@@ -219,6 +228,62 @@ export const restaurantAPI = {
 
 // ----- Posts (Content Studio) -----
 
+/** Tone-specific body lines, emoji and hashtags for the demo caption template. */
+const DEMO_TONE_FLAVOR: Record<GeneratePostTone, { body: string[]; emoji: string; tags: string[] }> = {
+    fun: {
+        body: [
+            "Tag the friend who's always hungry — this one's for you two.",
+            'Come hungry, leave happy (and maybe a little smug about it).',
+        ],
+        emoji: '😋🎉',
+        tags: ['#FoodieFun', '#WeekendVibes'],
+    },
+    elegant: {
+        body: [
+            'Thoughtfully plated, seasoned with patience, and served warm.',
+            'An evening at our table is time well spent.',
+        ],
+        emoji: '✨🥂',
+        tags: ['#FineDining', '#CulinaryCraft'],
+    },
+    spicy: {
+        body: [
+            'Fair warning: this one bites back.',
+            'Extra napkins on standby — you have been warned.',
+        ],
+        emoji: '🔥🌶️',
+        tags: ['#SpicyFood', '#HeatSeekers'],
+    },
+};
+
+/**
+ * Template: hook line from the brief + 2 tone-matched sentences + emoji +
+ * 5–6 hashtags (always including #DemoKitchen).
+ */
+function buildDemoGeneratedCaption(brief: string, tone: GeneratePostTone = 'fun'): string {
+    const flavor = DEMO_TONE_FLAVOR[tone] ?? DEMO_TONE_FLAVOR.fun;
+
+    // Hook: first sentence of the brief, capitalised, trimmed.
+    const firstSentence = brief.split(/[.!?\n]/)[0]?.trim() || brief.trim();
+    const hook = (firstSentence.charAt(0).toUpperCase() + firstSentence.slice(1)).slice(0, 120);
+
+    // Brief-derived hashtags: up to 2 distinctive words from the brief.
+    const briefTags = Array.from(
+        new Set(
+            brief
+                .toLowerCase()
+                .replace(/[^a-z\s]/g, ' ')
+                .split(/\s+/)
+                .filter((w) => w.length >= 5)
+                .slice(0, 2)
+                .map((w) => `#${w.charAt(0).toUpperCase()}${w.slice(1)}`),
+        ),
+    );
+    const hashtags = Array.from(new Set(['#DemoKitchen', ...briefTags, ...flavor.tags, '#Foodie', '#EatLocal'])).slice(0, 6);
+
+    return `[SAMPLE] ${hook} ${flavor.emoji}\n\n${flavor.body.join(' ')} Only at Demo Kitchen — see you at the table.\n\n${hashtags.join(' ')}`;
+}
+
 export const postsAPI = {
     getAll: async (): Promise<Post[]> => {
         await delay();
@@ -258,6 +323,26 @@ export const postsAPI = {
             platforms: params.platforms,
             restaurantId: state.restaurant.id,
             scheduledFor: params.scheduledFor ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            isAdhoc: true,
+        };
+        state.posts = [created, ...state.posts];
+        return clone(created);
+    },
+
+    // "Create a new post" generator: brief + tone → plausible caption, added
+    // to local posts as PENDING_APPROVAL (mirrors realPostsAPI.generatePost).
+    generatePost: async (params: { brief: string; tone?: GeneratePostTone }): Promise<Post> => {
+        await generateDelay();
+        notifyDemoBackendAction();
+        const created: Post = {
+            id: `demo-post-${randomSuffix()}`,
+            type: 'IMAGE',
+            status: 'PENDING_APPROVAL',
+            thumbnail: `https://placehold.co/600x600/f97316/ffffff?text=${encodeURIComponent(`[SAMPLE] ${params.brief.slice(0, 26)}`)}`,
+            caption: buildDemoGeneratedCaption(params.brief, params.tone),
+            platforms: ['INSTAGRAM', 'FACEBOOK'],
+            restaurantId: state.restaurant.id,
+            scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             isAdhoc: true,
         };
         state.posts = [created, ...state.posts];
@@ -719,6 +804,21 @@ export const orderingAdminAPI = {
         state.publishedVersion += 1;
         state.versions = [...state.versions, { version: state.publishedVersion, publishedAt: new Date().toISOString() }];
         return { restoredFromVersion, publishedVersion: state.publishedVersion };
+    },
+
+    // Growth campaigns: fixture cohorts + simulated queued sends
+    getCohorts: async (): Promise<CustomerCohort[]> => {
+        await delay();
+        return clone(DEMO_COHORTS);
+    },
+
+    sendCampaign: async (payload: CampaignSendRequest): Promise<CampaignQueuedResponse> => {
+        await delay();
+        notifyDemoBackendAction();
+        const cohort = DEMO_COHORTS.find((c) => c.id === payload.cohortId);
+        if (!cohort) throw new Error('Unknown cohort');
+        if (payload.kind === 'discount_offer' && !payload.discount) throw new Error('Discount details are required');
+        return { campaignId: `demo-camp-${randomSuffix()}`, status: 'QUEUED', audienceCount: cohort.count };
     },
 
     // Analytics (funnel)

@@ -8,7 +8,7 @@
  * expose the exact same interface. With the flag off, behavior is unchanged.
  */
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform } from '@restropulse/shared';
-import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent } from '@restropulse/shared';
+import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
 import { isDemoMode } from './lib/demo';
@@ -256,6 +256,30 @@ const realPostsAPI = {
         const response = await fetchAPI<ApiResponse<Post>>('/posts/generate', {
             method: 'POST',
             body: JSON.stringify(params),
+        });
+        return response.data!;
+    },
+
+    /**
+     * "Create a new post" generator (Content Studio card): owner writes a
+     * short brief + picks a tone, and gets a ready-to-review post back.
+     *
+     * Server seam (documented in docs/NEXT.md §8): POST /api/posts/generate
+     * currently creates a PENDING_CONTENT adhoc stub from `concept`; the
+     * payload also carries `brief` + `tone` so the content-engine can use
+     * them once wired. The `concept`/`type` fields keep the call functional
+     * against today's server.
+     */
+    generatePost: async (params: { brief: string; tone?: GeneratePostTone }): Promise<Post> => {
+        const response = await fetchAPI<ApiResponse<Post>>('/posts/generate', {
+            method: 'POST',
+            body: JSON.stringify({
+                brief: params.brief,
+                ...(params.tone ? { tone: params.tone } : {}),
+                // Compatibility with the existing adhoc-generate contract:
+                concept: params.brief,
+                type: 'IMAGE',
+            }),
         });
         return response.data!;
     },
@@ -590,6 +614,9 @@ const realAccountManagerAPI = {
 // Ordering Admin API (merchant JWT, /api/admin/ordering)
 // ============================================
 
+/** Tone options for the Content Studio "Create a new post" generator. */
+export type GeneratePostTone = 'fun' | 'elegant' | 'spicy';
+
 export interface MenuCsvImportReport {
     created: number;
     updated: number;
@@ -779,6 +806,22 @@ const realOrderingAdminAPI = {
         const res = await fetchAPI<ApiResponse<{ restoredFromVersion: number; publishedVersion: number }>>('/admin/ordering/content/rollback', {
             method: 'POST',
             body: JSON.stringify(version !== undefined ? { version } : {}),
+        });
+        return res.data!;
+    },
+
+    // ----- Growth campaigns (cohorts + queued sends) -----
+    getCohorts: async (): Promise<CustomerCohort[]> => {
+        const res = await fetchAPI<ApiResponse<CustomerCohort[]>>('/admin/ordering/cohorts');
+        return res.data ?? [];
+    },
+
+    // Records a QUEUED campaign server-side; actual WhatsApp delivery is the
+    // worker seam documented in docs/NEXT.md §9.
+    sendCampaign: async (payload: CampaignSendRequest): Promise<CampaignQueuedResponse> => {
+        const res = await fetchAPI<ApiResponse<CampaignQueuedResponse>>('/admin/ordering/campaigns', {
+            method: 'POST',
+            body: JSON.stringify(payload),
         });
         return res.data!;
     },

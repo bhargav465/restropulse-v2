@@ -185,6 +185,10 @@ export function getEventsCollection(): Collection {
   return getDB().collection('events');
 }
 
+export function getCampaignsCollection(): Collection {
+  return getDB().collection('campaigns');
+}
+
 // ----- Helpers -----
 
 /**

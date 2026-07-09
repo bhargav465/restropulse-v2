@@ -191,6 +191,8 @@ export interface ReservationSlotConfig {
 
 export interface StorefrontContent {
   heroImages: string[];
+  /** Optional hero banner video (muted autoplay loop); heroImages[0] doubles as the poster/fallback. */
+  videoUrl?: string;
   announcement?: { text: string; enabled: boolean };
   about?: string;
   hours?: StorefrontHoursEntry[];
@@ -223,6 +225,57 @@ export interface StorefrontContentDoc {
 }
 
 export const STOREFRONT_VERSION_HISTORY_LIMIT = 20;
+
+// ----- Growth campaigns (merchant admin: cohort nudges & offers) -----
+
+export type CohortId = 'drop_off_cart' | 'non_transacted' | 'lapsed_30d';
+
+/** A computed customer segment shown on the Campaigns dashboard. */
+export interface CustomerCohort {
+  id: CohortId;
+  name: string;
+  emoji: string;
+  description: string;
+  count: number;
+}
+
+export type CampaignKind = 'whatsapp_nudge' | 'discount_offer';
+
+export interface CampaignDiscount {
+  percentOff: number;      // 1–100
+  code: string;            // e.g. "COMEBACK20"
+  expiryDays: number;      // validity window from send time
+}
+
+export interface CampaignSendRequest {
+  cohortId: CohortId;
+  kind: CampaignKind;
+  /** Required when kind === 'discount_offer'. */
+  discount?: CampaignDiscount;
+}
+
+/**
+ * One document per queued campaign in the `campaigns` collection.
+ * v1 records the intent (status QUEUED); actual WhatsApp delivery is a
+ * worker seam documented in docs/NEXT.md.
+ */
+export interface CampaignRecord {
+  id: string;
+  restaurantId: string;
+  cohortId: CohortId;
+  kind: CampaignKind;
+  discount?: CampaignDiscount;
+  /** Cohort size at queue time. */
+  audienceCount: number;
+  status: 'QUEUED';
+  createdAt: string | Date;
+}
+
+export interface CampaignQueuedResponse {
+  campaignId: string;
+  status: 'QUEUED';
+  audienceCount: number;
+}
 
 // ----- Customers (storefront accounts, distinct from merchant users) -----
 

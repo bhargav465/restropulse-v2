@@ -9,6 +9,7 @@ import {
 import { postsAPI, restaurantAPI } from '../api';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { ActionNotice } from './ActionNotice';
+import GeneratePostCard from './GeneratePostCard';
 
 // Constants for Feedback configuration
 const FEEDBACK_CATEGORIES = [
@@ -818,6 +819,17 @@ const ContentStudio: React.FC<ContentStudioProps> = ({ onCreatePost, refreshKey,
 
     const [approving, setApproving] = useState<string | null>(null);
 
+    // "Create a new post" generator: add the fresh post to local state, jump
+    // to the Review tab and scroll the new card into view.
+    const handleGenerated = (post: Post) => {
+        setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
+        setActiveTab('REVIEW');
+        setNotice({ message: 'Draft generated — review it below.', type: 'success' });
+        setTimeout(() => {
+            document.getElementById(`post-card-${post.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+    };
+
     const handleApprove = async (id: string) => {
         if (approving) return; // Prevent double-clicks
         setApproving(id);
@@ -1045,21 +1057,28 @@ const ContentStudio: React.FC<ContentStudioProps> = ({ onCreatePost, refreshKey,
                 </div>
             )}
 
+            {/* "Create a new post" generator (shared by v1 + v2 shells) */}
+            <GeneratePostCard
+                onGenerated={handleGenerated}
+                onError={(message) => setNotice({ message, type: 'error' })}
+            />
+
             {/* Content List */}
             <div className="space-y-4">
                 {displayPosts.length > 0 ? (
                     displayPosts.map(post => (
-                        <PostCard
-                            key={post.id}
-                            post={post}
-                            tab={activeTab}
-                            onApprove={handleApprove}
-                            onFeedback={openFeedbackModal}
-                            approving={approving}
-                            instagramConnected={instagramConnected}
-                            now={now}
-                            postApprovalBufferMins={postApprovalBufferMins}
-                        />
+                        <div key={post.id} id={`post-card-${post.id}`}>
+                            <PostCard
+                                post={post}
+                                tab={activeTab}
+                                onApprove={handleApprove}
+                                onFeedback={openFeedbackModal}
+                                approving={approving}
+                                instagramConnected={instagramConnected}
+                                now={now}
+                                postApprovalBufferMins={postApprovalBufferMins}
+                            />
+                        </div>
                     ))
                 ) : posts.length === 0 && onCreatePost ? (
                     <div className="flex flex-col items-center justify-center py-20">

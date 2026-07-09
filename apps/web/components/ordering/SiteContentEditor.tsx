@@ -161,7 +161,18 @@ const SiteContentEditor: React.FC = () => {
 
             {notice && <ActionNotice message={notice.message} type={notice.type} onDismiss={() => setNotice(null)} />}
 
-            <Section title="Hero images" defaultOpen>
+            <Section title="Hero media" defaultOpen>
+                <div>
+                    <label htmlFor="hero-video-url" className={labelCls}>Hero video URL (optional)</label>
+                    <input
+                        id="hero-video-url"
+                        className={inputCls}
+                        type="url"
+                        placeholder="https://… (muted autoplay banner; first hero image is the poster/fallback)"
+                        value={draft.videoUrl ?? ''}
+                        onChange={(e) => update({ videoUrl: e.target.value || undefined })}
+                    />
+                </div>
                 <UrlListEditor label="Hero image" urls={draft.heroImages} onChange={(heroImages) => update({ heroImages })} />
             </Section>
 

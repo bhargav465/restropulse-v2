@@ -24,6 +24,7 @@ export {
   getStorefrontContentCollection,
   getCustomersCollection,
   getEventsCollection,
+  getCampaignsCollection,
   getSessionsCollection,
   getOtpChallengesCollection,
   getOauthSessionsCollection,

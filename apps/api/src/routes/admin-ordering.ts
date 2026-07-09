@@ -21,12 +21,19 @@ import {
     getReservationsCollection,
     getStorefrontContentCollection,
     getEventsCollection,
+    getCustomersCollection,
+    getCampaignsCollection,
     toApiFormat,
     toApiFormatArray,
     toObjectId,
 } from '@restropulse/db';
 import type {
     ApiResponse,
+    CampaignDiscount,
+    CampaignKind,
+    CampaignQueuedResponse,
+    CohortId,
+    CustomerCohort,
     MenuCategory,
     OrderingMenuItem,
     MenuItemAvailability,
@@ -43,6 +50,14 @@ import { requireRole } from '../middleware/require-role.js';
 import { isOrderStatus, canTransitionOrderStatus, ORDER_STATUS_TRANSITIONS } from '../services/ordering/status.js';
 import { parseMenuCsv } from '../services/ordering/menu-csv.js';
 import { emitOrderingEvent } from '../services/ordering/events.js';
+import {
+    buildCohorts,
+    computeCohorts,
+    COHORT_CATALOG,
+    DROP_OFF_WINDOW_DAYS,
+    type CohortEventRow,
+    type CohortOrderRow,
+} from '../services/ordering/cohorts.js';
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@restropulse/telemetry/server';
 
@@ -677,6 +692,115 @@ router.get('/analytics/summary', handle(async (req: Request, res: Response<ApiRe
             to: toDate.toISOString(),
             events: results,
         },
+    });
+}));
+
+
+// ============================================
+// Growth campaigns: cohorts + queued sends
+// ============================================
+//
+// Cohort math is a pure function (services/ordering/cohorts.ts) fed from the
+// events / orders / customers collections. POST /campaigns only records the
+// intent (status QUEUED) and emits an analytics event — the actual WhatsApp
+// delivery worker is a documented seam in docs/NEXT.md.
+
+router.get('/cohorts', handle(async (req: Request, res: Response<ApiResponse<CustomerCohort[]>>) => {
+    const rid = restaurantId(req);
+    const windowStart = new Date(Date.now() - DROP_OFF_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const [eventDocs, orderDocs, customerDocs] = await Promise.all([
+        getEventsCollection()
+            .find({ restaurantId: rid, name: { $in: ['add_to_cart', 'begin_checkout', 'order_placed'] }, ts: { $gte: windowStart } })
+            .project({ name: 1, sessionId: 1, ts: 1 })
+            .toArray(),
+        getOrdersCollection()
+            .find({ restaurantId: rid, status: { $ne: 'CANCELLED' } })
+            .project({ customerId: 1, createdAt: 1 })
+            .toArray(),
+        getCustomersCollection().find({ restaurantId: rid }).project({ _id: 1 }).toArray(),
+    ]);
+
+    const counts = computeCohorts(
+        eventDocs as unknown as CohortEventRow[],
+        orderDocs as unknown as CohortOrderRow[],
+        customerDocs.map((c) => ({ id: String(c._id) })),
+    );
+    res.json({ success: true, data: buildCohorts(counts) });
+}));
+
+const CAMPAIGN_KINDS: CampaignKind[] = ['whatsapp_nudge', 'discount_offer'];
+
+router.post('/campaigns', handle(async (req: Request, res: Response<ApiResponse<CampaignQueuedResponse>>) => {
+    const { cohortId, kind, discount } = (req.body ?? {}) as { cohortId?: unknown; kind?: unknown; discount?: Partial<CampaignDiscount> };
+
+    if (!COHORT_CATALOG.some((c) => c.id === cohortId)) {
+        return res.status(400).json({ success: false, error: `cohortId must be one of: ${COHORT_CATALOG.map((c) => c.id).join(', ')}` });
+    }
+    if (!CAMPAIGN_KINDS.includes(kind as CampaignKind)) {
+        return res.status(400).json({ success: false, error: `kind must be one of: ${CAMPAIGN_KINDS.join(', ')}` });
+    }
+
+    let parsedDiscount: CampaignDiscount | undefined;
+    if (kind === 'discount_offer') {
+        const percentOff = Number(discount?.percentOff);
+        const expiryDays = Number(discount?.expiryDays);
+        const code = typeof discount?.code === 'string' ? discount.code.trim().toUpperCase() : '';
+        if (!Number.isFinite(percentOff) || percentOff < 1 || percentOff > 100) {
+            return res.status(400).json({ success: false, error: 'discount.percentOff must be between 1 and 100' });
+        }
+        if (!code || !/^[A-Z0-9_-]{3,20}$/.test(code)) {
+            return res.status(400).json({ success: false, error: 'discount.code must be 3–20 chars (letters, numbers, - or _)' });
+        }
+        if (!Number.isInteger(expiryDays) || expiryDays < 1 || expiryDays > 90) {
+            return res.status(400).json({ success: false, error: 'discount.expiryDays must be an integer between 1 and 90' });
+        }
+        parsedDiscount = { percentOff, code, expiryDays };
+    }
+
+    const rid = restaurantId(req);
+
+    // Snapshot the audience size at queue time.
+    const windowStart = new Date(Date.now() - DROP_OFF_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const [eventDocs, orderDocs, customerDocs] = await Promise.all([
+        getEventsCollection()
+            .find({ restaurantId: rid, name: { $in: ['add_to_cart', 'begin_checkout', 'order_placed'] }, ts: { $gte: windowStart } })
+            .project({ name: 1, sessionId: 1, ts: 1 })
+            .toArray(),
+        getOrdersCollection()
+            .find({ restaurantId: rid, status: { $ne: 'CANCELLED' } })
+            .project({ customerId: 1, createdAt: 1 })
+            .toArray(),
+        getCustomersCollection().find({ restaurantId: rid }).project({ _id: 1 }).toArray(),
+    ]);
+    const counts = computeCohorts(
+        eventDocs as unknown as CohortEventRow[],
+        orderDocs as unknown as CohortOrderRow[],
+        customerDocs.map((c) => ({ id: String(c._id) })),
+    );
+    const audienceCount = counts[cohortId as CohortId];
+
+    const doc = {
+        restaurantId: rid,
+        cohortId: cohortId as CohortId,
+        kind: kind as CampaignKind,
+        ...(parsedDiscount ? { discount: parsedDiscount } : {}),
+        audienceCount,
+        status: 'QUEUED' as const,
+        createdAt: new Date(),
+    };
+    const result = await getCampaignsCollection().insertOne(doc);
+
+    emitOrderingEvent({
+        name: 'campaign_queued',
+        restaurantId: rid,
+        payload: { campaignId: result.insertedId.toString(), cohortId, kind, audienceCount },
+    });
+    log.info({ restaurantId: rid, cohortId, kind, audienceCount }, 'Campaign queued');
+
+    res.status(201).json({
+        success: true,
+        data: { campaignId: result.insertedId.toString(), status: 'QUEUED', audienceCount },
     });
 }));
 

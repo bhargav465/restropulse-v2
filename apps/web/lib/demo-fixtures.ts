@@ -10,6 +10,7 @@
 import type {
     AccountManager,
     City,
+    CustomerCohort,
     ContentStrategy,
     CreditPack,
     FeatureFlags,
@@ -289,16 +290,107 @@ export const DEMO_ANALYTICS = {
 };
 
 // ----- Strategy + Inputs -----
+//
+// Theme system: a restaurant-marketing content catalog. Each planned post row
+// is one theme (emoji + name + one-line description + example post) with a
+// weight expressed as a monthly post count. The active cycle also carries a
+// weekly cadence recommendation rendered by the Strategy view.
 
 export const DEMO_STRATEGY: ContentStrategy = {
     id: 'demo-strategy-1',
     restaurantId: DEMO_RESTAURANT_ID,
     postsPerWeek: 5,
-    focusCategories: ['Signature dishes', 'Offers & combos', 'Behind the scenes'],
+    focusCategories: ['Signature Dishes', 'Offers & Combos', 'Behind the Scenes', 'Festivals & Seasonal'],
     bestTime: '7:00 PM – 9:00 PM',
     nextScheduledDate: days(1),
-    theme: '[SAMPLE] Monsoon comfort food',
+    theme: '[SAMPLE] Monsoon comfort food, festive warm-ups',
 };
+
+/**
+ * The 8-theme catalog with default weights (% of a 20-post month → counts).
+ * Signature 25%, Offers 20%, BTS 15%, Festivals 15%, Customer Love 10%,
+ * Local 5%, Weekday drivers 5%, Launches 5%.
+ */
+const THEME_CATALOG = {
+    signature: {
+        category: 'Signature Dishes',
+        emoji: '🍛',
+        description: 'Hero the dishes people already drive across town for.',
+        examplePost: '"14 hours of dum, one pot of biryani. Some things can\'t be rushed. 🍛"',
+    },
+    bts: {
+        category: 'Behind the Scenes',
+        emoji: '👨‍🍳',
+        description: 'Kitchen, chef and prep stories — the trust builders.',
+        examplePost: '"6 AM: fresh naan dough, first tadka, and chef\'s third chai. ☕"',
+    },
+    offers: {
+        category: 'Offers & Combos',
+        emoji: '🎟️',
+        description: 'Family combos, meal deals and limited-time discounts.',
+        examplePost: '"Weekend sorted: 20% off family combos till Sunday. Bring the gang! 👨‍👩‍👧‍👦"',
+    },
+    festivals: {
+        category: 'Festivals & Seasonal',
+        emoji: '🪔',
+        description: 'Diwali, Holi, Christmas, NYE — plan the calendar spikes early.',
+        examplePost: '"Diwali thali bookings open — saffron kheer on the house. 🪔✨"',
+    },
+    customerLove: {
+        category: 'Customer Love',
+        emoji: '💬',
+        description: 'Reviews, regulars and reposted customer photos (UGC).',
+        examplePost: '"\'Best butter chicken in Indiranagar\' — thanks Ananya, we\'re framing this. 🧡"',
+    },
+    local: {
+        category: 'Local & Community',
+        emoji: '📍',
+        description: 'City events, cricket match days, neighbourhood moments.',
+        examplePost: '"Match day! Big screen on, jersey discounts live. India, let\'s go! 🏏"',
+    },
+    weekday: {
+        category: 'Weekday Traffic Drivers',
+        emoji: '🍽️',
+        description: 'Lunch specials and happy hours that fill quiet weekdays.',
+        examplePost: '"₹199 lunch thali, out in 15 minutes — your lunch break can handle it. ⏱️"',
+    },
+    launches: {
+        category: 'New Launches',
+        emoji: '🚀',
+        description: 'New dishes and menu drops, teased before they land.',
+        examplePost: '"Something smoky joins the menu Friday. Hint: it comes on a sizzler. 👀"',
+    },
+} as const;
+
+type ThemeKey = keyof typeof THEME_CATALOG;
+
+/** One planned-posts row: theme + monthly count (weight). */
+const themed = (key: ThemeKey, count: number, themes?: string[]) => ({
+    ...THEME_CATALOG[key],
+    count,
+    ...(themes ? { themes } : {}),
+});
+
+/** Default monthly mix — 20 posts split by the standard weights. */
+const STANDARD_MIX = [
+    themed('signature', 5),                       // 25%
+    themed('offers', 4),                          // 20%
+    themed('bts', 3),                             // 15%
+    themed('festivals', 3, ['Diwali warm-up']),   // 15%
+    themed('customerLove', 2),                    // 10%
+    themed('local', 1, ['cricket match days']),   // 5%
+    themed('weekday', 1, ['lunch specials']),     // 5%
+    themed('launches', 1),                        // 5%
+];
+
+/** Weekly cadence recommendation rendered on the cycle card. */
+const WEEKLY_CADENCE = [
+    { day: 'Mon', theme: '🍽️ Lunch-driver', note: 'catch the weekday lunch crowd early' },
+    { day: 'Wed', theme: '👨‍🍳 Behind the Scenes', note: 'mid-week trust builder' },
+    { day: 'Fri', theme: '🎟️ Offer', note: 'weekend decision window opens' },
+    { day: 'Sat', theme: '🍛 Signature dish', note: 'prime dinner-scroll hours' },
+    { day: 'Sun', theme: '💬 Family & Customer Love', note: 'family-outing planning day' },
+];
 
 export const DEMO_CYCLES: StrategyCycle[] = [
     {
@@ -309,19 +401,24 @@ export const DEMO_CYCLES: StrategyCycle[] = [
         endDate: days(46),
         status: 'PENDING_APPROVAL',
         summary:
-            '[SAMPLE] Lean into festive-season warm-ups: teaser reels for the new tasting thali, two offer spotlights, and a chef story every week.',
+            '[SAMPLE] Festive quarter warm-up: lead with signature dishes (25%) and sharpen offers to 20% as Diwali approaches. Festival posts step up mid-cycle, Friday offers target the weekend decision window, and one launch teaser preps the new sizzler menu.',
         plannedPosts: [
-            { category: "Chef's Pick", count: 4, themes: ['festive'] },
-            { category: 'Craving Cue', count: 4 },
-            { category: 'Offer Spotlight', count: 3, themes: ['family combos'] },
-            { category: 'Behind the Scenes', count: 2 },
+            themed('signature', 5),
+            themed('offers', 4, ['festive family combos']),
+            themed('festivals', 4, ['Diwali', 'Karwa Chauth']),
+            themed('bts', 3),
+            themed('customerLove', 2),
+            themed('local', 1, ['cricket season']),
+            themed('weekday', 1, ['happy hours']),
+            themed('launches', 1, ['sizzler menu']),
         ],
-        focus: ['Festive teasers', 'Tasting thali launch', 'Weekend reels'],
+        focus: ['Diwali build-up', 'Sizzler menu launch', 'Weekend family combos'],
+        weeklyCadence: WEEKLY_CADENCE,
         plannedSchedule: [
-            { scheduledFor: days(19), category: "Chef's Pick", postType: 'IMAGE' },
-            { scheduledFor: days(21), category: 'Craving Cue', postType: 'REEL' },
-            { scheduledFor: days(24), category: 'Offer Spotlight', postType: 'IMAGE' },
-            { scheduledFor: days(26), category: 'Behind the Scenes', postType: 'CAROUSEL' },
+            { scheduledFor: days(19), category: 'Signature Dishes', postType: 'IMAGE' },
+            { scheduledFor: days(21), category: 'Behind the Scenes', postType: 'REEL' },
+            { scheduledFor: days(24), category: 'Offers & Combos', postType: 'IMAGE' },
+            { scheduledFor: days(26), category: 'Festivals & Seasonal', postType: 'CAROUSEL' },
         ],
     },
     {
@@ -332,18 +429,14 @@ export const DEMO_CYCLES: StrategyCycle[] = [
         endDate: days(18),
         status: 'ACTIVE',
         summary:
-            '[SAMPLE] Monsoon comfort food month: hero the slow-cooked classics, push family combos on weekdays, and keep one BTS reel per week.',
-        plannedPosts: [
-            { category: 'Craving Cue', count: 5, themes: ['monsoon'] },
-            { category: "Chef's Pick", count: 4 },
-            { category: 'Offer Spotlight', count: 3 },
-            { category: 'Behind the Scenes', count: 2 },
-        ],
-        focus: ['Monsoon specials', 'Family combos', 'Signature gravies'],
+            '[SAMPLE] Monsoon comfort-food month: signature slow-cooked classics carry the feed (25%), weekday lunch thalis and happy hours prop up rainy-day footfall, and one BTS reel a week keeps the kitchen story going. Offers run Fri–Sun when families decide where to eat.',
+        plannedPosts: STANDARD_MIX,
+        focus: ['Monsoon specials', 'Weekday lunch traffic', 'Signature gravies'],
+        weeklyCadence: WEEKLY_CADENCE,
         plannedSchedule: [
-            { scheduledFor: days(1), category: 'Craving Cue', postType: 'IMAGE' },
-            { scheduledFor: days(2.5), category: 'Menu Tour', postType: 'CAROUSEL' },
-            { scheduledFor: days(4), category: 'Offer Spotlight', postType: 'IMAGE' },
+            { scheduledFor: days(1), category: 'Signature Dishes', postType: 'IMAGE' },
+            { scheduledFor: days(2.5), category: 'Weekday Traffic Drivers', postType: 'IMAGE' },
+            { scheduledFor: days(4), category: 'Offers & Combos', postType: 'IMAGE' },
             { scheduledFor: days(6), category: 'Behind the Scenes', postType: 'REEL' },
         ],
     },
@@ -355,11 +448,12 @@ export const DEMO_CYCLES: StrategyCycle[] = [
         endDate: days(-10),
         status: 'HISTORY',
         summary:
-            '[SAMPLE] Summer coolers wrap-up: chaas, kulfi and lighter lunch bowls. Reels outperformed static posts 3:1.',
+            '[SAMPLE] Summer coolers wrap-up: chaas, kulfi and lighter lunch bowls. BTS reels outperformed static posts 3:1 — carried that learning into this cycle\'s cadence.',
         plannedPosts: [
-            { category: 'Craving Cue', count: 6 },
-            { category: 'Offer Spotlight', count: 4 },
-            { category: 'Behind the Scenes', count: 2 },
+            themed('signature', 6),
+            themed('offers', 4),
+            themed('weekday', 2, ['summer lunch bowls']),
+            themed('bts', 2),
         ],
         focus: ['Summer coolers', 'Lunch bowls'],
     },
@@ -545,11 +639,24 @@ export const DEMO_MENU_CATEGORIES: MenuCategory[] = [
 
 type ItemInput = Omit<OrderingMenuItem, 'restaurantId' | 'images' | 'description'> & { description: string };
 
+/** Per-category placeholder palette (kept in sync with the db seed) so demo menu images look like food, not grey boxes. */
+const CATEGORY_IMAGE_COLORS: Record<string, { bg: string; text: string }> = {
+    'demo-cat-starters': { bg: 'f97316', text: 'ffffff' },     // warm orange
+    'demo-cat-mains': { bg: 'b91c1c', text: 'ffffff' },        // deep red
+    'demo-cat-breads-rice': { bg: 'f59e0b', text: '7c2d12' },  // amber
+    'demo-cat-desserts': { bg: 'ec4899', text: 'ffffff' },     // pink
+};
+
+const dishImage = (categoryId: string, name: string): string => {
+    const { bg, text } = CATEGORY_IMAGE_COLORS[categoryId] ?? { bg: '64748b', text: 'ffffff' };
+    return `https://placehold.co/600x400/${bg}/${text}?text=${encodeURIComponent(name)}`;
+};
+
 const menuItem = (partial: ItemInput): OrderingMenuItem => ({
     ...partial,
     restaurantId: DEMO_RESTAURANT_ID,
     description: `[SAMPLE] ${partial.description}`,
-    images: [`https://placehold.co/600x400?text=${encodeURIComponent(partial.name)}`],
+    images: [dishImage(partial.categoryId, partial.name)],
 });
 
 export const DEMO_MENU_ITEMS: OrderingMenuItem[] = [
@@ -685,6 +792,8 @@ export const DEMO_STOREFRONT_CONTENT: StorefrontContent = {
         'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+1',
         'https://placehold.co/1600x900?text=%5BSAMPLE%5D+Demo+Kitchen+Hero+2',
     ],
+    // Small public sample clip; heroImages[0] doubles as the poster/fallback.
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
     announcement: { text: '[SAMPLE] Free delivery on orders above Rs. 499 this week!', enabled: true },
     about: '[SAMPLE] Demo Kitchen is a placeholder restaurant used to showcase the RestroPulse online ordering storefront.',
     hours: [
@@ -706,9 +815,11 @@ export const DEMO_STOREFRONT_CONTENT: StorefrontContent = {
         { name: '[SAMPLE] Chef Demo', title: 'Head Chef', bio: 'Placeholder chef biography for the demo storefront.', photo: 'https://placehold.co/400x400?text=%5BSAMPLE%5D+Chef' },
     ],
     gallery: [
-        'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+1',
-        'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+2',
-        'https://placehold.co/800x600?text=%5BSAMPLE%5D+Gallery+3',
+        'https://placehold.co/800x600/c2410c/ffffff?text=Dining+Hall',
+        'https://placehold.co/800x600/9a3412/ffffff?text=Kitchen',
+        'https://placehold.co/800x600/ea580c/ffffff?text=Chef%27s+Counter',
+        'https://placehold.co/800x600/f59e0b/7c2d12?text=Tandoor+Station',
+        'https://placehold.co/800x600/78350f/ffffff?text=Courtyard+Seating',
     ],
     dineIn: [
         { title: '[SAMPLE] Private dining', text: 'A 12-seater private room for celebrations.', image: 'https://placehold.co/800x600?text=%5BSAMPLE%5D+Dine-in' },
@@ -726,4 +837,30 @@ export const DEMO_FUNNEL_EVENTS: Array<{ name: string; count: number; uniqueSess
     { name: 'begin_checkout', count: 205, uniqueSessions: 188 },
     { name: 'login_prompt', count: 152, uniqueSessions: 141 },
     { name: 'order_placed', count: 97, uniqueSessions: 92 },
+];
+
+// ----- Growth campaigns: fixture cohorts (counts are sample numbers) -----
+
+export const DEMO_COHORTS: CustomerCohort[] = [
+    {
+        id: 'drop_off_cart',
+        name: 'Drop-off carts',
+        emoji: '🛒',
+        count: 34,
+        description: '[SAMPLE] Added to cart or started checkout in the last 7 days but never placed the order.',
+    },
+    {
+        id: 'non_transacted',
+        name: 'Non-transacted signups',
+        emoji: '👋',
+        count: 58,
+        description: '[SAMPLE] Created an account but have not ordered yet — a welcome offer converts these best.',
+    },
+    {
+        id: 'lapsed_30d',
+        name: 'Lapsed 30-day',
+        emoji: '💤',
+        count: 21,
+        description: '[SAMPLE] Ordered before, but nothing in the last 30 days. A gentle reminder brings them back.',
+    },
 ];

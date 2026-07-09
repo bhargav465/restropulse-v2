@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { BookOpenText, ReceiptText, CalendarCheck, Palette, BarChart3 } from 'lucide-react';
+import { BookOpenText, ReceiptText, CalendarCheck, Palette, BarChart3, Megaphone } from 'lucide-react';
 import { Restaurant } from '@restropulse/shared';
 import MenuManager from './MenuManager';
 import OrdersFeed from './OrdersFeed';
 import ReservationsPanel from './ReservationsPanel';
 import SiteContentEditor from './SiteContentEditor';
 import FunnelAnalytics from './FunnelAnalytics';
+import Campaigns from './Campaigns';
 
-type OrderingTab = 'MENU' | 'ORDERS' | 'RESERVATIONS' | 'CONTENT' | 'FUNNEL';
+type OrderingTab = 'MENU' | 'ORDERS' | 'RESERVATIONS' | 'CONTENT' | 'FUNNEL' | 'CAMPAIGNS';
 
 interface OrderingProps {
     restaurantData: Restaurant;
@@ -19,6 +20,7 @@ const TABS: Array<{ id: OrderingTab; label: string; icon: React.ComponentType<{ 
     { id: 'RESERVATIONS', label: 'Reservations', icon: CalendarCheck },
     { id: 'CONTENT', label: 'Site Content', icon: Palette },
     { id: 'FUNNEL', label: 'Funnel', icon: BarChart3 },
+    { id: 'CAMPAIGNS', label: 'Campaigns', icon: Megaphone },
 ];
 
 /**
@@ -56,6 +58,7 @@ const Ordering: React.FC<OrderingProps> = ({ restaurantData }) => {
             {activeTab === 'RESERVATIONS' && <ReservationsPanel />}
             {activeTab === 'CONTENT' && <SiteContentEditor />}
             {activeTab === 'FUNNEL' && <FunnelAnalytics />}
+            {activeTab === 'CAMPAIGNS' && <Campaigns />}
         </div>
     );
 };
