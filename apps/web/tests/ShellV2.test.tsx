@@ -6,7 +6,7 @@
  * builds (flag unset) still render the v1 Layout, (3) flag on renders ShellV2.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from './utils/test-utils';
+import { render, screen, waitFor, fireEvent } from './utils/test-utils';
 import ShellV2 from '../components/v2/ShellV2';
 import App from '../App';
 import { DEMO_RESTAURANT, DEMO_FEATURE_FLAGS, DEMO_ANALYTICS } from '../lib/demo-fixtures';
@@ -35,6 +35,7 @@ vi.mock('../api', () => ({
     orderingAdminAPI: {
         getOrders: vi.fn().mockResolvedValue([]),
         getReservations: vi.fn().mockResolvedValue([]),
+        getItems: vi.fn().mockResolvedValue([]),
         getAnalyticsSummary: vi.fn().mockResolvedValue({ from: '', to: '', events: [] }),
     },
 }));
@@ -87,10 +88,24 @@ describe('ShellV2 (v2 admin shell)', () => {
         expect(screen.getByText(DEMO_RESTAURANT.name)).toBeInTheDocument();
     });
 
-    it('shows the Content Engine overview by default with KPI cards', async () => {
+    it('shows the Dashboard landing page by default with KPI cards', async () => {
         render(<ShellV2 {...shellProps} />);
 
-        expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+        // Dashboard is the default landing bucket (design.md §4.2).
+        expect(screen.getByRole('heading', { name: /^Dashboard$/i })).toBeInTheDocument();
+        expect(screen.getByText(/Orders today/i)).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText(/Needs attention/i)).toBeInTheDocument();
+        });
+    });
+
+    it('can switch to the Content Engine bucket and show its overview', async () => {
+        render(<ShellV2 {...shellProps} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Content Engine/i }));
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+        });
         expect(screen.getByText(/Posts this week/i)).toBeInTheDocument();
         await waitFor(() => {
             // Most recent week from the demo analytics fixture (7 posts)

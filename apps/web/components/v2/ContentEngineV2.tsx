@@ -76,7 +76,7 @@ const ContentOverview: React.FC<{ restaurantData: Restaurant; onNavigate: (tab: 
                     emoji="⏳"
                     label="Pending review"
                     value={pendingCount}
-                    delta={pendingCount > 0 ? 'needs your 👍' : 'all clear 🎉'}
+                    delta={pendingCount > 0 ? 'needs your review' : 'all clear'}
                     deltaTone={pendingCount > 0 ? 'down' : 'up'}
                 />
                 <StatCard emoji="🗓️" label="Scheduled" value={scheduledCount} delta="on autopilot" deltaTone="neutral" />
@@ -97,19 +97,19 @@ const ContentOverview: React.FC<{ restaurantData: Restaurant; onNavigate: (tab: 
 
             {/* Content mix */}
             {contentMix.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-4">🎨 Content mix · last 30 days</h3>
+                <div className="bg-surface rounded-2xl p-6 border border-line">
+                    <h3 className="text-base font-semibold text-ink mb-4">Content mix · last 30 days</h3>
                     <div className="space-y-3">
                         {contentMix.map((m) => (
                             <div key={m.type} className="flex items-center gap-3">
-                                <span className="w-28 text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <span className="w-28 text-xs font-semibold text-muted flex items-center gap-1.5">
                                     <span aria-hidden="true">{CONTENT_MIX_EMOJI[m.type] || '📌'}</span>
                                     {m.type.charAt(0) + m.type.slice(1).toLowerCase()}
                                 </span>
-                                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-[#e8674a] rounded-full" style={{ width: `${(m.count / maxMix) * 100}%` }} />
+                                <div className="flex-1 h-2.5 bg-primary-soft rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary rounded-full" style={{ width: `${(m.count / maxMix) * 100}%` }} />
                                 </div>
-                                <span className="w-8 text-right text-sm font-extrabold text-slate-700">{m.count}</span>
+                                <span className="w-8 text-right text-sm font-semibold text-ink tabular-nums">{m.count}</span>
                             </div>
                         ))}
                     </div>

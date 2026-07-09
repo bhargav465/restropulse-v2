@@ -8,10 +8,10 @@ import { ActionCard } from './primitives';
 const WebsiteDesignV2: React.FC = () => (
     <div className="space-y-6">
         {/* Friendly hero */}
-        <div className="bg-[#1b2230] rounded-2xl p-8 text-white text-center">
-            <div className="text-5xl mb-3" aria-hidden="true">🎨🖌️</div>
-            <h3 className="text-xl font-extrabold">A beautiful website, minus the agency invoice</h3>
-            <p className="text-slate-400 text-sm mt-2 max-w-xl mx-auto leading-relaxed">
+        <div className="bg-banner rounded-2xl p-8 text-white text-center">
+            <div className="text-5xl mb-3" aria-hidden="true">🎨</div>
+            <h3 className="text-xl font-semibold">A beautiful website, minus the agency invoice</h3>
+            <p className="text-sidebar-ink text-sm mt-2 max-w-xl mx-auto leading-relaxed">
                 Pick a template, tweak the colors, hit publish. Website design tools for your
                 storefront are on the way.
             </p>

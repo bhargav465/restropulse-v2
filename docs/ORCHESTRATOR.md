@@ -103,6 +103,12 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
 - `8200f13` admin demo mode (dummy login, full fixture backend for every API)
 - `99f3f99` **v2 admin shell** — dark-sidebar 4-bucket layout (Content Engine / Online Ordering / Restaurant Intelligence / Website Design), per owner's reference mock
 
+### Design pass · v2 shell — Electric Lavender (design.md §4.1–4.3)
+- **Electric Lavender restyle**: retired coral; new `apps/web/components/v2/theme.ts` tokens + `@theme` CSS variables in `index.css`; restyled `ShellV2` (aubergine rail, 3px-primary active edge, one emoji per bucket, no nav subtitles), `primitives` (number-first KPI cards, underline sub-nav, text deltas, lavender banner), and recolored Content/Ordering/Intelligence/Website bucket pages. Applied §3 declutter rules; 1100px centered content column.
+- **Dashboard bucket** (`DashboardV2.tsx`) — new default landing: 4 KPIs, Today panel, 7-day SVG sparkline, Needs-attention list; data from existing ordering/posts demo APIs.
+- **Onboarding** (`GetStartedV2.tsx` + `onboarding.ts`) — 5-step checklist (profile → Instagram → menu → storefront → first campaign), completion computed from data, sidebar progress chip, dismissal in localStorage.
+- Gates: web tests **550 green** (was 549), `vite build` clean, tokens verified in emitted CSS. Tokens-only (no raw hex in components). ASSUMPTION: Dashboard replaces Content Engine as the default v2 bucket (updated ShellV2 smoke test accordingly).
+
 ### Feature pass (owner requests + senior judgment)
 - `dcd32e4` ✨ Create-a-post generator (brief + tone → draft in review queue); real seam = `POST /api/posts/generate`
 - `be0a582` Strategy upgraded to an 8-theme restaurant-marketing system with weights + weekly cadence

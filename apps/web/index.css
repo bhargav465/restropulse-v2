@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/**
+ * ELECTRIC LAVENDER design tokens (design.md §2) — exposed as Tailwind color
+ * utilities for the v2 admin shell. Mirrors apps/web/components/v2/theme.ts.
+ * These are additive: v1 shell classes are untouched.
+ *   primary → bg-primary/text-primary · bg → bg-canvas · border → border-line
+ */
+@theme {
+  --color-primary: #B57EDC;
+  --color-primary-strong: #9D4EDD;
+  --color-primary-soft: #EBDCFB;
+  --color-canvas: #FAF8FF;
+  --color-surface: #FFFFFF;
+  --color-ink: #241B35;
+  --color-muted: #6E6588;
+  --color-line: #EAE4F2;
+  --color-sidebar: #221833;
+  --color-sidebar-ink: #CFC4E6;
+  --color-banner: #2A1E3F;
+  --color-success: #2FB37F;
+  --color-warning: #E9A23B;
+  --color-danger: #E05B72;
+  --color-info: #8B9CF7;
+  --color-orchid: #D98BF0;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: #f8fafc;
