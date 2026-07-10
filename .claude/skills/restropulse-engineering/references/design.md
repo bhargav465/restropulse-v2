@@ -137,7 +137,16 @@ strikethrough. `DashboardV2` gained a "Your business at a glance ✨" section
 intro, `rounded-3xl` panels, `primary-strong` accent labels (dot + uppercase),
 divider rules in the Today panel, and a "Needs attention" list with a count
 badge and lavender `Review` pills. Both stack cleanly on mobile. Data/logic
-unchanged. What's left:
+unchanged.
+
+**Real sample photography (2026-07-10):** the demo swapped `placehold.co` grey
+boxes for real food photos (Unsplash CDN) — `foodPhoto()` in `demo-fixtures.ts`
+keyword-maps a dish/post name to a verified photo (each ID was visually checked
+to match), feeding post thumbnails, menu images and the storefront. A new
+`SamplePhoto` primitive renders the image with an on-brand lavender+emoji
+fallback if a URL ever fails. Surfaces: Website Design template gallery, Content
+Engine "Recent posts" gallery, and dish thumbnails in the admin Menu Manager.
+What's left:
 
 1. **Campaign ROI visuals**: per-campaign "sent → redeemed → revenue" row with
    a mini funnel bar (series colors: primary, info, orchid). Pairs with the

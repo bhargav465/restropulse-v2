@@ -42,9 +42,78 @@ const minutes = (n: number): string => new Date(Date.now() + n * MIN).toISOStrin
 /** YYYY-MM-DD `days` from now. */
 const dateOnly = (n: number): string => new Date(Date.now() + n * DAY).toISOString().slice(0, 10);
 
-/** Placeholder image (placehold.co) — no real assets in the demo. */
-const thumb = (text: string, size = '600x600'): string =>
-    `https://placehold.co/${size}/f97316/ffffff?text=${encodeURIComponent(text)}`;
+/**
+ * Real sample food photography (Unsplash CDN) so the demo looks like a real
+ * restaurant instead of grey placeholder boxes. A dish/post name is keyword-
+ * matched to a photo, with a small rotating fallback pool for anything unmatched.
+ * All photo IDs were verified to resolve; `SamplePhoto` handles the rare miss.
+ */
+// Photo IDs were each visually verified to depict the food they're mapped to.
+// Order matters: multi-word/specific keys must precede the generic ones so the
+// first substring hit wins (e.g. "paneer butter" before "butter chicken").
+const UNSPLASH_FOOD: Record<string, string> = {
+    // desserts & drinks
+    gulab: '1666190092159-3171cf0fbb12',           // gulab jamun
+    jamun: '1666190092159-3171cf0fbb12',
+    dessert: '1551024506-0bccd828d307',            // ice-cream sundae
+    chaas: '1551024506-0bccd828d307',
+    // starters
+    corn: '1610192244261-3f33de3f55e4',            // chaat plate
+    chaat: '1610192244261-3f33de3f55e4',
+    'paneer tikka': '1567188040759-fb8a883dc6d8',  // paneer tikka sizzler
+    'chicken 65': '1626074353765-517a681e40be',    // tandoori/fried chicken
+    fish: '1476224203421-9ac39bcb3327',            // grilled fish plate
+    // rice
+    biryani: '1563379091339-03b21ab4a4f8',         // biryani bowl
+    pulao: '1563379091339-03b21ab4a4f8',
+    // breads (photo has naan in frame)
+    naan: '1631452180519-c014fe946bc7',
+    bread: '1631452180519-c014fe946bc7',
+    // paneer / veg mains
+    'paneer butter': '1631452180519-c014fe946bc7', // paneer butter masala
+    paneer: '1631452180519-c014fe946bc7',
+    tikka: '1567188040759-fb8a883dc6d8',
+    // non-veg mains & curries
+    'butter chicken': '1596797038530-2c107229654b', // rich meat curry
+    rogan: '1596797038530-2c107229654b',
+    mutton: '1596797038530-2c107229654b',
+    dal: '1585937421612-70a008356fbe',             // dark lentil/veg curry
+    chicken: '1626074353765-517a681e40be',
+    masala: '1585937421612-70a008356fbe',
+    curry: '1585937421612-70a008356fbe',
+    thali: '1631452180519-c014fe946bc7',
+    // salads / western (posts, storefront)
+    salad: '1512621776951-a57141f2eefd',
+    pizza: '1513104890138-7c749659a591',
+    burger: '1571091718767-18b5b1457add',
+    // post-label keywords
+    offer: '1631452180519-c014fe946bc7',
+    kitchen: '1567188040759-fb8a883dc6d8',
+    bts: '1567188040759-fb8a883dc6d8',
+};
+const FOOD_FALLBACK = [
+    '1585937421612-70a008356fbe',  // curry + rice
+    '1631452180519-c014fe946bc7',  // paneer butter masala
+    '1563379091339-03b21ab4a4f8',  // biryani
+    '1567188040759-fb8a883dc6d8',  // sizzler
+];
+
+const unsplash = (id: string, w: number, h: number): string =>
+    `https://images.unsplash.com/photo-${id}?w=${w}&h=${h}&fit=crop&crop=entropy&q=80&auto=format`;
+
+/** Map a dish / post name to a real food photo (keyword match → hashed fallback). */
+export const foodPhoto = (name: string, size = '600x600'): string => {
+    const [w, h] = size.split('x').map(Number);
+    const lower = name.toLowerCase();
+    const key = Object.keys(UNSPLASH_FOOD).find((k) => lower.includes(k));
+    if (key) return unsplash(UNSPLASH_FOOD[key], w, h);
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+    return unsplash(FOOD_FALLBACK[sum % FOOD_FALLBACK.length], w, h);
+};
+
+/** Back-compat: post thumbnails passed a label; now it resolves to a real photo. */
+const thumb = (text: string, size = '600x600'): string => foodPhoto(text, size);
 
 // ----- Owner + restaurant (mirrors DEMO_OWNER / DEMO_RESTAURANT in the seed) -----
 
@@ -639,18 +708,8 @@ export const DEMO_MENU_CATEGORIES: MenuCategory[] = [
 
 type ItemInput = Omit<OrderingMenuItem, 'restaurantId' | 'images' | 'description'> & { description: string };
 
-/** Per-category placeholder palette (kept in sync with the db seed) so demo menu images look like food, not grey boxes. */
-const CATEGORY_IMAGE_COLORS: Record<string, { bg: string; text: string }> = {
-    'demo-cat-starters': { bg: 'f97316', text: 'ffffff' },     // warm orange
-    'demo-cat-mains': { bg: 'b91c1c', text: 'ffffff' },        // deep red
-    'demo-cat-breads-rice': { bg: 'f59e0b', text: '7c2d12' },  // amber
-    'demo-cat-desserts': { bg: 'ec4899', text: 'ffffff' },     // pink
-};
-
-const dishImage = (categoryId: string, name: string): string => {
-    const { bg, text } = CATEGORY_IMAGE_COLORS[categoryId] ?? { bg: '64748b', text: 'ffffff' };
-    return `https://placehold.co/600x400/${bg}/${text}?text=${encodeURIComponent(name)}`;
-};
+/** Real food photo per dish, keyword-matched from the name (see foodPhoto). */
+const dishImage = (_categoryId: string, name: string): string => foodPhoto(name, '600x400');
 
 const menuItem = (partial: ItemInput): OrderingMenuItem => ({
     ...partial,

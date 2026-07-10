@@ -1,5 +1,5 @@
-import React from 'react';
-import { DELTA_TEXT, DeltaTone } from './theme';
+import React, { useState } from 'react';
+import { DELTA_TEXT, DeltaTone, GRADIENT } from './theme';
 
 /**
  * V2 admin shell primitives — Electric Lavender building blocks used by the
@@ -11,6 +11,38 @@ import { DELTA_TEXT, DeltaTone } from './theme';
  * small colored text (no pills), sub-nav as underline tabs (no pills, no
  * emoji), and at most decorative single emojis on action tiles.
  */
+
+/**
+ * Sample photo — a real image that degrades gracefully. If the URL fails to
+ * load (offline / CDN hiccup), it falls back to an on-brand lavender gradient
+ * tile with an emoji, so a placeholder never looks broken. `className` sets the
+ * frame size / aspect (e.g. "aspect-video w-full").
+ */
+export const SamplePhoto: React.FC<{
+    src: string;
+    alt: string;
+    emoji?: string;
+    className?: string;
+}> = ({ src, alt, emoji = '🍽️', className = '' }) => {
+    const [failed, setFailed] = useState(false);
+    return (
+        <div className={`relative overflow-hidden bg-primary-soft ${className}`}>
+            {failed ? (
+                <div className="absolute inset-0 flex items-center justify-center text-4xl" style={{ background: GRADIENT }} aria-hidden="true">
+                    {emoji}
+                </div>
+            ) : (
+                <img
+                    src={src}
+                    alt={alt}
+                    loading="lazy"
+                    onError={() => setFailed(true)}
+                    className="w-full h-full object-cover"
+                />
+            )}
+        </div>
+    );
+};
 
 /** Small colored delta text — e.g. "▲ 6% this week". No pill. */
 export const DeltaChip: React.FC<{ text: string; tone?: DeltaTone }> = ({ text, tone = 'up' }) => (
