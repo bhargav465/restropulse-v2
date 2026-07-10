@@ -48,6 +48,8 @@ CLAUDE.local.md
 /*.md
 # ...but the root README is real documentation, not an AI scratch file
 !/README.md
+# ...and CLAUDE.md is real project memory, not an AI scratch file
+!/CLAUDE.md
 
 # Old directory names (moved to apps/)
 restropulse-pwa/
