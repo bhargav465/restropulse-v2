@@ -155,9 +155,9 @@ const DashboardV2: React.FC<DashboardV2Props> = ({ restaurantData, onNavigate })
                 ) : (
                     <ul className="mt-3 divide-y divide-line">
                         {attention.map((a, i) => (
-                            <li key={i} className="flex items-center justify-between gap-4 py-3">
-                                <span className="flex items-center gap-2.5 text-sm text-ink">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" aria-hidden="true" />
+                            <li key={i} className="flex items-start justify-between gap-4 py-3">
+                                <span className="flex items-start gap-2.5 text-sm text-ink min-w-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0 mt-1.5" aria-hidden="true" />
                                     {a.text}
                                 </span>
                                 <button

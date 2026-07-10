@@ -39,9 +39,12 @@ interface StatCardProps {
  * emoji. Quiet 1px border, no resting shadow.
  */
 export const StatCard: React.FC<StatCardProps> = ({ label, value, delta, deltaTone = 'up' }) => (
-    <div className="bg-surface rounded-2xl p-5 border border-line">
+    // min-w-0 lets the card shrink inside a 2-up mobile grid instead of forcing
+    // overflow; the value scales 24px→28px so long currency (₹1,23,456) fits the
+    // ~115px column on small phones and reads full-size on desktop.
+    <div className="bg-surface rounded-2xl p-5 border border-line min-w-0">
         <p className="text-xs font-semibold text-muted uppercase tracking-wider">{label}</p>
-        <p className="text-[28px] font-semibold text-ink mt-2 leading-none tabular-nums">{value}</p>
+        <p className="text-2xl sm:text-[28px] font-semibold text-ink mt-2 leading-none tabular-nums break-words">{value}</p>
         {delta && (
             <div className="mt-2.5">
                 <DeltaChip text={delta} tone={deltaTone} />

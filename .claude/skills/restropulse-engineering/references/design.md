@@ -20,7 +20,8 @@ declutter rules are now the LIVE base — build on them, never reintroduce coral
 - Light content area (`bg` canvas), white `surface` cards with 1px `border`
   lines (shadows only on hover); page header = 28px semibold title + muted
   subtitle; top-right chip with the restaurant name; DEMO badge.
-- KPI stat cards are number-first (28px semibold `ink`, 12px uppercase tracked
+- KPI stat cards are number-first (28px semibold `ink` on desktop, 24px below
+  `sm` so long currency fits the 2-up mobile grid; 12px uppercase tracked
   `muted` label above, delta as small colored text — no pills, no emoji).
 - Content column max-width 1100px, centered; 24px vertical rhythm.
 - **Responsive (as of 2026-07-09):** the rail is static only at `md+`. Below
