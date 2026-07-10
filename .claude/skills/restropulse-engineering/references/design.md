@@ -122,7 +122,19 @@ stay warm (food should look like food) — intentional.
 ## 4. Remaining design work (in priority order)
 
 Items 1–3 from the original plan are **done** (palette+declutter, Dashboard,
-Onboarding). What's left:
+Onboarding).
+
+**Elegance refresh (2026-07-09):** `GetStartedV2` is now a soft-lavender
+welcome hero — 👋 greeting + "Welcome, {restaurant}", a two-line display
+heading, an inline lavender rocket illustration (`LaunchArt`, tokens only),
+a big `X/N Completed` readout with a GRADIENT progress bar, and the checklist
+on the right with the next incomplete step lifted into an elevated white card
+(`ring-primary/25` + soft shadow); completed steps show a `success` check +
+strikethrough. `DashboardV2` gained a "Your business at a glance ✨" section
+intro, `rounded-3xl` panels, `primary-strong` accent labels (dot + uppercase),
+divider rules in the Today panel, and a "Needs attention" list with a count
+badge and lavender `Review` pills. Both stack cleanly on mobile. Data/logic
+unchanged. What's left:
 
 1. **Campaign ROI visuals**: per-campaign "sent → redeemed → revenue" row with
    a mini funnel bar (series colors: primary, info, orchid). Pairs with the

@@ -96,7 +96,18 @@ const DashboardV2: React.FC<DashboardV2Props> = ({ restaurantData, onNavigate })
     if (restaurantData.storeOpen === false) attention.push({ text: 'Your store is currently closed for orders', bucket: 'ORDERING' });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
+            {/* Section intro */}
+            <div>
+                <h3 className="text-lg sm:text-xl font-bold text-ink tracking-tight flex items-center gap-2">
+                    Your business at a glance
+                    <span aria-hidden="true">✨</span>
+                </h3>
+                <p className="text-sm text-muted mt-1 leading-relaxed">
+                    A live snapshot of today across orders, revenue and anything waiting on you.
+                </p>
+            </div>
+
             {/* KPI row */}
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 <StatCard label="Orders today" value={stats.todays} delta="▲ 12% vs last week" />
@@ -115,58 +126,80 @@ const DashboardV2: React.FC<DashboardV2Props> = ({ restaurantData, onNavigate })
                 />
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-4">
+            <div className="grid lg:grid-cols-3 gap-5">
                 {/* Today panel */}
-                <div className="bg-surface rounded-2xl p-6 border border-line">
-                    <p className="text-xs font-semibold text-muted uppercase tracking-wider">Today</p>
-                    <dl className="mt-4 space-y-3">
+                <div className="bg-surface rounded-3xl p-6 border border-line">
+                    <p className="flex items-center gap-2 text-xs font-bold text-primary-strong uppercase tracking-widest">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary-strong" aria-hidden="true" />
+                        Today
+                    </p>
+                    <dl className="mt-5 space-y-4">
                         <div className="flex items-center justify-between">
                             <dt className="text-sm text-muted">Orders</dt>
-                            <dd className="text-sm font-semibold text-ink tabular-nums">{stats.todays}</dd>
+                            <dd className="text-base font-semibold text-ink tabular-nums">{stats.todays}</dd>
                         </div>
+                        <div className="h-px bg-line" />
                         <div className="flex items-center justify-between">
                             <dt className="text-sm text-muted">Revenue</dt>
-                            <dd className="text-sm font-semibold text-ink tabular-nums">{inr(stats.revenueToday)}</dd>
+                            <dd className="text-base font-semibold text-ink tabular-nums">{inr(stats.revenueToday)}</dd>
                         </div>
+                        <div className="h-px bg-line" />
                         <div className="flex items-center justify-between">
                             <dt className="text-sm text-muted">Avg. order value</dt>
-                            <dd className="text-sm font-semibold text-ink tabular-nums">{inr(stats.avgOrder)}</dd>
+                            <dd className="text-base font-semibold text-ink tabular-nums">{inr(stats.avgOrder)}</dd>
                         </div>
                     </dl>
                 </div>
 
                 {/* 7-day sparkline */}
-                <div className="bg-surface rounded-2xl p-6 border border-line lg:col-span-2">
-                    <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-muted uppercase tracking-wider">Orders · last 7 days</p>
-                        <p className="text-sm font-semibold text-ink tabular-nums">{stats.series.reduce((a, b) => a + b, 0)} total</p>
+                <div className="bg-surface rounded-3xl p-6 border border-line lg:col-span-2 flex flex-col">
+                    <div className="flex items-center justify-between gap-4">
+                        <p className="flex items-center gap-2 text-xs font-bold text-primary-strong uppercase tracking-widest">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary-strong" aria-hidden="true" />
+                            Orders · last 7 days
+                        </p>
+                        <p className="text-sm font-semibold text-ink tabular-nums">
+                            {stats.series.reduce((a, b) => a + b, 0)} <span className="text-muted font-medium">total</span>
+                        </p>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-auto pt-6">
                         <Sparkline points={stats.series} />
                     </div>
                 </div>
             </div>
 
             {/* Needs attention */}
-            <div className="bg-surface rounded-2xl p-6 border border-line">
-                <h3 className="text-base font-semibold text-ink">Needs attention</h3>
+            <div className="bg-surface rounded-3xl p-6 border border-line">
+                <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                    Needs attention
+                    {attention.length > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-warning/15 text-warning text-xs font-bold tabular-nums">
+                            {attention.length}
+                        </span>
+                    )}
+                </h3>
                 {attention.length === 0 ? (
-                    <p className="text-sm text-muted mt-3">Nothing urgent — you're all caught up.</p>
+                    <p className="flex items-center gap-2 text-sm text-muted mt-4">
+                        <span className="w-5 h-5 rounded-full bg-success/15 text-success flex items-center justify-center text-xs" aria-hidden="true">✓</span>
+                        Nothing urgent — you're all caught up.
+                    </p>
                 ) : (
-                    <ul className="mt-3 divide-y divide-line">
+                    <ul className="mt-3 space-y-1">
                         {attention.map((a, i) => (
-                            <li key={i} className="flex items-start justify-between gap-4 py-3">
-                                <span className="flex items-start gap-2.5 text-sm text-ink min-w-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0 mt-1.5" aria-hidden="true" />
-                                    {a.text}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate(a.bucket)}
-                                    className="shrink-0 text-xs font-semibold text-primary-strong hover:underline"
-                                >
-                                    Review
-                                </button>
+                            <li key={i}>
+                                <div className="flex items-start justify-between gap-4 py-2.5 px-3 -mx-3 rounded-xl hover:bg-primary-soft/40 transition-colors">
+                                    <span className="flex items-start gap-2.5 text-sm text-ink min-w-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0 mt-1.5" aria-hidden="true" />
+                                        {a.text}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => onNavigate(a.bucket)}
+                                        className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold text-primary-strong bg-primary-soft hover:bg-primary hover:text-white transition-colors"
+                                    >
+                                        Review
+                                    </button>
+                                </div>
                             </li>
                         ))}
                     </ul>
