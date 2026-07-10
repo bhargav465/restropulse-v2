@@ -20,9 +20,9 @@ declutter rules are now the LIVE base — build on them, never reintroduce coral
 - Light content area (`bg` canvas), white `surface` cards with 1px `border`
   lines (shadows only on hover); page header = 28px semibold title + muted
   subtitle; top-right chip with the restaurant name; DEMO badge.
-- KPI stat cards are number-first (28px semibold `ink` on desktop, 24px below
-  `sm` so long currency fits the 2-up mobile grid; 12px uppercase tracked
-  `muted` label above, delta as small colored text — no pills, no emoji).
+- KPI stat cards are number-first (34px semibold `ink` on desktop, 24px below
+  `sm` so long currency fits the 2-up mobile grid; 13px uppercase tracked
+  `muted` label above, delta as 14px colored text — no pills, no emoji).
 - Content column max-width 1100px, centered; 24px vertical rhythm.
 - **Responsive (as of 2026-07-09):** the rail is static only at `md+`. Below
   `md` it collapses into an off-canvas drawer opened from a hamburger in a
@@ -108,14 +108,17 @@ stay warm (food should look like food) — intentional.
 
 1. One emoji per sidebar bucket, max. None in KPI labels, sub-nav, buttons.
 2. Sub-navigation = quiet underline tabs (`SubNav`), not pill buttons.
-3. KPI cards: number first (28px semibold `ink`), 12px uppercase tracked
-   `muted` label above, delta as small colored text — no pills, no emoji.
+3. KPI cards: number first (34px semibold `ink`, 24px on mobile), 13px uppercase
+   tracked `muted` label above, delta as 14px colored text — no pills, no emoji.
 4. Max content width 1100px, centered. 24px vertical rhythm between sections.
 5. One shadow level (subtle, on hover only); rest is 1px `border-line`.
 6. Sidebar: no subtitle lines under nav items (title attr instead);
    active item = 3px `primary` left-edge bar + `primary`-at-10% bg.
-7. Typographic scale: page title 28/semibold, section 16/semibold, body 14,
-   labels 12 uppercase tracked. Nothing else.
+7. Typographic scale (refreshed 2026-07-09, more generous for readability):
+   page title 34/semibold (26 mobile), section heading 24/bold (20 mobile),
+   body & row text 16, KPI value 34/semibold (24 mobile, so long ₹ values still
+   fit the 2-up grid), uppercase labels 13/tracked, delta & meta 14. Nothing
+   else — pick from this list, don't invent sizes.
 
 ---
 

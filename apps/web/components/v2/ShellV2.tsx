@@ -224,8 +224,8 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     {/* Page header */}
                     <header className="flex items-start justify-between gap-4 flex-wrap mb-6">
                         <div>
-                            <h2 className="text-2xl sm:text-[28px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
-                            <p className="text-muted mt-1 text-sm">{meta.subtitle}</p>
+                            <h2 className="text-[26px] sm:text-[34px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
+                            <p className="text-muted mt-1.5 text-base leading-relaxed">{meta.subtitle}</p>
                         </div>
                         <div className="flex items-center gap-2">
                             {isDemoMode() && (

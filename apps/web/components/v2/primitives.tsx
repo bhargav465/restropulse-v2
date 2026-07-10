@@ -14,7 +14,7 @@ import { DELTA_TEXT, DeltaTone } from './theme';
 
 /** Small colored delta text — e.g. "▲ 6% this week". No pill. */
 export const DeltaChip: React.FC<{ text: string; tone?: DeltaTone }> = ({ text, tone = 'up' }) => (
-    <span className={`text-xs font-semibold ${DELTA_TEXT[tone]}`}>{text}</span>
+    <span className={`text-sm font-semibold ${DELTA_TEXT[tone]}`}>{text}</span>
 );
 
 /** Quiet "Coming soon" status chip. */
@@ -42,11 +42,11 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, delta, deltaTo
     // min-w-0 lets the card shrink inside a 2-up mobile grid instead of forcing
     // overflow; the value scales 24px→28px so long currency (₹1,23,456) fits the
     // ~115px column on small phones and reads full-size on desktop.
-    <div className="bg-surface rounded-2xl p-5 border border-line min-w-0">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wider">{label}</p>
-        <p className="text-2xl sm:text-[28px] font-semibold text-ink mt-2 leading-none tabular-nums break-words">{value}</p>
+    <div className="bg-surface rounded-2xl p-6 border border-line min-w-0">
+        <p className="text-[13px] font-semibold text-muted uppercase tracking-wider">{label}</p>
+        <p className="text-2xl sm:text-[34px] font-semibold text-ink mt-3 leading-none tabular-nums break-words">{value}</p>
         {delta && (
-            <div className="mt-2.5">
+            <div className="mt-3">
                 <DeltaChip text={delta} tone={deltaTone} />
             </div>
         )}
