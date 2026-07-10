@@ -13,12 +13,19 @@ import { GRADIENT } from './theme';
 import { computeOnboardingProgress, isOnboardingDismissed } from './onboarding';
 
 /**
- * V2 admin shell — desktop-first sidebar layout, enabled only when the app is
+ * V2 admin shell — responsive sidebar layout, enabled only when the app is
  * built with VITE_ADMIN_SHELL=v2 (deployed at /restropulse-v2/admin-v2/).
+ *
+ * Layout adapts by breakpoint: on desktop (md+) the aubergine rail is a static
+ * 256px sidebar; below md it collapses into an off-canvas drawer opened from a
+ * hamburger in a sticky mobile top bar (backdrop + Escape/close to dismiss).
+ * The nav markup is a single <nav> in both modes so it stays one accessible
+ * landmark. Content padding tightens on small screens; the 1100px column caps
+ * width on large ones.
  *
  * Electric Lavender palette (design.md §2) + declutter rules (§3): one emoji
  * per bucket, quiet active-item treatment (3px primary edge + soft tint), no
- * nav subtitles (title attr instead), 1100px centered content column.
+ * nav subtitles (title attr instead), centered content column.
  *
  * Navigation mirrors the existing view-state pattern: plain local state, no
  * router. Dashboard is the default landing bucket; Get Started surfaces the
@@ -74,7 +81,20 @@ const ShellV2: React.FC<ShellV2Props> = ({
     const [bucket, setBucket] = useState<BucketV2>('DASHBOARD');
     const [dismissed, setDismissed] = useState<boolean>(() => isOnboardingDismissed(restaurantData.id));
     const [menuItemCount, setMenuItemCount] = useState(0);
+    // Mobile: the sidebar is an off-canvas drawer. Desktop (md+) ignores this.
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const meta = PAGE_META[bucket];
+
+    // Close the mobile drawer on Escape.
+    useEffect(() => {
+        if (!mobileNavOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileNavOpen(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [mobileNavOpen]);
+
+    // Navigate + always dismiss the mobile drawer so the page is visible.
+    const go = (b: BucketV2) => { setBucket(b); setMobileNavOpen(false); };
 
     // Onboarding progress for the sidebar chip — menu count is the one signal
     // not already on `restaurantData`; everything else is derived from it.
@@ -101,19 +121,49 @@ const ShellV2: React.FC<ShellV2Props> = ({
 
     return (
         <div className="flex h-screen bg-canvas">
-            {/* Fixed aubergine sidebar */}
-            <aside className="w-64 shrink-0 bg-sidebar flex flex-col overflow-y-auto no-scrollbar">
+            {/* Mobile drawer backdrop — only while open, below md */}
+            {mobileNavOpen && (
+                <div
+                    className="fixed inset-0 z-30 bg-black/50 md:hidden"
+                    onClick={() => setMobileNavOpen(false)}
+                    aria-hidden="true"
+                />
+            )}
+
+            {/*
+             * Aubergine sidebar.
+             * Desktop (md+): static 256px rail, always visible.
+             * Mobile: fixed off-canvas drawer that slides in when mobileNavOpen.
+             */}
+            <aside
+                className={`fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] bg-sidebar flex flex-col overflow-y-auto no-scrollbar transition-transform duration-200 ease-out md:static md:z-auto md:max-w-none md:shrink-0 md:translate-x-0 ${
+                    mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}
+            >
                 <div className="px-5 pt-8 pb-6">
-                    <h1 className="text-2xl font-bold tracking-tight text-white leading-none">
-                        Restro<span className="text-primary">pulse</span>
-                    </h1>
+                    <div className="flex items-start justify-between">
+                        <h1 className="text-2xl font-bold tracking-tight text-white leading-none">
+                            Restro<span className="text-primary">pulse</span>
+                        </h1>
+                        {/* Close drawer — mobile only */}
+                        <button
+                            type="button"
+                            onClick={() => setMobileNavOpen(false)}
+                            aria-label="Close navigation"
+                            className="md:hidden -mt-1 -mr-1 p-1 text-sidebar-ink hover:text-white transition-colors"
+                        >
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                                <path d="M6 6l12 12M18 6L6 18" />
+                            </svg>
+                        </button>
+                    </div>
                     <p className="text-xs text-sidebar-ink/70 mt-2 leading-snug">Social media made simple for restaurants</p>
                 </div>
                 <nav className="flex-1 px-3 space-y-1" aria-label="Main navigation">
                     {showGetStarted && (
                         <button
                             type="button"
-                            onClick={() => setBucket('GET_STARTED')}
+                            onClick={() => go('GET_STARTED')}
                             aria-current={bucket === 'GET_STARTED' ? 'page' : undefined}
                             title="Finish setting up your restaurant"
                             className={navItemClass(bucket === 'GET_STARTED')}
@@ -131,7 +181,7 @@ const ShellV2: React.FC<ShellV2Props> = ({
                             <button
                                 key={item.id}
                                 type="button"
-                                onClick={() => setBucket(item.id)}
+                                onClick={() => go(item.id)}
                                 aria-current={isActive ? 'page' : undefined}
                                 title={item.title}
                                 className={navItemClass(isActive)}
@@ -151,13 +201,30 @@ const ShellV2: React.FC<ShellV2Props> = ({
 
             {/* Main panel */}
             <main className="flex-1 overflow-y-auto">
+                {/* Mobile top bar — hamburger + wordmark, hidden on md+ */}
+                <div className="md:hidden sticky top-0 z-20 flex items-center gap-3 bg-sidebar px-4 h-14">
+                    <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(true)}
+                        aria-label="Open navigation"
+                        aria-expanded={mobileNavOpen}
+                        className="p-1 -ml-1 text-white hover:opacity-80 transition-opacity active:scale-95"
+                    >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                            <path d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <span className="text-lg font-bold tracking-tight text-white leading-none">
+                        Restro<span className="text-primary">pulse</span>
+                    </span>
+                </div>
                 {/* DEMO MODE: once-per-session "backend not connected" toast */}
                 <DemoNotice />
-                <div className="px-8 py-8 mx-auto max-w-[1100px]">
+                <div className="px-4 sm:px-6 md:px-8 py-6 md:py-8 mx-auto max-w-[1100px]">
                     {/* Page header */}
                     <header className="flex items-start justify-between gap-4 flex-wrap mb-6">
                         <div>
-                            <h2 className="text-[28px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
+                            <h2 className="text-2xl sm:text-[28px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
                             <p className="text-muted mt-1 text-sm">{meta.subtitle}</p>
                         </div>
                         <div className="flex items-center gap-2">

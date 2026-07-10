@@ -23,6 +23,13 @@ declutter rules are now the LIVE base — build on them, never reintroduce coral
 - KPI stat cards are number-first (28px semibold `ink`, 12px uppercase tracked
   `muted` label above, delta as small colored text — no pills, no emoji).
 - Content column max-width 1100px, centered; 24px vertical rhythm.
+- **Responsive (as of 2026-07-09):** the rail is static only at `md+`. Below
+  `md` it collapses into an off-canvas drawer opened from a hamburger in a
+  sticky aubergine top bar; a backdrop + Escape + close-icon dismiss it, and
+  selecting any bucket closes it. Markup stays a single `<nav>` landmark in both
+  modes (one accessible navigation). Content padding tightens to
+  `px-4 sm:px-6 md:px-8` and the page title to `text-2xl sm:text-[28px]` on
+  small screens. All in `ShellV2.tsx`; no new tokens.
 
 **Live palette = ELECTRIC LAVENDER (§2).** The old coral/navy set is fully
 retired; there is no coral anywhere in `apps/web/components/v2/`.
