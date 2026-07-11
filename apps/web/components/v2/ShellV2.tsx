@@ -9,6 +9,7 @@ import ContentEngineV2 from './ContentEngineV2';
 import OrderingV2 from './OrderingV2';
 import IntelligenceV2 from './IntelligenceV2';
 import WebsiteDesignV2 from './WebsiteDesignV2';
+import type { DeepLinkTarget, OrderingSubTab } from './intelligence/deep-links';
 import { GRADIENT } from './theme';
 import { computeOnboardingProgress, isOnboardingDismissed } from './onboarding';
 
@@ -52,7 +53,7 @@ const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> 
     { id: 'DASHBOARD', emoji: '🏠', label: 'Dashboard', title: 'Your restaurant at a glance' },
     { id: 'CONTENT', emoji: '🎯', label: 'Content Engine', title: 'Strategy, posts & publishing' },
     { id: 'ORDERING', emoji: '🛒', label: 'Online Ordering', title: 'Menu, orders & storefront' },
-    { id: 'INTELLIGENCE', emoji: '📊', label: 'Restaurant Intelligence', title: 'Insights coming soon' },
+    { id: 'INTELLIGENCE', emoji: '📊', label: 'Restaurant Intelligence', title: 'Competitor & self insights' },
     { id: 'DESIGN', emoji: '🎨', label: 'Website Design', title: 'Themes & templates' },
 ];
 
@@ -79,6 +80,9 @@ const ShellV2: React.FC<ShellV2Props> = ({
     refreshKey,
 }) => {
     const [bucket, setBucket] = useState<BucketV2>('DASHBOARD');
+    // Ordering sub-tab to open — driven by Intelligence "Act on this" deep links
+    // (e.g. a win-back action opens the Campaigns tab). Reset on normal nav.
+    const [orderingInitialTab, setOrderingInitialTab] = useState<OrderingSubTab>('OVERVIEW');
     const [dismissed, setDismissed] = useState<boolean>(() => isOnboardingDismissed(restaurantData.id));
     const [menuItemCount, setMenuItemCount] = useState(0);
     // Mobile: the sidebar is an off-canvas drawer. Desktop (md+) ignores this.
@@ -94,7 +98,14 @@ const ShellV2: React.FC<ShellV2Props> = ({
     }, [mobileNavOpen]);
 
     // Navigate + always dismiss the mobile drawer so the page is visible.
-    const go = (b: BucketV2) => { setBucket(b); setMobileNavOpen(false); };
+    const go = (b: BucketV2) => { setBucket(b); setOrderingInitialTab('OVERVIEW'); setMobileNavOpen(false); };
+
+    // Intelligence deep link → open the target bucket (and Ordering sub-tab).
+    const goDeepLink = (t: DeepLinkTarget) => {
+        if (t.orderingTab) setOrderingInitialTab(t.orderingTab);
+        setBucket(t.bucket);
+        setMobileNavOpen(false);
+    };
 
     // Onboarding progress for the sidebar chip — menu count is the one signal
     // not already on `restaurantData`; everything else is derived from it.
@@ -274,8 +285,8 @@ const ShellV2: React.FC<ShellV2Props> = ({
                             refreshKey={refreshKey}
                         />
                     )}
-                    {bucket === 'ORDERING' && <OrderingV2 restaurantData={restaurantData} />}
-                    {bucket === 'INTELLIGENCE' && <IntelligenceV2 />}
+                    {bucket === 'ORDERING' && <OrderingV2 restaurantData={restaurantData} initialTab={orderingInitialTab} />}
+                    {bucket === 'INTELLIGENCE' && <IntelligenceV2 restaurantData={restaurantData} onNavigate={goDeepLink} />}
                     {bucket === 'DESIGN' && <WebsiteDesignV2 />}
                 </div>
             </main>

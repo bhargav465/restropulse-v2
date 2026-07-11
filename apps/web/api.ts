@@ -9,6 +9,7 @@
  */
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
+import type { IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
 import { isDemoMode } from './lib/demo';
@@ -837,6 +838,44 @@ const realOrderingAdminAPI = {
     },
 };
 
+// ----- Restaurant Intelligence (competitor + self intelligence) -----
+// Routes under /api/admin/intelligence (merchant JWT + OWNER). Scans are async
+// jobs: startScan returns a scanId, the UI polls getScan until COMPLETED.
+const realIntelligenceAPI = {
+    startScan: async (body: { name?: string; city?: string; force?: boolean }): Promise<{ scanId: string }> => {
+        const res = await fetchAPI<ApiResponse<{ scanId: string }>>('/admin/intelligence/scan', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+        return res.data!;
+    },
+
+    getScan: async (scanId: string): Promise<IntelligenceScan> => {
+        const res = await fetchAPI<ApiResponse<IntelligenceScan>>(`/admin/intelligence/scan/${scanId}`);
+        return res.data!;
+    },
+
+    getReports: async (): Promise<IntelligenceReportSummary[]> => {
+        const res = await fetchAPI<ApiResponse<IntelligenceReportSummary[]>>('/admin/intelligence/reports');
+        return res.data ?? [];
+    },
+
+    getReport: async (reportId: string): Promise<IntelligenceReport> => {
+        const res = await fetchAPI<ApiResponse<IntelligenceReport>>(`/admin/intelligence/reports/${reportId}`);
+        return res.data!;
+    },
+
+    getLatestReport: async (): Promise<IntelligenceReport | null> => {
+        const res = await fetchAPI<ApiResponse<IntelligenceReport | null>>('/admin/intelligence/reports/latest');
+        return res.data ?? null;
+    },
+
+    getSelfMetrics: async (): Promise<IntelligenceSelfMetrics> => {
+        const res = await fetchAPI<ApiResponse<IntelligenceSelfMetrics>>('/admin/intelligence/self-metrics');
+        return res.data!;
+    },
+};
+
 // ----- DEMO MODE switch -----
 //
 // Resolved once at module load. `typeof real*` keeps demo-api.ts honest: both
@@ -857,3 +896,4 @@ export const accountAPI: typeof realAccountAPI = demo ? demoApi.accountAPI : rea
 export const citiesAPI: typeof realCitiesAPI = demo ? demoApi.citiesAPI : realCitiesAPI;
 export const accountManagerAPI: typeof realAccountManagerAPI = demo ? demoApi.accountManagerAPI : realAccountManagerAPI;
 export const orderingAdminAPI: typeof realOrderingAdminAPI = demo ? demoApi.orderingAdminAPI : realOrderingAdminAPI;
+export const intelligenceAPI: typeof realIntelligenceAPI = demo ? demoApi.intelligenceAPI : realIntelligenceAPI;

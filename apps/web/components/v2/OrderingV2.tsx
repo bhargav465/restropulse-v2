@@ -15,6 +15,8 @@ const STOREFRONT_URL = 'https://bhargav465.github.io/restropulse-v2/demo';
 
 interface OrderingV2Props {
     restaurantData: Restaurant;
+    /** Sub-tab to open on mount — used by Intelligence deep links (e.g. Campaigns). */
+    initialTab?: OrderingTab;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -126,8 +128,8 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
  * Online Ordering bucket — v2 Overview plus the existing ordering admin
  * sub-views (components/ordering/*) mounted unchanged inside the v2 frame.
  */
-const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData }) => {
-    const [tab, setTab] = useState<OrderingTab>('OVERVIEW');
+const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData, initialTab = 'OVERVIEW' }) => {
+    const [tab, setTab] = useState<OrderingTab>(initialTab);
 
     const tabs: Array<SubNavTab<OrderingTab>> = [
         { id: 'OVERVIEW', label: 'Overview', emoji: '🏠' },
