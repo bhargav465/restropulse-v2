@@ -1,0 +1,33 @@
+{
+  "name": "@restropulse/intelligence-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Restaurant Intelligence worker -- weekly re-scan, trend deltas, competitor alerts (v1.1)",
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsc",
+    "start": "node dist/worker.js",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@restropulse/shared": "*",
+    "@restropulse/db": "*",
+    "@restropulse/telemetry": "*",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4",
+    "@types/node": "^22.14.0",
+    "@types/node-cron": "^3.0.11",
+    "mongodb-memory-server": "^11.0.1",
+    "tsx": "^4.7.0",
+    "typescript": "~5.8.2",
+    "vitest": "^3.2.4"
+  }
+}
