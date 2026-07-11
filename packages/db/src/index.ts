@@ -25,6 +25,9 @@ export {
   getCustomersCollection,
   getEventsCollection,
   getCampaignsCollection,
+  getIntelligenceScansCollection,
+  getIntelligenceReportsCollection,
+  getCompetitorCacheCollection,
   getSessionsCollection,
   getOtpChallengesCollection,
   getOauthSessionsCollection,
@@ -62,4 +65,6 @@ export * from './archived-accounts.js';
 export * from './cost-events.js';
 export * from './media-jobs.js';
 export * from './ordering.js';
+export * from './intelligence.js';
 export * from './seeds/ordering-demo.js';
+export * from './seeds/intelligence-demo.js';

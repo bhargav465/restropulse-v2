@@ -10,6 +10,7 @@ import { razorpaySetupCommand } from './commands/razorpay-setup.js';
 import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
 import { seedOrderingCommand } from './commands/seed-ordering.js';
+import { seedIntelligenceCommand } from './commands/seed-intelligence.js';
 
 const program = new Command();
 
@@ -63,6 +64,11 @@ program
     .command('seed-ordering')
     .description('Seed the demo online-ordering storefront (slug "demo") with sample menu, content, owner and customer')
     .action(seedOrderingCommand);
+
+program
+    .command('seed-intelligence')
+    .description('Seed the demo Restaurant Intelligence report ([SAMPLE], restaurant "demo-r1", restroScore 68)')
+    .action(seedIntelligenceCommand);
 
 program
     .command('reset')

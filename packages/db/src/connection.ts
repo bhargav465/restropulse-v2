@@ -189,6 +189,20 @@ export function getCampaignsCollection(): Collection {
   return getDB().collection('campaigns');
 }
 
+// ----- Restaurant intelligence collections (v1) -----
+
+export function getIntelligenceScansCollection(): Collection {
+  return getDB().collection('intelligence_scans');
+}
+
+export function getIntelligenceReportsCollection(): Collection {
+  return getDB().collection('intelligence_reports');
+}
+
+export function getCompetitorCacheCollection(): Collection {
+  return getDB().collection('competitor_cache');
+}
+
 // ----- Helpers -----
 
 /**
