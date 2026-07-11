@@ -154,7 +154,9 @@ export interface ActionPlanItem {
   impact: 'High' | 'Medium' | 'Low';
   timeframe: string;
   deepLink?: {
-    bucket: 'content' | 'ordering' | 'get-started';
+    // 'campaigns' added in PR2 (DESIGN §4.1): retention/win-back actions deep-link
+    // to the Campaigns bucket. Additive — existing buckets are unchanged.
+    bucket: 'content' | 'ordering' | 'get-started' | 'campaigns';
     params?: Record<string, string>;
   };
 }
@@ -219,4 +221,36 @@ export interface IntelligenceReport {
   narrative: ReportNarrative; // ai-inferred (Sonnet)
   deltas?: ReportDeltas; // vs previous report (worker fills)
   generatedAt: Date;
+}
+
+/**
+ * Compact report row for the reports list (GET /reports). Full report bodies are
+ * ~100–200 KB, so the list returns only the header fields + deltas.
+ */
+export interface IntelligenceReportSummary {
+  id: string;
+  restroScore: number;
+  generatedAt: Date;
+  deltas?: ReportDeltas;
+}
+
+/**
+ * Internal "Your Metrics" payload (GET /self-metrics), computed from the
+ * existing `events` / `orders` collections — no new event tracking. Powers the
+ * Your Metrics sub-tab (DESIGN §4.5).
+ */
+export interface IntelligenceSelfMetrics {
+  orderCount: number;
+  totalCustomers: number;
+  repeatCustomers: number;
+  repeatRatePct: number; // 0–100
+  avgOrderValue: number;
+  revenue: {
+    newCustomer: number; // revenue from a customer's first order
+    returningCustomer: number; // revenue from repeat orders
+  };
+  /** 7×24 matrix: peakHours[weekday 0=Sun][hour 0–23] = completed-order count. */
+  peakHours: number[][];
+  /** Growth cohorts (drop-off carts, non-transacted, lapsed) from the cohort service. */
+  cohorts: Array<{ id: string; name: string; count: number }>;
 }

@@ -116,6 +116,36 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
 - `4ff5374` storefront media: colorful per-category menu images, video hero, restaurant photo strip, popular dishes
 - `314470d`/`62c36e4` self-hosted ffmpeg-generated hero video (external host 503'd) + branded poster fallback
 
+### Rest Intelligence · PR2 — api services + routes (branch `feat/intelligence-v1`)
+- **Scan pipeline** in `apps/api/src/services/intelligence/`: `places.ts` (Places API (New),
+  field masks + exclusion lists + Haversine ported verbatim; every place upserted to
+  `competitor_cache` with `fetchedAt`, 7-day TTL, cache-hit skips the detail call),
+  `scoring.ts` (PURE: `threatScore`, `sameCuisineThreatScore` ported; NEW `restroScore`
+  6-pillar weighted composite — profile 20/reviews 25/photos 10/website 15/competition 20/
+  momentum 10, grades A≥85 B≥70 C≥55 D≥40 else F; reproduces the seed fixture's 68),
+  `analysis.ts` (TWO Anthropic calls, BOTH forced tool-use + JSON schema — `claude-haiku-4-5`
+  classify + `claude-sonnet-4-6` analysis, max_tokens 8192, compacted rows only, no
+  AI-invented numbers; `parseLlmJson` banned), `prompts.ts` (persona + the two ARCHITECTURE
+  §3.2 additions), `seo.ts` (5 s homepage fetch), `scan-status.ts` (server mirror of
+  `ScanStatus`), `report-builder.ts` (pure `assembleReport` + `computeDeltas`), `pipeline.ts`
+  (async in-process job), `errors.ts` (`StageError` 503 config / 502 upstream).
+- **Routes** `POST /api/admin/intelligence/scan` (async, 202 `{scanId}`, 409 within 24 h unless
+  `force`), `GET /scan/:id`, `GET /reports`, `GET /reports/:id`, `GET /reports/latest`,
+  `GET /self-metrics` (delegates to the existing cohort service + orders/events — no new
+  tracking). Merchant JWT + OWNER. Mounted in `server.ts` (additive line).
+- **Shared:** `ActionPlanItem.deepLink.bucket` widened with `'campaigns'` (DESIGN §4.1); PR1
+  seed's win-back action re-pointed to `campaigns`; added `IntelligenceReportSummary` +
+  `IntelligenceSelfMetrics` response types. **Env** (server-only): `GOOGLE_MAPS_API_KEY`,
+  `ANTHROPIC_API_KEY` documented in `apps/api/.env.example`.
+- New tests (+30): scoring units (threat/same-cuisine/restroScore/grade boundaries),
+  scan-status transition table, report-builder shape + deltas, route auth guard + 24 h 409.
+  Gates: web **552**, storefront **34**, api **892 pass / 1 skip**. Known pre-existing failure
+  (not ours): `@restropulse/content-engine` build/type-check on `asset-manager.ts`.
+  ASSUMPTIONS: implemented from ARCHITECTURE spec (predecessor repo WAS reachable, used as a
+  formula reference only); pillar checks carry explicit point weights that reproduce the seed
+  pillar scores; scan `city` defaults from `restaurant.sourceCity`/address; intelligence docs
+  keep string `_id` (allowlisted in the objectid-safety guard).
+
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
 ---

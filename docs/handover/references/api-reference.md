@@ -48,6 +48,26 @@ code wins; fix this file in the same PR.
 | GET | `/cohorts` | Computed: `drop_off_carts` (cart/checkout events, no order 7d), `non_transacted` (0 orders), `lapsed_30d`. Source: `services/ordering/cohorts.ts` |
 | POST | `/campaigns` | `{cohort, channel: whatsapp\|discount, discount?: {percent 1-100, code 3-20 chars, expiryDays 1-90}}` → stored `QUEUED`, emits `campaign_queued`. Delivery worker = `docs/NEXT.md` §9 |
 
+## 2b. Admin intelligence — `/api/admin/intelligence/*` (merchant JWT, role OWNER)
+
+Restaurant Intelligence v1 (PR2). All responses `{success, data?, error?}`. Documents
+keep their string `_id` (matching `@restropulse/shared` types + the PR1 `[SAMPLE]` seed).
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/scan` | `{name?, city?, force?}` — defaults from restaurant profile (`name`, `sourceCity`/address). 409 if a non-failed scan ran < 24 h ago unless `force:true`. Returns `202 {scanId}`; runs the pipeline as an async in-process job (fire-and-forget, status written to the scan doc). Status machine: `QUEUED → FETCHING_PLACES → ANALYZING → SCORING → COMPLETED\|FAILED` (`services/intelligence/scan-status.ts`) |
+| GET | `/scan/:id` | Poll; returns the `IntelligenceScan` (with `reportId` once COMPLETED, `error` if FAILED) |
+| GET | `/reports` | Last 12 `IntelligenceReportSummary` (id, restroScore, generatedAt, deltas) |
+| GET | `/reports/latest` | Full latest `IntelligenceReport` or `null` |
+| GET | `/reports/:id` | Full `IntelligenceReport` |
+| GET | `/self-metrics` | `IntelligenceSelfMetrics` — repeat rate, new-vs-returning revenue, AOV, 7×24 peak-hours matrix, growth cohorts. Computed from existing `events`/`orders` via `services/ordering/cohorts.ts` — no new event tracking |
+
+Pipeline services (`apps/api/src/services/intelligence/`): `places.ts` (Places API (New),
+7-day `competitor_cache`), `analysis.ts` (Anthropic tool-use — `claude-haiku-4-5` classify +
+`claude-sonnet-4-6` analysis, forced tool choice, compacted rows only), `scoring.ts` (pure:
+threat, same-cuisine, restroScore 6-pillar composite), `seo.ts` (5 s homepage fetch),
+`report-builder.ts`, `pipeline.ts`. Env (server-only): `GOOGLE_MAPS_API_KEY`, `ANTHROPIC_API_KEY`.
+
 ## 3. SaaS routes (pre-existing — do not break)
 
 | Mount | Contents |

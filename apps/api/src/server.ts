@@ -24,6 +24,7 @@ import configRoutes from './routes/config.js';
 import accountRoutes from './routes/account.js';
 import storefrontRoutes from './routes/storefront.js';
 import adminOrderingRoutes from './routes/admin-ordering.js';
+import adminIntelligenceRoutes from './routes/admin/intelligence.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -154,6 +155,8 @@ app.use('/api/account', accountRoutes);
 // Online ordering (v1): public storefront + merchant admin
 app.use('/api/storefront/:slug', storefrontRoutes);
 app.use('/api/admin/ordering', adminOrderingRoutes);
+// Restaurant Intelligence (v1): merchant scan pipeline + reports (OWNER only).
+app.use('/api/admin/intelligence', adminIntelligenceRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).
 // Allows the single ngrok tunnel to serve both API routes and placeholder media

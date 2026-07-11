@@ -28,7 +28,13 @@ const SCAN_DIRS = [
 ];
 
 // Files legitimately allowed to use raw _id (e.g. seed data with string IDs).
-const ALLOWED_FILES: string[] = [];
+// The intelligence_scans / intelligence_reports collections use STRING _ids by
+// design (shared type `_id: string`, PR1 seed + randomUUID), so ObjectId
+// conversion would be incorrect here — a raw string is the intended query key.
+const ALLOWED_FILES: string[] = [
+    'apps/api/src/routes/admin/intelligence.ts',
+    'apps/api/src/services/intelligence/pipeline.ts',
+];
 
 function walk(dir: string): string[] {
     const results: string[] = [];

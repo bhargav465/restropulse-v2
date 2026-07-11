@@ -491,7 +491,7 @@ export const DEMO_INTELLIGENCE_REPORT: IntelligenceReport = {
         detail: '[SAMPLE] Close the review-volume gap with rivals by driving repeat weekday orders.',
         impact: 'Medium',
         timeframe: '[SAMPLE] Next month',
-        deepLink: { bucket: 'get-started', params: { task: 'launch-offer' } },
+        deepLink: { bucket: 'campaigns', params: { cohort: 'lapsed_30d' } },
       },
       {
         priority: 5,
