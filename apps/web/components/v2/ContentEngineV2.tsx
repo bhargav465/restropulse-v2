@@ -4,7 +4,7 @@ import { postsAPI, restaurantAPI } from '../../api';
 import ContentStudio from '../ContentStudio';
 import Strategy from '../Strategy';
 import Inputs from '../Inputs';
-import { StatCard, ActionCard, SubNav, StepsBanner, SubNavTab } from './primitives';
+import { StatCard, ActionCard, SubNav, StepsBanner, SubNavTab, SamplePhoto } from './primitives';
 
 type ContentTab = 'OVERVIEW' | 'STUDIO' | 'STRATEGY' | 'INPUTS';
 
@@ -26,6 +26,25 @@ const CONTENT_MIX_EMOJI: Record<string, string> = {
     CAROUSEL: '🧩',
     STORY: '⏱️',
     VIDEO: '📹',
+};
+
+/** Post-status pill styling for the Recent posts gallery. */
+const POST_STATUS: Record<string, { label: string; cls: string }> = {
+    PENDING_APPROVAL: { label: 'Needs review', cls: 'bg-warning text-white' },
+    CHANGES_REQUESTED: { label: 'Changes', cls: 'bg-danger text-white' },
+    SCHEDULED: { label: 'Scheduled', cls: 'bg-info text-white' },
+    PUBLISHED: { label: 'Published', cls: 'bg-success text-white' },
+    POSTED: { label: 'Posted', cls: 'bg-success text-white' },
+    GENERATING: { label: 'Generating', cls: 'bg-primary-soft text-primary-strong' },
+    PENDING_MEDIA: { label: 'Rendering', cls: 'bg-primary-soft text-primary-strong' },
+    DRAFT: { label: 'Draft', cls: 'bg-canvas text-muted border border-line' },
+    FAILED: { label: 'Failed', cls: 'bg-danger text-white' },
+};
+
+/** Prettify any unmapped status (e.g. "PENDING_MEDIA" -> "Pending media"). */
+const prettyStatus = (s: string): string => {
+    const w = s.replace(/_/g, ' ').toLowerCase();
+    return w.charAt(0).toUpperCase() + w.slice(1);
 };
 
 /** Overview panel — performance KPIs restyled from the v1 Dashboard data sources. */
@@ -76,11 +95,60 @@ const ContentOverview: React.FC<{ restaurantData: Restaurant; onNavigate: (tab: 
                     emoji="⏳"
                     label="Pending review"
                     value={pendingCount}
-                    delta={pendingCount > 0 ? 'needs your 👍' : 'all clear 🎉'}
+                    delta={pendingCount > 0 ? 'needs your review' : 'all clear'}
                     deltaTone={pendingCount > 0 ? 'down' : 'up'}
                 />
                 <StatCard emoji="🗓️" label="Scheduled" value={scheduledCount} delta="on autopilot" deltaTone="neutral" />
             </div>
+
+            {/* Recent posts gallery */}
+            {posts.length > 0 && (
+                <div className="bg-surface rounded-2xl p-6 border border-line">
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                        <h3 className="text-lg font-bold text-ink">Recent posts</h3>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate('STUDIO')}
+                            className="text-sm font-semibold text-primary-strong hover:underline"
+                        >
+                            Open Studio →
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {posts.slice(0, 8).map((p) => {
+                            const s = POST_STATUS[p.status] ?? { label: prettyStatus(p.status), cls: 'bg-primary-soft text-primary-strong' };
+                            return (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => onNavigate('STUDIO')}
+                                    className="group text-left rounded-xl overflow-hidden border border-line bg-canvas hover:shadow-md hover:-translate-y-0.5 transition-all"
+                                >
+                                    <div className="relative">
+                                        <SamplePhoto
+                                            src={p.thumbnail}
+                                            alt={(p.caption || 'Post').replace('[SAMPLE] ', '').slice(0, 60)}
+                                            emoji="📸"
+                                            className="aspect-square w-full"
+                                        />
+                                        <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-md text-[11px] font-bold ${s.cls}`}>
+                                            {s.label}
+                                        </span>
+                                        {p.type !== 'IMAGE' && (
+                                            <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-black/55 text-white">
+                                                {CONTENT_MIX_EMOJI[p.type] || '📌'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-ink px-3 py-2.5 leading-snug line-clamp-2">
+                                        {(p.caption || '').replace('[SAMPLE] ', '')}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* How it works */}
             <StepsBanner
@@ -97,19 +165,19 @@ const ContentOverview: React.FC<{ restaurantData: Restaurant; onNavigate: (tab: 
 
             {/* Content mix */}
             {contentMix.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                    <h3 className="font-bold text-slate-800 mb-4">🎨 Content mix · last 30 days</h3>
+                <div className="bg-surface rounded-2xl p-6 border border-line">
+                    <h3 className="text-base font-semibold text-ink mb-4">Content mix · last 30 days</h3>
                     <div className="space-y-3">
                         {contentMix.map((m) => (
                             <div key={m.type} className="flex items-center gap-3">
-                                <span className="w-28 text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                <span className="w-28 text-xs font-semibold text-muted flex items-center gap-1.5">
                                     <span aria-hidden="true">{CONTENT_MIX_EMOJI[m.type] || '📌'}</span>
                                     {m.type.charAt(0) + m.type.slice(1).toLowerCase()}
                                 </span>
-                                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-[#e8674a] rounded-full" style={{ width: `${(m.count / maxMix) * 100}%` }} />
+                                <div className="flex-1 h-2.5 bg-primary-soft rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary rounded-full" style={{ width: `${(m.count / maxMix) * 100}%` }} />
                                 </div>
-                                <span className="w-8 text-right text-sm font-extrabold text-slate-700">{m.count}</span>
+                                <span className="w-8 text-right text-sm font-semibold text-ink tabular-nums">{m.count}</span>
                             </div>
                         ))}
                     </div>

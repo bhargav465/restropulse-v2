@@ -346,7 +346,15 @@ const MenuManager: React.FC = () => {
                             ) : (
                                 <ul>
                                     {categoryItems.map((item, itemIndex) => (
-                                        <li key={item.id} className="flex items-center gap-2 px-4 py-3 border-b border-slate-50 last:border-b-0">
+                                        <li key={item.id} className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-50 last:border-b-0">
+                                            {item.images?.[0] && (
+                                                <img
+                                                    src={item.images[0]}
+                                                    alt=""
+                                                    loading="lazy"
+                                                    className="w-11 h-11 rounded-lg object-cover shrink-0 border border-slate-100 bg-slate-50"
+                                                />
+                                            )}
                                             <span className={`w-2.5 h-2.5 rounded-full shrink-0 border ${item.isVeg ? 'bg-green-500 border-green-600' : 'bg-red-500 border-red-600'}`} aria-label={item.isVeg ? 'Veg' : 'Non-veg'}></span>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-bold text-slate-700 truncate">{item.name}</p>

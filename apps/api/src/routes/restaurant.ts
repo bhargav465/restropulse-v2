@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import multer from 'multer';
 import {
     findRestaurantById,
     createRestaurant,
@@ -9,22 +10,188 @@ import {
     removeSpecial,
     updateMenuTimestamp,
     getPostsCollection,
+    getRestaurantsCollection,
     getAccountManagersByCityAndZone,
     getAllCities,
     findUserById,
     updateUser,
     createSubscription,
+    toApiFormat,
+    toObjectId,
 } from '@restropulse/db';
-import { ApiResponse, Restaurant, AccountManager, City, FREE_SIGNUP_CREDITS } from '@restropulse/shared';
+import {
+    ApiResponse,
+    Restaurant,
+    AccountManager,
+    City,
+    FREE_SIGNUP_CREDITS,
+    RESTAURANT_PROFILE_FIELDS,
+    RestaurantProfileField,
+} from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/require-role.js';
 import { generateTokens } from '../services/jwt.js';
 import { createRazorpayCustomer, isRazorpayConfigured } from '../services/razorpay.js';
+import {
+    assetStore,
+    isValidImageUpload,
+    MAX_ASSET_BYTES,
+    IMAGE_REJECT_MESSAGE,
+} from '../services/assets.js';
 import { createLogger } from '@restropulse/telemetry/server';
 
 const log = createLogger('restaurant');
 
 const router = express.Router();
+
+// ============================================================
+// Restaurant profile: whitelist sanitizer + validation (Brief 04)
+// ============================================================
+
+/**
+ * Server-internal / credential fields stripped from every restaurant object
+ * before it leaves the server, shared by GET /profile AND the public GET /:id
+ * (single source of truth). `instagramCredentials` (the encrypted token) is the
+ * genuine leak this closes; `razorpayCustomerId` is a server-internal billing
+ * id. NOTE: `integrations`, `instagramConnection` (already token-free) and
+ * `accountManager` are intentionally RETAINED — the merchant dashboard loads
+ * `restaurantData` from GET /:id and reads them (App.tsx `metaConnected`,
+ * ProfileSheet), so removing them would break existing users.
+ */
+const PUBLIC_STRIP_FIELDS = ['instagramCredentials', 'razorpayCustomerId'] as const;
+
+function sanitizeRestaurantForPublic(restaurant: Restaurant): Restaurant {
+    const clone: Record<string, unknown> = { ...restaurant };
+    for (const field of PUBLIC_STRIP_FIELDS) delete clone[field];
+    return clone as unknown as Restaurant;
+}
+
+const PROFILE_FIELD_SET = new Set<string>(RESTAURANT_PROFILE_FIELDS as readonly string[]);
+const PRICE_RANGES = new Set(['budget', 'mid-range', 'upscale', 'fine-dining']);
+const PINCODE_RE = /^[1-9][0-9]{5}$/;
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const FSSAI_RE = /^[0-9]{14}$/;
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const ASSET_URL_RE = /^(\/api\/assets\/|https:\/\/)/;
+
+interface ProfilePatchResult {
+    set: Record<string, unknown>;
+    unset: Record<string, ''>;
+    errors: string[];
+    /** Non-whitelisted keys that were silently dropped (warn-logged by caller). */
+    blocked: string[];
+}
+
+/** Validates a single provided (non-null) profile field. Returns an error string, or null when valid. */
+function validateProfileField(field: RestaurantProfileField, value: unknown): string | null {
+    switch (field) {
+        case 'name':
+        case 'legalName':
+        case 'cuisine':
+        case 'description':
+        case 'phone':
+        case 'website':
+            if (typeof value !== 'string') return `${field} must be a string`;
+            if ((field === 'name' || field === 'cuisine') && value.trim().length === 0) return `${field} cannot be empty`;
+            return null;
+        case 'email':
+            if (typeof value !== 'string' || !EMAIL_RE.test(value)) return 'email must be a valid email address';
+            return null;
+        case 'priceRange':
+            if (typeof value !== 'string' || !PRICE_RANGES.has(value)) return 'priceRange must be one of budget, mid-range, upscale, fine-dining';
+            return null;
+        case 'cuisineTags':
+            if (!Array.isArray(value) || value.length > 10) return 'cuisineTags must be an array of up to 10 tags';
+            for (const tag of value) {
+                if (typeof tag !== 'string' || tag.trim().length < 1 || tag.trim().length > 30) return 'each cuisine tag must be 1–30 characters';
+            }
+            return null;
+        case 'activeOffers':
+        case 'chefSpecials':
+            if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) return `${field} must be an array of strings`;
+            return null;
+        case 'gstin':
+            if (typeof value !== 'string' || !GSTIN_RE.test(value)) return 'gstin must be a valid 15-character GSTIN';
+            return null;
+        case 'fssaiLicense':
+            if (typeof value !== 'string' || !FSSAI_RE.test(value)) return 'fssaiLicense must be a 14-digit number';
+            return null;
+        case 'logoUrl':
+        case 'coverImageUrl':
+            if (typeof value !== 'string' || !ASSET_URL_RE.test(value)) return `${field} must start with /api/assets/ or https://`;
+            return null;
+        case 'address': {
+            if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'address must be an object';
+            const a = value as Record<string, unknown>;
+            if (typeof a.line1 !== 'string' || a.line1.trim().length === 0) return 'address.line1 is required';
+            if (typeof a.city !== 'string' || a.city.trim().length === 0) return 'address.city is required';
+            if (typeof a.state !== 'string' || a.state.trim().length === 0) return 'address.state is required';
+            if (typeof a.pincode !== 'string' || !PINCODE_RE.test(a.pincode)) return 'address.pincode must be a valid 6-digit PIN code';
+            return null;
+        }
+        case 'location':
+        case 'operatingHours':
+        case 'serviceOptions':
+            if (typeof value !== 'object' || value === null || Array.isArray(value)) return `${field} must be an object`;
+            return null;
+        default:
+            return null;
+    }
+}
+
+/**
+ * Keeps only whitelisted profile keys (blocked keys silently dropped + reported
+ * for a warn log). Provided `null` on a field → `$unset`; other provided values
+ * are validated. Single source: `RESTAURANT_PROFILE_FIELDS` in @restropulse/shared.
+ */
+function sanitizeProfilePatch(body: unknown): ProfilePatchResult {
+    const set: Record<string, unknown> = {};
+    const unset: Record<string, ''> = {};
+    const errors: string[] = [];
+    const blocked: string[] = [];
+
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        return { set, unset, errors, blocked };
+    }
+
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+        if (!PROFILE_FIELD_SET.has(key)) {
+            blocked.push(key);
+            continue;
+        }
+        const field = key as RestaurantProfileField;
+        if (value === null) {
+            unset[field] = '';
+            continue;
+        }
+        const error = validateProfileField(field, value);
+        if (error) errors.push(error);
+        else set[field] = value;
+    }
+
+    return { set, unset, errors, blocked };
+}
+
+/** Applies a sanitized profile patch with proper $set/$unset semantics. */
+async function applyProfilePatch(
+    id: string,
+    set: Record<string, unknown>,
+    unset: Record<string, ''>,
+): Promise<Restaurant | null> {
+    const col = getRestaurantsCollection();
+    const update: Record<string, unknown> = { $set: { ...set, updatedAt: new Date() } };
+    if (Object.keys(unset).length > 0) update.$unset = unset;
+    const result = await col.findOneAndUpdate(
+        { _id: toObjectId(id) as any },
+        update,
+        { returnDocument: 'after' },
+    );
+    return toApiFormat(result) as Restaurant | null;
+}
+
+// Logo/cover uploads: in-memory, 5 MB cap (mirrors admin-ordering CSV pattern).
+const assetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ASSET_BYTES } });
 
 // Create restaurant (onboarding)
 router.post('/', requireAuth, handle(async (req: Request, res: Response<ApiResponse>) => {
@@ -120,7 +287,99 @@ router.get('/account-managers', requireAuth, handle(async (req: Request, res: Re
     res.json({ success: true, data: managers });
 }));
 
-// Get restaurant by ID (public read)
+// ============================================================
+// Restaurant profile (OWNER) — MUST be registered BEFORE `/:id`
+// or Express routes `/profile` and `/assets` into the `:id` param.
+// ============================================================
+
+// Get own restaurant profile (business facts + read-only ordering context)
+router.get('/profile', requireAuth, requireRole('OWNER'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
+    const rid = req.user!.restaurantId;
+    if (!rid) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+    const restaurant = await findRestaurantById(rid);
+    if (!restaurant) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+    res.json({ success: true, data: sanitizeRestaurantForPublic(restaurant) });
+}));
+
+// Update own restaurant profile (partial; whitelist + field validation)
+router.patch('/profile', requireAuth, requireRole('OWNER'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
+    const rid = req.user!.restaurantId;
+    if (!rid) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+
+    const { set, unset, errors, blocked } = sanitizeProfilePatch(req.body);
+    if (blocked.length > 0) {
+        log.warn({ restaurantId: rid, blocked }, 'PATCH /profile ignored non-whitelisted keys');
+    }
+    if (errors.length > 0) {
+        return res.status(400).json({ success: false, error: errors[0] });
+    }
+    if (Object.keys(set).length === 0 && Object.keys(unset).length === 0) {
+        return res.status(400).json({ success: false, error: 'No valid profile fields in request' });
+    }
+
+    const updated = await applyProfilePatch(rid, set, unset);
+    if (!updated) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+    res.json({ success: true, data: sanitizeRestaurantForPublic(updated), message: 'Profile updated successfully' });
+}));
+
+// Upload a logo/cover image → GridFS. Client then PATCHes logoUrl/coverImageUrl.
+router.post(
+    '/assets',
+    requireAuth,
+    requireRole('OWNER'),
+    (req: Request, res: Response, next) => {
+        assetUpload.single('file')(req, res, (err: unknown) => {
+            if (err) {
+                if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(413).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+                }
+                return res.status(400).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+            }
+            next();
+        });
+    },
+    handle(async (req: Request, res: Response<ApiResponse>) => {
+        const rid = req.user!.restaurantId;
+        if (!rid) {
+            return res.status(403).json({ success: false, error: 'Forbidden' });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'Image file is required (multipart field "file")' });
+        }
+        if (!isValidImageUpload(req.file.originalname, req.file.mimetype)) {
+            return res.status(400).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+        }
+
+        const kindRaw = (req.body?.kind ?? req.query?.kind) as string | undefined;
+        const kind: 'logo' | 'cover' = kindRaw === 'cover' ? 'cover' : 'logo';
+
+        const assetId = await assetStore.put(req.file.buffer, {
+            filename: req.file.originalname,
+            contentType: req.file.mimetype,
+            metadata: { restaurantId: rid, kind },
+        });
+
+        res.status(201).json({
+            success: true,
+            data: {
+                assetId,
+                url: `/api/assets/${assetId}`,
+                contentType: req.file.mimetype,
+                size: req.file.size,
+            },
+        });
+    }),
+);
+
+// Get restaurant by ID (public read — sanitized: no server-internal credentials)
 router.get('/:id', handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
     const { id } = req.params;
     const restaurant = await findRestaurantById(id);
@@ -128,7 +387,7 @@ router.get('/:id', handle(async (req: Request, res: Response<ApiResponse<Restaur
     if (restaurant) {
         res.json({
             success: true,
-            data: restaurant
+            data: sanitizeRestaurantForPublic(restaurant),
         });
     } else {
         res.status(404).json({
@@ -178,7 +437,9 @@ router.get('/:id/analytics', requireAuth, handle(async (req: Request, res: Respo
     });
 }));
 
-// Update restaurant
+// Update restaurant (HARDENED — same whitelist + validation as PATCH /profile;
+// closes the NEXT.md §10 mass-assignment item. Legacy v1 sends only whitelisted
+// fields, so it keeps working.)
 router.put('/:id', requireAuth, handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
     const { id } = req.params;
 
@@ -189,12 +450,24 @@ router.put('/:id', requireAuth, handle(async (req: Request, res: Response<ApiRes
         });
     }
 
-    const restaurant = await updateRestaurant(id, req.body);
+    const { set, unset, errors, blocked } = sanitizeProfilePatch(req.body);
+    if (blocked.length > 0) {
+        log.warn({ restaurantId: id, blocked }, 'PUT /:id ignored non-whitelisted keys');
+    }
+    if (errors.length > 0) {
+        return res.status(400).json({ success: false, error: errors[0] });
+    }
+
+    // Fold null-clears into $set: null to preserve legacy updateRestaurant behavior.
+    const updates: Record<string, unknown> = { ...set };
+    for (const key of Object.keys(unset)) updates[key] = null;
+
+    const restaurant = await updateRestaurant(id, updates);
 
     if (restaurant) {
         res.json({
             success: true,
-            data: restaurant,
+            data: sanitizeRestaurantForPublic(restaurant),
             message: 'Restaurant updated successfully'
         });
     } else {

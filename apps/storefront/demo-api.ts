@@ -23,10 +23,11 @@ import type {
   Order,
   OrderItemSnapshot,
   OrderStatus,
+  PaymentIntent,
   PublicCustomer,
 } from '@restropulse/shared';
 import type { OrderTrackingInfo, PublicMenuCategory, PublicMenuItem, StorefrontConfig } from './types';
-import type { CustomerAuthResult, PlaceOrderPayload, ReservationPayload } from './api';
+import type { CustomerAuthResult, PlaceOrderPayload, ReservationPayload, VerifyPaymentPayload } from './api';
 import {
   ApiError,
   clearToken,
@@ -176,6 +177,11 @@ const STATUS_TIMELINE: Array<{ afterMs: number; status: OrderStatus }> = [
 
 /** Derives a live-looking status from the order's age (demo only). */
 function withSimulatedProgress(order: Order): Order {
+  // Unpaid orders don't move through the kitchen timeline — the fake progress
+  // only begins once payment is simulated (mirrors the real paid-order flow).
+  if (order.status === 'PENDING_PAYMENT' || order.status === 'PAYMENT_FAILED') {
+    return order;
+  }
   const placedAt = new Date(String(order.createdAt)).getTime();
   const elapsed = Math.max(0, Date.now() - placedAt);
   const flow = STATUS_TIMELINE.filter(
@@ -259,8 +265,8 @@ export const orderAPI = {
       orderType: payload.orderType,
       items,
       totals,
-      status: 'RECEIVED',
-      statusHistory: [{ status: 'RECEIVED', at: now, note: DEMO_STATUS_NOTE }],
+      status: 'PENDING_PAYMENT',
+      statusHistory: [{ status: 'PENDING_PAYMENT', at: now, note: 'Awaiting payment' }],
       ...(payload.address ? { address: payload.address } : {}),
       ...(customer?.name ? { customerName: customer.name } : {}),
       ...(customer?.phone ? { customerPhone: customer.phone } : {}),
@@ -301,6 +307,53 @@ export const orderAPI = {
       statusHistory: order.statusHistory,
       placedAt: String(order.createdAt),
     };
+  },
+};
+
+// ----- Payments (simulated Razorpay checkout — no script, no backend) -----
+
+/** Fake "processing" delay so the payment spinner is visible in the preview. */
+const DEMO_PAYMENT_MS = 1500;
+
+const paymentDelay = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, DEMO_PAYMENT_MS));
+
+/** Persists a mutated order back into the localStorage-backed demo store. */
+function replaceStoredOrder(slug: string, updated: Order): void {
+  const orders = readJson<Order[]>(ordersKey(slug), []);
+  writeJson(ordersKey(slug), orders.map((o) => (o.id === updated.id ? updated : o)));
+}
+
+export const paymentAPI = {
+  createIntent: async (slug: string, orderId: string): Promise<PaymentIntent> => {
+    assertDemoSlug(slug);
+    if (!getToken(slug)) throw new ApiError('Not authenticated', 401);
+    const order = findOrder(slug, orderId);
+    await paymentDelay();
+    return {
+      providerOrderId: `demo_rzp_${randomSuffix()}`,
+      keyId: 'rzp_test_demo',
+      amount: Math.round(order.totals.total * 100),
+      currency: 'INR',
+    };
+  },
+
+  verify: async (slug: string, payload: VerifyPaymentPayload): Promise<Order> => {
+    assertDemoSlug(slug);
+    if (!getToken(slug)) throw new ApiError('Not authenticated', 401);
+    const order = findOrder(slug, payload.orderId);
+    const now = new Date().toISOString();
+    const updated: Order = {
+      ...order,
+      status: 'RECEIVED',
+      statusHistory: [
+        ...order.statusHistory,
+        { status: 'RECEIVED', at: now, note: '[DEMO] Payment simulated — no money moved.' },
+      ],
+      updatedAt: now,
+    };
+    replaceStoredOrder(slug, updated);
+    notifyDemoBackendAction();
+    return updated;
   },
 };
 

@@ -14,6 +14,9 @@ outputs:
   publisher:
     description: Whether publisher app or its dependencies changed
     value: ${{ steps.combine.outputs.publisher }}
+  intelligence-worker:
+    description: Whether intelligence-worker app or its dependencies changed
+    value: ${{ steps.combine.outputs.intelligence-worker }}
   content-engine:
     description: Whether content-engine app or its dependencies changed
     value: ${{ steps.combine.outputs.content-engine }}
@@ -40,6 +43,8 @@ runs:
             - 'apps/api/**'
           publisher:
             - 'apps/publisher/**'
+          intelligence-worker:
+            - 'apps/intelligence-worker/**'
           content-engine:
             - 'apps/content-engine/**'
           src:
@@ -60,6 +65,7 @@ runs:
         echo "web=${{ steps.filter.outputs.web == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         echo "api=${{ steps.filter.outputs.api == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         echo "publisher=${{ steps.filter.outputs.publisher == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        echo "intelligence-worker=${{ steps.filter.outputs.intelligence-worker == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         echo "content-engine=${{ steps.filter.outputs.content-engine == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         # docs-only is true when no source/config/workflow files changed
         echo "docs-only=${{ steps.filter.outputs.src == 'false' }}" >> "$GITHUB_OUTPUT"

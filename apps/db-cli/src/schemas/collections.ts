@@ -16,6 +16,12 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { email: 1 }, options: { unique: true } },
             { spec: { restaurantId: 1 } },
             { spec: { role: 1 } },
+            // OTP login hot path: findUserByPhone / findUserByFirebaseUid.
+            // Emails are always set to phone-placeholders, so the unique email
+            // index above is unaffected. firebaseUid is sparse (not all users
+            // have one).
+            { spec: { phone: 1 } },
+            { spec: { firebaseUid: 1 }, options: { sparse: true } },
         ],
         validator: {
             $jsonSchema: {

@@ -48,6 +48,8 @@ CLAUDE.local.md
 /*.md
 # ...but the root README is real documentation, not an AI scratch file
 !/README.md
+# ...and CLAUDE.md is real project memory, not an AI scratch file
+!/CLAUDE.md
 
 # Old directory names (moved to apps/)
 restropulse-pwa/
@@ -77,3 +79,7 @@ tests/integration/.env.integration.*
 
 # Acquired restaurant fixture data (large generated files)
 apps/db-cli/data/restaurants/*.json
+
+# Stray Next.js artifacts (monorepo is Vite-based; these are not ours)
+.next/
+next-env.d.ts

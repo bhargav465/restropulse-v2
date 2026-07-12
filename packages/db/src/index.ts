@@ -9,6 +9,7 @@ export {
   getDB,
   setDB,
   getConfig,
+  MONGO_CLIENT_OPTIONS,
   getUsersCollection,
   getRestaurantsCollection,
   getPostsCollection,
@@ -25,6 +26,10 @@ export {
   getCustomersCollection,
   getEventsCollection,
   getCampaignsCollection,
+  getPaymentsCollection,
+  getIntelligenceScansCollection,
+  getIntelligenceReportsCollection,
+  getCompetitorCacheCollection,
   getSessionsCollection,
   getOtpChallengesCollection,
   getOauthSessionsCollection,
@@ -62,4 +67,7 @@ export * from './archived-accounts.js';
 export * from './cost-events.js';
 export * from './media-jobs.js';
 export * from './ordering.js';
+export * from './intelligence.js';
+export * from './assets.js';
 export * from './seeds/ordering-demo.js';
+export * from './seeds/intelligence-demo.js';

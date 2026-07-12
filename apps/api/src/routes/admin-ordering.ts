@@ -6,6 +6,7 @@
 
 import express, { Request, Response } from 'express';
 import multer from 'multer';
+import { MongoServerError } from 'mongodb';
 import {
     findRestaurantById,
     updateRestaurant,
@@ -223,8 +224,18 @@ router.post('/menu/items', handle(async (req: Request, res: Response<ApiResponse
         createdAt: new Date(),
         updatedAt: new Date(),
     };
-    const result = await getMenuItemsCollection().insertOne(doc);
-    res.status(201).json({ success: true, data: toApiFormat({ ...doc, _id: result.insertedId }) as unknown as OrderingMenuItem });
+    let insertedId;
+    try {
+        const result = await getMenuItemsCollection().insertOne(doc);
+        insertedId = result.insertedId;
+    } catch (err) {
+        // Unique (restaurantId, name) index: reject duplicate item names.
+        if (err instanceof MongoServerError && err.code === 11000) {
+            return res.status(409).json({ success: false, error: 'An item with this name already exists' });
+        }
+        throw err;
+    }
+    res.status(201).json({ success: true, data: toApiFormat({ ...doc, _id: insertedId }) as unknown as OrderingMenuItem });
 }));
 
 router.patch('/menu/items/:id', handle(async (req: Request, res: Response<ApiResponse<OrderingMenuItem>>) => {
@@ -270,11 +281,20 @@ router.patch('/menu/items/:id', handle(async (req: Request, res: Response<ApiRes
         updates.sortOrder = Number(sortOrder);
     }
 
-    const result = await getMenuItemsCollection().findOneAndUpdate(
-        { _id: toObjectId(req.params.id) as any, restaurantId: restaurantId(req) },
-        { $set: updates },
-        { returnDocument: 'after' },
-    );
+    let result;
+    try {
+        result = await getMenuItemsCollection().findOneAndUpdate(
+            { _id: toObjectId(req.params.id) as any, restaurantId: restaurantId(req) },
+            { $set: updates },
+            { returnDocument: 'after' },
+        );
+    } catch (err) {
+        // Unique (restaurantId, name) index: reject a rename that collides.
+        if (err instanceof MongoServerError && err.code === 11000) {
+            return res.status(409).json({ success: false, error: 'An item with this name already exists' });
+        }
+        throw err;
+    }
     if (!result) {
         return res.status(404).json({ success: false, error: 'Menu item not found' });
     }
@@ -379,7 +399,7 @@ router.post('/menu/import', upload.single('file'), handle(async (req: Request, r
             ...(row.addons.length > 0 ? { addons: row.addons } : {}),
             ...(row.sortOrder !== undefined ? { sortOrder: row.sortOrder } : {}),
         };
-        const result = await itemsCol.updateOne(
+        const upsertItem = () => itemsCol.updateOne(
             { restaurantId: rid, name: row.name },
             {
                 $set: setFields,
@@ -395,6 +415,20 @@ router.post('/menu/import', upload.single('file'), handle(async (req: Request, r
             },
             { upsert: true },
         );
+
+        // Under the unique (restaurantId, name) index a concurrent import can
+        // race the upsert-insert and hit 11000. Retry once: the row now exists,
+        // so the second attempt resolves as a plain update.
+        let result;
+        try {
+            result = await upsertItem();
+        } catch (err) {
+            if (err instanceof MongoServerError && err.code === 11000) {
+                result = await upsertItem();
+            } else {
+                throw err;
+            }
+        }
         if (result.upsertedCount > 0) created += 1;
         else updated += 1;
     }

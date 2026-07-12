@@ -146,6 +146,17 @@ export interface MenuItem {
   isAvailable: boolean;
 }
 
+/** Structured postal address for the restaurant profile (Brief 04, additive). */
+export interface RestaurantAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  /** Indian PIN code, /^[1-9][0-9]{5}$/. */
+  pincode: string;
+  geo?: { lat: number; lng: number };
+}
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -195,6 +206,23 @@ export interface Restaurant {
    * via Perplexity Sonar image search. Used as img2img reference in AI media generation.
    */
   dishImages?: Record<string, string[]>;
+  // ----- Restaurant profile (Brief 04, additive — all optional; existing docs stay valid) -----
+  /** Registered legal/business name (distinct from the public display `name`). */
+  legalName?: string;
+  /** Structured cuisine tags (chip input). The legacy `cuisine` string stays for prompts/display. */
+  cuisineTags?: string[];
+  /** Business contact email (distinct from the account owner's login email). */
+  email?: string;
+  /** Structured postal address. `location` stays for back-compat / map pin. */
+  address?: RestaurantAddress;
+  /** GSTIN (format-validated, no checksum). */
+  gstin?: string;
+  /** FSSAI licence number (14 digits, format-validated). */
+  fssaiLicense?: string;
+  /** Logo image URL — points at /api/assets/:id (or an external https URL). */
+  logoUrl?: string;
+  /** Cover image URL — points at /api/assets/:id (or an external https URL). */
+  coverImageUrl?: string;
   // ----- Online ordering (v1, additive) -----
   /** URL slug for the public storefront, e.g. /api/storefront/:slug. Unique. */
   slug?: string;
@@ -203,6 +231,21 @@ export interface Restaurant {
   /** Ordering configuration: tax rate, delivery fee/min order, enabled order types. */
   ordering?: RestaurantOrderingSettings;
 }
+
+/**
+ * Single source of truth for the owner-editable restaurant profile whitelist.
+ * Imported by the server route sanitizer (`PATCH /profile`, hardened `PUT /:id`),
+ * the client, and the tests — never duplicate this list literally elsewhere.
+ * = NEXT.md §10 mass-assignment contract + Brief-04 profile fields.
+ */
+export const RESTAURANT_PROFILE_FIELDS = [
+  'name', 'legalName', 'cuisine', 'cuisineTags', 'description', 'phone', 'email', 'website',
+  'priceRange', 'address', 'location', 'operatingHours', 'serviceOptions',
+  'activeOffers', 'chefSpecials', 'gstin', 'fssaiLicense', 'logoUrl', 'coverImageUrl',
+] as const;
+
+export type RestaurantProfileField = (typeof RESTAURANT_PROFILE_FIELDS)[number];
+export type RestaurantProfilePatch = Partial<Pick<Restaurant, RestaurantProfileField>>;
 
 export interface PostStats {
   likes: number;
@@ -545,3 +588,5 @@ export type { TimingConstraintConfig } from './approval-deadlines.js';
 export * from './cost-events.js';
 export * from './media-jobs.js';
 export * from './ordering.js';
+export * from './intelligence.js';
+export * from './types/payment.js';

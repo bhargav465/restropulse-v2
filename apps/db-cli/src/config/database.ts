@@ -1,4 +1,5 @@
 import { MongoClient, Db } from 'mongodb';
+import { MONGO_CLIENT_OPTIONS } from '@restropulse/db';
 import { createInterface } from 'readline/promises';
 import { stdin as input, stdout as output } from 'process';
 import chalk from 'chalk';
@@ -81,7 +82,7 @@ export async function connect(): Promise<MongoClient> {
     if (client) return client;
 
     const config = getConfig();
-    client = new MongoClient(config.uri);
+    client = new MongoClient(config.uri, MONGO_CLIENT_OPTIONS);
     await client.connect();
     return client;
 }

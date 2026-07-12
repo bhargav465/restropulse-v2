@@ -15,6 +15,7 @@ import type {
   Order,
   OrderAddress,
   OrderType,
+  PaymentIntent,
   PublicCustomer,
 } from '@restropulse/shared';
 import type { OrderTrackingInfo, PublicMenuCategory, StorefrontConfig } from './types';
@@ -193,6 +194,33 @@ const realOrderAPI = {
   },
 };
 
+// ----- Payments (Razorpay checkout for orders) -----
+
+export interface VerifyPaymentPayload {
+  orderId: string;
+  razorpayPaymentId: string;
+  razorpayOrderId: string;
+  razorpaySignature: string;
+}
+
+const realPaymentAPI = {
+  createIntent: async (slug: string, orderId: string): Promise<PaymentIntent> => {
+    const res = await request<ApiResponse<PaymentIntent>>(slug, '/payments/intent', {
+      method: 'POST',
+      body: JSON.stringify({ orderId }),
+    }, { auth: true });
+    return res.data!;
+  },
+
+  verify: async (slug: string, payload: VerifyPaymentPayload): Promise<Order> => {
+    const res = await request<ApiResponse<{ order: Order }>>(slug, '/payments/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, { auth: true });
+    return res.data!.order;
+  },
+};
+
 // ----- Reservations -----
 
 export interface ReservationPayload {
@@ -223,4 +251,5 @@ export const storefrontAPI: typeof realStorefrontAPI = demo ? demoApi.storefront
 export const customerAuthAPI: typeof realCustomerAuthAPI = demo ? demoApi.customerAuthAPI : realCustomerAuthAPI;
 export const addressAPI: typeof realAddressAPI = demo ? demoApi.addressAPI : realAddressAPI;
 export const orderAPI: typeof realOrderAPI = demo ? demoApi.orderAPI : realOrderAPI;
+export const paymentAPI: typeof realPaymentAPI = demo ? demoApi.paymentAPI : realPaymentAPI;
 export const reservationAPI: typeof realReservationAPI = demo ? demoApi.reservationAPI : realReservationAPI;

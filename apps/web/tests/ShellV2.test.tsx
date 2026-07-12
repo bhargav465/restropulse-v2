@@ -6,7 +6,7 @@
  * builds (flag unset) still render the v1 Layout, (3) flag on renders ShellV2.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from './utils/test-utils';
+import { render, screen, waitFor, fireEvent } from './utils/test-utils';
 import ShellV2 from '../components/v2/ShellV2';
 import App from '../App';
 import { DEMO_RESTAURANT, DEMO_FEATURE_FLAGS, DEMO_ANALYTICS } from '../lib/demo-fixtures';
@@ -35,7 +35,9 @@ vi.mock('../api', () => ({
     orderingAdminAPI: {
         getOrders: vi.fn().mockResolvedValue([]),
         getReservations: vi.fn().mockResolvedValue([]),
+        getItems: vi.fn().mockResolvedValue([]),
         getAnalyticsSummary: vi.fn().mockResolvedValue({ from: '', to: '', events: [] }),
+        getContentDraft: vi.fn().mockResolvedValue({ draft: { heroImages: [], hours: [] }, publishedVersion: null, versions: [] }),
     },
 }));
 
@@ -49,7 +51,7 @@ vi.mock('../firebase', () => ({
 
 import { restaurantAPI, configAPI, postsAPI } from '../api';
 
-const BUCKETS = ['Content Engine', 'Online Ordering', 'Restaurant Intelligence', 'Website Design'];
+const BUCKETS = ['Restaurant Details', 'Content Engine', 'Online Ordering', 'Restaurant Intelligence', 'Website Design'];
 
 describe('ShellV2 (v2 admin shell)', () => {
     const shellProps = {
@@ -74,7 +76,7 @@ describe('ShellV2 (v2 admin shell)', () => {
         vi.unstubAllEnvs();
     });
 
-    it('renders the four sidebar buckets with wordmark and prototype footer', () => {
+    it('renders the sidebar buckets with wordmark and prototype footer', () => {
         render(<ShellV2 {...shellProps} />);
 
         const nav = screen.getByRole('navigation', { name: /main navigation/i });
@@ -83,14 +85,45 @@ describe('ShellV2 (v2 admin shell)', () => {
         }
         expect(screen.getByText(/Social media made simple for restaurants/i)).toBeInTheDocument();
         expect(screen.getByText(/Prototype · sample data/i)).toBeInTheDocument();
-        // Restaurant chip in the page header
-        expect(screen.getByText(DEMO_RESTAURANT.name)).toBeInTheDocument();
+        // Restaurant identity now appears in the sidebar tile, mobile top bar and
+        // dashboard greeting (Brief 05 items 6 & 10) — at least one node carries it.
+        expect(screen.getAllByText(DEMO_RESTAURANT.name).length).toBeGreaterThan(0);
     });
 
-    it('shows the Content Engine overview by default with KPI cards', async () => {
+    it('routes to the Restaurant Details page from the sidebar', async () => {
         render(<ShellV2 {...shellProps} />);
 
-        expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Restaurant Details/i }));
+        // The 5 quiet underline tabs render, Basics is the default.
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name: /^Basics$/i })).toBeInTheDocument();
+        });
+        expect(screen.getByRole('tab', { name: /Address & Contact/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Legal/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Branding/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Hours/i })).toBeInTheDocument();
+        expect(screen.getByLabelText(/Restaurant name/i)).toBeInTheDocument();
+    });
+
+    it('shows the Dashboard landing page by default with KPI cards', async () => {
+        render(<ShellV2 {...shellProps} />);
+
+        // Dashboard is the default landing bucket (design.md §4.2). Its header is
+        // now a time-aware greeting hero (Brief 05 item 6) carrying the name.
+        expect(screen.getByRole('heading', { name: new RegExp(DEMO_RESTAURANT.name.replace(/[[\]]/g, '\\$&'), 'i') })).toBeInTheDocument();
+        expect(screen.getByText(/Orders today/i)).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByText(/Needs attention/i)).toBeInTheDocument();
+        });
+    });
+
+    it('can switch to the Content Engine bucket and show its overview', async () => {
+        render(<ShellV2 {...shellProps} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Content Engine/i }));
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+        });
         expect(screen.getByText(/Posts this week/i)).toBeInTheDocument();
         await waitFor(() => {
             // Most recent week from the demo analytics fixture (7 posts)
@@ -145,7 +178,8 @@ describe('App shell switch (VITE_ADMIN_SHELL flag)', () => {
         });
         expect(screen.getByText('Website Design')).toBeInTheDocument();
         expect(screen.getByText(/Prototype · sample data/i)).toBeInTheDocument();
-        // v1 bottom nav must not render
-        expect(screen.queryByText('Home')).not.toBeInTheDocument();
+        // v1 bottom nav must not render. ('Home' is now a v2 bottom-tab label, so
+        // assert on 'Studio', which is unique to the v1 Layout.)
+        expect(screen.queryByText('Studio')).not.toBeInTheDocument();
     });
 });

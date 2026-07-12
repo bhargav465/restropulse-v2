@@ -10,6 +10,8 @@ import { razorpaySetupCommand } from './commands/razorpay-setup.js';
 import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
 import { seedOrderingCommand } from './commands/seed-ordering.js';
+import { seedIntelligenceCommand } from './commands/seed-intelligence.js';
+import { dedupeMenuItemsCommand } from './commands/dedupe-menu-items.js';
 
 const program = new Command();
 
@@ -63,6 +65,17 @@ program
     .command('seed-ordering')
     .description('Seed the demo online-ordering storefront (slug "demo") with sample menu, content, owner and customer')
     .action(seedOrderingCommand);
+
+program
+    .command('seed-intelligence')
+    .description('Seed the demo Restaurant Intelligence report ([SAMPLE], restaurant "demo-r1", restroScore 68)')
+    .action(seedIntelligenceCommand);
+
+program
+    .command('dedupe-menu-items')
+    .description('Report (and with --apply, rename) duplicate menu items sharing the same (restaurantId, name). Dry-run by default; renames later duplicates to "<name> (2)" — never deletes.')
+    .option('--apply', 'Rename later duplicates (default is a read-only report)')
+    .action((options) => dedupeMenuItemsCommand({ apply: !!options.apply }));
 
 program
     .command('reset')

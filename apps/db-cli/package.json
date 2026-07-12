@@ -17,6 +17,7 @@
     "seed": "tsx src/index.ts seed",
     "seed:clean": "tsx src/index.ts seed --clean",
     "seed:ordering": "tsx src/index.ts seed-ordering",
+    "seed:intelligence": "tsx src/index.ts seed-intelligence",
     "reset": "tsx src/index.ts reset",
     "razorpay:setup": "tsx src/index.ts razorpay-setup",
     "razorpay:setup:dry-run": "tsx src/index.ts razorpay-setup --dry-run",

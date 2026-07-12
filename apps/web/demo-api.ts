@@ -49,7 +49,14 @@ import type {
     SubscriptionPlan,
     InstagramAccount,
     InstagramConnectionError,
+    IntelligenceScan,
+    IntelligenceReport,
+    IntelligenceReportSummary,
+    IntelligenceSelfMetrics,
+    ScanStatus,
+    RestaurantProfilePatch,
 } from '@restropulse/shared';
+import { RESTAURANT_PROFILE_FIELDS } from '@restropulse/shared';
 import type { ContentDraftResponse, GeneratePostTone, MenuCsvImportReport, MenuItemUpsertInput, OrderingAnalyticsSummary } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
 import {
@@ -224,7 +231,39 @@ export const restaurantAPI = {
         await delay();
         return clone(DEMO_ANALYTICS);
     },
+
+    // ----- Restaurant Details (Brief 04) — in-session state, zero network -----
+    getProfile: async (): Promise<Restaurant> => {
+        await delay();
+        return clone(state.restaurant);
+    },
+
+    updateProfile: async (patch: RestaurantProfilePatch): Promise<Restaurant> => {
+        await delay();
+        notifyDemoBackendAction();
+        // Mirror the server whitelist: keep only known profile keys; null clears.
+        const next: Record<string, unknown> = { ...state.restaurant };
+        for (const key of RESTAURANT_PROFILE_FIELDS) {
+            if (!(key in patch)) continue;
+            const value = (patch as Record<string, unknown>)[key];
+            if (value === null) delete next[key];
+            else next[key] = value;
+        }
+        state.restaurant = clone(next) as unknown as Restaurant;
+        return clone(state.restaurant);
+    },
+
+    // Local object URL, no persistence, ZERO network (never saved into fixtures).
+    uploadAsset: async (file: File, _kind: 'logo' | 'cover'): Promise<{ assetId: string; url: string }> => {
+        await delay();
+        notifyDemoBackendAction();
+        demoAssetCounter += 1;
+        return { assetId: `demo-asset-${demoAssetCounter}`, url: URL.createObjectURL(file) };
+    },
 };
+
+/** Monotonic id source for demo asset uploads (session-scoped). */
+let demoAssetCounter = 0;
 
 // ----- Posts (Content Studio) -----
 
@@ -829,6 +868,69 @@ export const orderingAdminAPI = {
             to: to ?? new Date().toISOString(),
             events: clone(DEMO_FUNNEL_EVENTS),
         };
+    },
+};
+
+// ----- Restaurant Intelligence (fixtures + fake 3-poll scan) -----
+//
+// The big [SAMPLE] report fixture is lazy-loaded (dynamic import) so it only
+// ships in the chunk the Intelligence tab pulls in — other buckets don't pay
+// for it (INTEGRATION.md §7). getScan fakes a 3-poll completion so gh-pages
+// visitors experience the pipeline stepper (QUEUED shown client-side →
+// FETCHING_PLACES → ANALYZING → COMPLETED).
+const intelScanPolls = new Map<string, number>();
+
+const intelFixtures = () => import('./lib/demo-fixtures-intelligence');
+
+export const intelligenceAPI = {
+    startScan: async (_body: { name?: string; city?: string; force?: boolean }): Promise<{ scanId: string }> => {
+        await delay();
+        notifyDemoBackendAction();
+        const scanId = `demo-scan-${randomSuffix()}`;
+        intelScanPolls.set(scanId, 0);
+        return { scanId };
+    },
+
+    getScan: async (scanId: string): Promise<IntelligenceScan> => {
+        await delay();
+        const n = (intelScanPolls.get(scanId) ?? 0) + 1;
+        intelScanPolls.set(scanId, n);
+        const { DEMO_INTELLIGENCE_REPORT_ID, DEMO_INTELLIGENCE_RESTAURANT_ID } = await intelFixtures();
+        const status: ScanStatus = n >= 3 ? 'COMPLETED' : n === 1 ? 'FETCHING_PLACES' : 'ANALYZING';
+        return {
+            _id: scanId,
+            restaurantId: DEMO_INTELLIGENCE_RESTAURANT_ID,
+            query: { name: DEMO_RESTAURANT.name, city: 'Bengaluru' },
+            status,
+            reportId: status === 'COMPLETED' ? DEMO_INTELLIGENCE_REPORT_ID : undefined,
+            requestedBy: 'demo-owner-u1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+    },
+
+    getReports: async (): Promise<IntelligenceReportSummary[]> => {
+        await delay();
+        const { DEMO_INTELLIGENCE_REPORT_SUMMARIES } = await intelFixtures();
+        return clone(DEMO_INTELLIGENCE_REPORT_SUMMARIES);
+    },
+
+    getReport: async (_reportId: string): Promise<IntelligenceReport> => {
+        await delay();
+        const { DEMO_INTELLIGENCE_REPORT } = await intelFixtures();
+        return clone(DEMO_INTELLIGENCE_REPORT);
+    },
+
+    getLatestReport: async (): Promise<IntelligenceReport | null> => {
+        await delay();
+        const { DEMO_INTELLIGENCE_REPORT } = await intelFixtures();
+        return clone(DEMO_INTELLIGENCE_REPORT);
+    },
+
+    getSelfMetrics: async (): Promise<IntelligenceSelfMetrics> => {
+        await delay();
+        const { DEMO_INTELLIGENCE_SELF_METRICS } = await intelFixtures();
+        return clone(DEMO_INTELLIGENCE_SELF_METRICS);
     },
 };
 

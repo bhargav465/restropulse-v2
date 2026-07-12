@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Save, Rocket, Undo2 } from 'lucide-react';
-import { StorefrontContent, StorefrontHoursEntry, StoryTimelineEntry, ChefBio, DineInInfoBlock } from '@restropulse/shared';
+import { StorefrontContent, StoryTimelineEntry, ChefBio, DineInInfoBlock } from '@restropulse/shared';
 import { orderingAdminAPI } from '../../api';
 import { ActionNotice } from '../ActionNotice';
 import ConfirmDialog from '../ConfirmDialog';
 import { PanelLoading, PanelError } from './PanelStates';
+import HoursEditor from './HoursEditor';
 
 const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30';
 const labelCls = 'block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5';
@@ -33,8 +34,6 @@ const UrlListEditor: React.FC<{ label: string; urls: string[]; onChange: (urls: 
         <button type="button" className={addBtnCls} onClick={() => onChange([...urls, ''])}><Plus size={14} /> Add URL</button>
     </div>
 );
-
-const DEFAULT_HOURS_ENTRY: StorefrontHoursEntry = { day: 'Monday', open: '11:00', close: '23:00' };
 
 const SiteContentEditor: React.FC = () => {
     const [draft, setDraft] = useState<StorefrontContent | null>(null);
@@ -193,19 +192,7 @@ const SiteContentEditor: React.FC = () => {
             </Section>
 
             <Section title="Opening hours">
-                {(draft.hours ?? []).map((entry, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                        <input className={inputCls} aria-label={`Hours ${i + 1} day`} placeholder="Day" value={entry.day} onChange={(e) => update({ hours: draft.hours!.map((h, j) => (j === i ? { ...h, day: e.target.value } : h)) })} />
-                        <input className={`${inputCls} w-24 shrink-0`} aria-label={`Hours ${i + 1} open`} type="time" value={entry.open} onChange={(e) => update({ hours: draft.hours!.map((h, j) => (j === i ? { ...h, open: e.target.value } : h)) })} />
-                        <input className={`${inputCls} w-24 shrink-0`} aria-label={`Hours ${i + 1} close`} type="time" value={entry.close} onChange={(e) => update({ hours: draft.hours!.map((h, j) => (j === i ? { ...h, close: e.target.value } : h)) })} />
-                        <label className="flex items-center gap-1 text-xs text-slate-500 shrink-0">
-                            <input type="checkbox" checked={entry.closed === true} onChange={(e) => update({ hours: draft.hours!.map((h, j) => (j === i ? { ...h, closed: e.target.checked } : h)) })} className="w-3.5 h-3.5 accent-orange-600" />
-                            Closed
-                        </label>
-                        <button type="button" className={removeBtnCls} aria-label={`Remove hours row ${i + 1}`} onClick={() => update({ hours: draft.hours!.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
-                    </div>
-                ))}
-                <button type="button" className={addBtnCls} onClick={() => update({ hours: [...(draft.hours ?? []), { ...DEFAULT_HOURS_ENTRY }] })}><Plus size={14} /> Add day</button>
+                <HoursEditor value={draft.hours ?? []} onChange={(hours) => update({ hours })} />
             </Section>
 
             <Section title="Contact">

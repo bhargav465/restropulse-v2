@@ -10,6 +10,7 @@ import subscriptionRoutes from '../../src/routes/subscriptions.js';
 import couponRoutes from '../../src/routes/coupons.js';
 import creditPackRoutes from '../../src/routes/credit-packs.js';
 import invoiceRoutes from '../../src/routes/invoices.js';
+import assetsRoutes from '../../src/routes/assets.js';
 
 export function createTestApp(): Express {
     const app = express();
@@ -33,6 +34,7 @@ export function createTestApp(): Express {
     app.use('/api/coupons', couponRoutes);
     app.use('/api/credit-packs', creditPackRoutes);
     app.use('/api/invoices', invoiceRoutes);
+    app.use('/api/assets', assetsRoutes);
 
     // Global error handler (mirrors server.ts)
     app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

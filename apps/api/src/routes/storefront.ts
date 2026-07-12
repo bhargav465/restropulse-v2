@@ -18,8 +18,10 @@ import {
     findCustomerById,
     findOrderById,
     findOrderByIdempotencyKey,
+    findPaymentByOrderId,
     getCustomersCollection,
     getOrdersCollection,
+    getPaymentsCollection,
     getReservationsCollection,
     toApiFormat,
     toApiFormatArray,
@@ -30,10 +32,14 @@ import type {
     Restaurant,
     Order,
     OrderType,
+    OrderStatus,
     OrderStatusHistoryEntry,
     Customer,
     PublicCustomer,
     CustomerAddress,
+    Payment,
+    PaymentEventEntry,
+    PaymentIntent,
 } from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireCustomerAuth } from '../middleware/customer-auth.js';
@@ -42,6 +48,13 @@ import { generateCustomerTokens } from '../services/jwt.js';
 import { hashPassword, verifyPassword } from '../services/password.js';
 import { computeOrderTotals, OrderValidationError, RequestedOrderItem } from '../services/ordering/totals.js';
 import { emitOrderingEvent } from '../services/ordering/events.js';
+import { canTransitionOrderStatus } from '../services/ordering/status.js';
+import {
+    createRazorpayOrder,
+    verifyPaymentSignature,
+    getRazorpayKeyId,
+    isRazorpayConfigured,
+} from '../services/razorpay.js';
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@restropulse/telemetry/server';
 
@@ -412,12 +425,21 @@ router.post('/orders', ...customerAuth, handle(async (req: Request, res: Respons
 
     const customer = await findCustomerById(customerId);
     const now = new Date();
-    // Payment is stubbed in v1: orders are created as PENDING_PAYMENT and
-    // immediately transitioned to RECEIVED (history records both states).
-    const statusHistory: OrderStatusHistoryEntry[] = [
-        { status: 'PENDING_PAYMENT', at: now.toISOString(), note: 'Order created (payment stubbed in v1)' },
-        { status: 'RECEIVED', at: now.toISOString(), note: 'Auto-confirmed — payment integration pending' },
-    ];
+
+    // Payment flow depends on whether Razorpay is configured:
+    //  - configured: order stays PENDING_PAYMENT; the storefront pays via
+    //    /payments/intent + /payments/verify, and order_placed is emitted
+    //    server-side on capture (so the funnel counts paid orders).
+    //  - unconfigured (key-less dev/demo backends): keep the v1 auto-confirm
+    //    stub so those environments keep working.
+    const razorpayOn = isRazorpayConfigured();
+    const statusHistory: OrderStatusHistoryEntry[] = razorpayOn
+        ? [{ status: 'PENDING_PAYMENT', at: now.toISOString(), note: 'Awaiting payment' }]
+        : [
+              { status: 'PENDING_PAYMENT', at: now.toISOString(), note: 'Order created (payment stubbed in v1)' },
+              { status: 'RECEIVED', at: now.toISOString(), note: 'Auto-confirmed — payment integration pending' },
+          ];
+    const initialStatus: OrderStatus = razorpayOn ? 'PENDING_PAYMENT' : 'RECEIVED';
 
     const doc = {
         restaurantId: restaurant.id,
@@ -426,7 +448,7 @@ router.post('/orders', ...customerAuth, handle(async (req: Request, res: Respons
         orderType,
         items: computed.items,
         totals: computed.totals,
-        status: 'RECEIVED' as const,
+        status: initialStatus,
         statusHistory,
         ...(orderType === 'delivery' ? { address } : {}),
         ...(typeof notes === 'string' && notes.trim() ? { notes: notes.trim() } : {}),
@@ -452,13 +474,17 @@ router.post('/orders', ...customerAuth, handle(async (req: Request, res: Respons
         throw err;
     }
 
-    emitOrderingEvent({
-        name: 'order_placed',
-        restaurantId: restaurant.id,
-        customerId,
-        payload: { orderId: order.id, orderType, total: order.totals.total, itemCount: order.items.length },
-    });
-    log.info({ orderId: order.id, restaurantId: restaurant.id, total: order.totals.total }, 'Order placed');
+    // order_placed fires here only on the unconfigured stub path (order is
+    // already RECEIVED). On the Razorpay path it is emitted at capture.
+    if (!razorpayOn) {
+        emitOrderingEvent({
+            name: 'order_placed',
+            restaurantId: restaurant.id,
+            customerId,
+            payload: { orderId: order.id, orderType, total: order.totals.total, itemCount: order.items.length },
+        });
+    }
+    log.info({ orderId: order.id, restaurantId: restaurant.id, total: order.totals.total, status: order.status }, 'Order placed');
 
     res.status(201).json({ success: true, data: order });
 }));
@@ -531,6 +557,199 @@ router.get('/orders/:id', ...customerAuth, handle(async (req: Request, res: Resp
     }
 
     res.json({ success: true, data: order });
+}));
+
+// ============================================
+// Payments (customer JWT) — Razorpay checkout for orders
+// ============================================
+
+const paymentsRateLimit = simpleRateLimit({ windowMs: 60_000, max: 20, name: 'storefront-payments' });
+
+/**
+ * Re-arms a PAYMENT_FAILED order for another payment attempt by transitioning it
+ * back to PENDING_PAYMENT (state-machine + concurrency-guarded) and recording a
+ * retry_intent event on the payment doc. No-op for orders in any other status.
+ */
+async function reArmFailedOrderForRetry(order: Order, restaurantIdValue: string): Promise<void> {
+    if (order.status !== 'PAYMENT_FAILED') return;
+    if (!canTransitionOrderStatus('PAYMENT_FAILED', 'PENDING_PAYMENT', order.orderType)) return;
+    const nowIso = new Date().toISOString();
+    await getOrdersCollection().findOneAndUpdate(
+        { _id: toObjectId(order.id) as any, restaurantId: restaurantIdValue, status: 'PAYMENT_FAILED' },
+        {
+            $set: { status: 'PENDING_PAYMENT', updatedAt: new Date() },
+            $push: { statusHistory: { status: 'PENDING_PAYMENT', at: nowIso, note: 'Retrying payment' } } as any,
+        },
+        { returnDocument: 'after' },
+    );
+    await getPaymentsCollection().updateOne(
+        { orderId: order.id },
+        {
+            $push: { events: { at: nowIso, type: 'retry_intent', source: 'intent' } } as any,
+            $set: { updatedAt: new Date() },
+        },
+    );
+}
+
+// POST /payments/intent — create (or reuse) the Razorpay order for an order's total.
+router.post('/payments/intent', ...customerAuth, paymentsRateLimit, handle(async (req: Request, res: Response<ApiResponse<PaymentIntent>>) => {
+    const restaurant = res.locals.restaurant as Restaurant;
+    const customerId = req.user!.userId;
+    const { orderId } = req.body ?? {};
+
+    if (typeof orderId !== 'string' || !orderId.trim()) {
+        return res.status(400).json({ success: false, error: 'orderId is required' });
+    }
+    if (!isRazorpayConfigured()) {
+        return res.status(503).json({ success: false, error: 'Online payment is not available' });
+    }
+
+    const order = await findOrderById(orderId);
+    if (!order || order.restaurantId !== restaurant.id || order.customerId !== customerId) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    if (order.status !== 'PENDING_PAYMENT' && order.status !== 'PAYMENT_FAILED') {
+        return res.status(409).json({ success: false, error: 'This order is not awaiting payment' });
+    }
+
+    // Never trust client amounts — recompute paise from the stored order total.
+    const amount = Math.round(order.totals.total * 100);
+    const keyId = getRazorpayKeyId();
+
+    // Idempotent per orderId: reuse an existing, not-yet-captured payment (and its
+    // Razorpay order — Razorpay supports re-attempts). Never create a second order.
+    const existing = await findPaymentByOrderId(orderId);
+    if (existing) {
+        if (existing.status === 'captured') {
+            return res.status(409).json({ success: false, error: 'This order is already paid' });
+        }
+        await reArmFailedOrderForRetry(order, restaurant.id);
+        return res.json({
+            success: true,
+            data: { providerOrderId: existing.providerOrderId, keyId, amount: existing.amount, currency: 'INR' },
+        });
+    }
+
+    // First intent: create the Razorpay order and persist the payment doc.
+    const rzpOrder = await createRazorpayOrder(amount, order.orderNumber);
+    const now = new Date();
+    const paymentDoc = {
+        restaurantId: restaurant.id,
+        orderId,
+        provider: 'razorpay' as const,
+        providerOrderId: rzpOrder.id,
+        amount,
+        currency: 'INR' as const,
+        status: 'created' as const,
+        signatureVerified: false,
+        events: [{ at: now.toISOString(), type: 'intent_created', source: 'intent' } as PaymentEventEntry],
+        createdAt: now,
+        updatedAt: now,
+    };
+
+    try {
+        await getPaymentsCollection().insertOne(paymentDoc);
+    } catch (err) {
+        // Unique {orderId} race: a concurrent intent created the payment first.
+        if (err instanceof MongoServerError && err.code === 11000) {
+            const raced = await findPaymentByOrderId(orderId);
+            if (raced) {
+                return res.json({
+                    success: true,
+                    data: { providerOrderId: raced.providerOrderId, keyId, amount: raced.amount, currency: 'INR' },
+                });
+            }
+        }
+        throw err;
+    }
+
+    await reArmFailedOrderForRetry(order, restaurant.id);
+    log.info({ orderId, restaurantId: restaurant.id, providerOrderId: rzpOrder.id }, 'Payment intent created');
+
+    res.json({ success: true, data: { providerOrderId: rzpOrder.id, keyId, amount, currency: 'INR' } });
+}));
+
+// POST /payments/verify — HMAC-verify the checkout result and capture the order.
+router.post('/payments/verify', ...customerAuth, paymentsRateLimit, handle(async (req: Request, res: Response<ApiResponse<{ order: Order }>>) => {
+    const restaurant = res.locals.restaurant as Restaurant;
+    const customerId = req.user!.userId;
+    const { orderId, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body ?? {};
+
+    if (
+        typeof orderId !== 'string' || !orderId.trim() ||
+        typeof razorpayPaymentId !== 'string' || !razorpayPaymentId.trim() ||
+        typeof razorpayOrderId !== 'string' || !razorpayOrderId.trim() ||
+        typeof razorpaySignature !== 'string' || !razorpaySignature.trim()
+    ) {
+        return res.status(400).json({ success: false, error: 'orderId, razorpayPaymentId, razorpayOrderId and razorpaySignature are required' });
+    }
+
+    const payment = await findPaymentByOrderId(orderId);
+    if (!payment || payment.restaurantId !== restaurant.id) {
+        return res.status(404).json({ success: false, error: 'Payment not found' });
+    }
+
+    const order = await findOrderById(orderId);
+    if (!order || order.restaurantId !== restaurant.id || order.customerId !== customerId) {
+        return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    if (razorpayOrderId !== payment.providerOrderId) {
+        return res.status(400).json({ success: false, error: 'Payment does not match this order' });
+    }
+
+    // Webhook may have captured first: idempotent replay, no duplicate events.
+    if (payment.status === 'captured') {
+        return res.json({ success: true, data: { order } });
+    }
+
+    const nowIso = new Date().toISOString();
+    const valid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+
+    if (!valid) {
+        // Tampered signature ≠ provider failure: record the attempt, leave status.
+        await getPaymentsCollection().updateOne(
+            { orderId, status: { $ne: 'captured' } },
+            {
+                $push: { events: { at: nowIso, type: 'verify_failed', source: 'verify', providerPaymentId: razorpayPaymentId } } as any,
+                $set: { updatedAt: new Date() },
+            },
+        );
+        log.warn({ orderId, restaurantId: restaurant.id }, 'Payment verify: invalid signature');
+        return res.status(400).json({ success: false, error: 'Payment verification failed' });
+    }
+
+    // Valid: capture the payment (rank-safe — never regress a captured doc).
+    await getPaymentsCollection().updateOne(
+        { orderId, status: { $ne: 'captured' } },
+        {
+            $set: { status: 'captured', signatureVerified: true, providerPaymentId: razorpayPaymentId, updatedAt: new Date() },
+            $push: { events: { at: nowIso, type: 'verify_ok', source: 'verify', providerPaymentId: razorpayPaymentId } } as any,
+        },
+    );
+
+    // Advance the order PENDING_PAYMENT → RECEIVED (concurrency-guarded on prior
+    // status so a racing webhook can't cause a double transition/emit).
+    const result = await getOrdersCollection().findOneAndUpdate(
+        { _id: toObjectId(order.id) as any, restaurantId: restaurant.id, status: 'PENDING_PAYMENT' },
+        {
+            $set: { status: 'RECEIVED', updatedAt: new Date() },
+            $push: { statusHistory: { status: 'RECEIVED', at: nowIso, note: 'Payment received' } } as any,
+        },
+        { returnDocument: 'after' },
+    );
+
+    if (result) {
+        emitOrderingEvent({ name: 'order_status_changed', restaurantId: restaurant.id, payload: { orderId: order.id, from: 'PENDING_PAYMENT', to: 'RECEIVED' } });
+        emitOrderingEvent({ name: 'order_placed', restaurantId: restaurant.id, customerId, payload: { orderId: order.id, orderType: order.orderType, total: order.totals.total, itemCount: order.items.length } });
+        emitOrderingEvent({ name: 'payment_succeeded', restaurantId: restaurant.id, customerId, payload: { orderId: order.id, total: order.totals.total, providerPaymentId: razorpayPaymentId } });
+        log.info({ orderId: order.id, restaurantId: restaurant.id }, 'Payment verified and order confirmed');
+        return res.json({ success: true, data: { order: toApiFormat(result) as unknown as Order } });
+    }
+
+    // Order already advanced (webhook won the race): return current state.
+    const fresh = await findOrderById(order.id);
+    res.json({ success: true, data: { order: fresh ?? order } });
 }));
 
 // ============================================

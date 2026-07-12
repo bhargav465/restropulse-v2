@@ -73,7 +73,7 @@ describe('demo order flow', () => {
     const fetchMock = vi.fn(() => { throw new Error('demo mode must not fetch'); });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { customerAuthAPI, orderAPI } = await importApi();
+    const { customerAuthAPI, orderAPI, paymentAPI } = await importApi();
 
     // Simulated local session
     const { customer } = await customerAuthAPI.login('demo', 'viewer@example.com', 'anything');
@@ -88,11 +88,28 @@ describe('demo order flow', () => {
     );
     expect(order.orderNumber).toMatch(/^ORD-/);
     expect(order.totals).toMatchObject({ subtotal: 360, tax: 18, deliveryFee: 0, total: 378 });
-    expect(order.status).toBe('RECEIVED');
+    // Orders now start awaiting payment (mirrors the real Razorpay flow).
+    expect(order.status).toBe('PENDING_PAYMENT');
 
     // Stored locally so account history + tracking work without a backend
     const stored = JSON.parse(localStorage.getItem('sf_demo_orders_demo') ?? '[]');
     expect(stored).toHaveLength(1);
+
+    // Unpaid orders don't advance through the kitchen timeline yet.
+    const trackingBeforePay = await orderAPI.track('demo', order.id);
+    expect(trackingBeforePay.status).toBe('PENDING_PAYMENT');
+
+    // Simulate payment: intent (fake processing) → verify → order confirmed.
+    const intent = await paymentAPI.createIntent('demo', order.id);
+    expect(intent.providerOrderId).toMatch(/^demo_rzp_/);
+    expect(intent.amount).toBe(37800); // paise
+    const paid = await paymentAPI.verify('demo', {
+      orderId: order.id,
+      razorpayPaymentId: 'demo_pay',
+      razorpayOrderId: intent.providerOrderId,
+      razorpaySignature: 'demo_sig',
+    });
+    expect(paid.status).toBe('RECEIVED');
 
     const history = await orderAPI.list('demo');
     expect(history.map((o) => o.id)).toContain(order.id);

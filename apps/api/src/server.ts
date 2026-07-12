@@ -6,7 +6,7 @@ import fs from 'fs';
 import http from 'node:http';
 import { fileURLToPath } from 'url';
 import { loadAndValidateEnv, z } from '@restropulse/shared';
-import { connectDB, disconnectDB } from '@restropulse/db';
+import { connectDB, disconnectDB, ensureOrderingIndexes, ensureIntelligenceIndexes, ensureAssetIndexes } from '@restropulse/db';
 import { createLogger, requestLoggingMiddleware, errorHandlerMiddleware, shutdownServerTelemetry } from '@restropulse/telemetry/server';
 import { createSecretsProvider, hydrateEnvFromProvider, API_SECRET_KEYS } from '@restropulse/secrets';
 import { initializeFirebaseAdmin } from './services/firebase-admin.js';
@@ -24,6 +24,9 @@ import configRoutes from './routes/config.js';
 import accountRoutes from './routes/account.js';
 import storefrontRoutes from './routes/storefront.js';
 import adminOrderingRoutes from './routes/admin-ordering.js';
+import adminIntelligenceRoutes from './routes/admin/intelligence.js';
+import paymentsWebhookRoutes from './routes/payments-webhook.js';
+import assetsRoutes from './routes/assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,6 +131,7 @@ app.use(cors({
 }));
 // Razorpay webhook needs raw body for signature verification
 app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -154,6 +158,13 @@ app.use('/api/account', accountRoutes);
 // Online ordering (v1): public storefront + merchant admin
 app.use('/api/storefront/:slug', storefrontRoutes);
 app.use('/api/admin/ordering', adminOrderingRoutes);
+// Restaurant Intelligence (v1): merchant scan pipeline + reports (OWNER only).
+app.use('/api/admin/intelligence', adminIntelligenceRoutes);
+// Ordering payments webhook (Razorpay) — raw-body mount is above, next to subscriptions.
+app.use('/api/payments', paymentsWebhookRoutes);
+// Restaurant assets (logos/covers) — public read, served from GridFS. JSON-side
+// mount (NOT near the raw-body webhook mounts above).
+app.use('/api/assets', assetsRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).
 // Allows the single ngrok tunnel to serve both API routes and placeholder media
@@ -189,6 +200,15 @@ const startServer = async () => {
     try {
         // Connect to MongoDB
         await connectDB();
+
+        // Ensure ordering + intelligence indexes exist on real envs. Both are
+        // idempotent and safe to call every boot; db-cli seed commands keep
+        // their own calls for provisioning-only workflows. The menu_items
+        // unique-upgrade path inside ensureOrderingIndexes never crashes on
+        // legacy duplicate data (it falls back + warns).
+        await ensureOrderingIndexes();
+        await ensureIntelligenceIndexes();
+        await ensureAssetIndexes();
 
         // Wrap listen() in a Promise so EADDRINUSE and other server errors are
         // caught by the try/catch below instead of escaping to uncaughtException.

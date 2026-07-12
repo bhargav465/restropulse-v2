@@ -3,10 +3,28 @@
  * Singleton MongoDB connection manager used by api, publisher, and content-engine.
  */
 
-import { MongoClient, Db, Collection, ObjectId, WithId, Document } from 'mongodb';
+import { MongoClient, MongoClientOptions, Db, Collection, ObjectId, WithId, Document } from 'mongodb';
 import { createLogger } from '@restropulse/telemetry/server';
 
 const log = createLogger('db');
+
+/**
+ * Single source of truth for MongoDB client pooling + retry behaviour.
+ * Used by `connectDB` (api, publisher, content-engine) AND by the db-cli's
+ * own connection helper so every process shares identical, tuned options.
+ *
+ * - maxPoolSize 20: fits Atlas M0/M2 limits across api + 2 workers + db-cli.
+ * - serverSelectionTimeoutMS 10s: turns a bad/unreachable URI into a fast,
+ *   clear failure instead of a ~30s default hang (fail-fast in real mode).
+ * - retryWrites/retryReads: transparent single retry on transient network blips.
+ */
+export const MONGO_CLIENT_OPTIONS: MongoClientOptions = {
+  maxPoolSize: 20,
+  minPoolSize: 1,
+  serverSelectionTimeoutMS: 10_000,
+  retryWrites: true,
+  retryReads: true,
+};
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -34,7 +52,7 @@ export async function connectDB(): Promise<Db> {
   if (db) return db;
 
   const config = getConfig();
-  client = new MongoClient(config.uri);
+  client = new MongoClient(config.uri, MONGO_CLIENT_OPTIONS);
   await client.connect();
   db = client.db(config.database);
 
@@ -187,6 +205,24 @@ export function getEventsCollection(): Collection {
 
 export function getCampaignsCollection(): Collection {
   return getDB().collection('campaigns');
+}
+
+export function getPaymentsCollection(): Collection {
+  return getDB().collection('payments');
+}
+
+// ----- Restaurant intelligence collections (v1) -----
+
+export function getIntelligenceScansCollection(): Collection {
+  return getDB().collection('intelligence_scans');
+}
+
+export function getIntelligenceReportsCollection(): Collection {
+  return getDB().collection('intelligence_reports');
+}
+
+export function getCompetitorCacheCollection(): Collection {
+  return getDB().collection('competitor_cache');
 }
 
 // ----- Helpers -----

@@ -15,6 +15,8 @@ const STOREFRONT_URL = 'https://bhargav465.github.io/restropulse-v2/demo';
 
 interface OrderingV2Props {
     restaurantData: Restaurant;
+    /** Sub-tab to open on mount — used by Intelligence deep links (e.g. Campaigns). */
+    initialTab?: OrderingTab;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,7 +79,7 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
                     emoji="📅"
                     label="Pending reservations"
                     value={pendingReservations}
-                    delta={pendingReservations > 0 ? 'awaiting a yes 🤝' : 'all handled 🎉'}
+                    delta={pendingReservations > 0 ? 'awaiting a decision' : 'all handled'}
                     deltaTone={pendingReservations > 0 ? 'down' : 'up'}
                 />
                 <StatCard
@@ -90,15 +92,15 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
             </div>
 
             {/* Quick links */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-4">⚡ Jump to</h3>
+            <div className="bg-surface rounded-2xl p-6 border border-line">
+                <h3 className="text-base font-semibold text-ink mb-4">Jump to</h3>
                 <div className="flex gap-2 flex-wrap">
                     {linkChips.map((c) => (
                         <button
                             key={c.tab}
                             type="button"
                             onClick={() => onNavigate(c.tab)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-[#fdece5] hover:text-[#c04a2e] hover:border-[#f3c4b4] transition-colors"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-canvas text-muted border border-line hover:bg-primary-soft hover:text-primary-strong hover:border-primary/30 transition-colors"
                         >
                             <span aria-hidden="true">{c.emoji}</span>
                             {c.label}
@@ -108,13 +110,13 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
                         href={STOREFRONT_URL}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#e8674a] text-white shadow-md shadow-[#e8674a]/30 hover:bg-[#d75b3f] transition-colors"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-primary-strong text-white hover:opacity-90 transition-opacity"
                     >
                         <span aria-hidden="true">🌐</span>
                         View live storefront ↗
                     </a>
                 </div>
-                <p className="text-xs text-slate-400 mt-3">
+                <p className="text-xs text-muted mt-3">
                     Your storefront is where customers browse the menu, order and book tables — everything here keeps it fresh.
                 </p>
             </div>
@@ -126,8 +128,8 @@ const OrderingOverview: React.FC<{ onNavigate: (tab: OrderingTab) => void }> = (
  * Online Ordering bucket — v2 Overview plus the existing ordering admin
  * sub-views (components/ordering/*) mounted unchanged inside the v2 frame.
  */
-const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData }) => {
-    const [tab, setTab] = useState<OrderingTab>('OVERVIEW');
+const OrderingV2: React.FC<OrderingV2Props> = ({ restaurantData, initialTab = 'OVERVIEW' }) => {
+    const [tab, setTab] = useState<OrderingTab>(initialTab);
 
     const tabs: Array<SubNavTab<OrderingTab>> = [
         { id: 'OVERVIEW', label: 'Overview', emoji: '🏠' },

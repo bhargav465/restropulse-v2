@@ -11,6 +11,7 @@ import HomePage from './pages/HomePage';
 import MenuPage from './pages/MenuPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
+import PaymentPage from './pages/PaymentPage';
 import TrackOrderPage from './pages/TrackOrderPage';
 import AccountPage from './pages/AccountPage';
 import DineInPage from './pages/DineInPage';
@@ -102,6 +103,7 @@ const App: React.FC = () => (
         <Route path="menu" element={<MenuPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
+        <Route path="pay/:orderId" element={<PaymentPage />} />
         <Route path="track/:orderId" element={<TrackOrderPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="dine-in" element={<DineInPage />} />

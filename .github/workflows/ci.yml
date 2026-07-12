@@ -20,6 +20,7 @@ jobs:
       web: ${{ steps.changes.outputs.web }}
       api: ${{ steps.changes.outputs.api }}
       publisher: ${{ steps.changes.outputs.publisher }}
+      intelligence-worker: ${{ steps.changes.outputs.intelligence-worker }}
       content-engine: ${{ steps.changes.outputs.content-engine }}
       docs-only: ${{ steps.changes.outputs.docs-only }}
     steps:
@@ -125,6 +126,26 @@ jobs:
       # point (worker.ts + instrument.ts) with no business logic to measure.
       # All meaningful logic lives in @restropulse/publishing and is covered there.
 
+  test-intelligence-worker:
+    name: Test Intelligence Worker
+    needs: detect-changes
+    if: needs.detect-changes.outputs.intelligence-worker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Run tests
+        run: npx turbo test --filter=@restropulse/intelligence-worker
+        env:
+          NODE_ENV: test
+      # Coverage is excluded for intelligence-worker: worker.ts + instrument.ts
+      # are thin process entry points; the business logic (alerts, prune,
+      # refresh loop) is covered by its unit tests.
+
   test-content-engine:
     name: Test Content Engine
     needs: detect-changes
@@ -156,6 +177,7 @@ jobs:
       - test-web
       - test-api
       - test-publisher
+      - test-intelligence-worker
       - test-content-engine
     runs-on: ubuntu-latest
     steps:
@@ -167,6 +189,7 @@ jobs:
           echo "test-web: ${{ needs.test-web.result }}"
           echo "test-api: ${{ needs.test-api.result }}"
           echo "test-publisher: ${{ needs.test-publisher.result }}"
+          echo "test-intelligence-worker: ${{ needs.test-intelligence-worker.result }}"
           echo "test-content-engine: ${{ needs.test-content-engine.result }}"
 
           # Fail if any upstream job failed (skipped is OK)
@@ -176,6 +199,7 @@ jobs:
              [[ "${{ needs.test-web.result }}" == "failure" ]] || \
              [[ "${{ needs.test-api.result }}" == "failure" ]] || \
              [[ "${{ needs.test-publisher.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-intelligence-worker.result }}" == "failure" ]] || \
              [[ "${{ needs.test-content-engine.result }}" == "failure" ]]; then
             echo "One or more upstream jobs failed."
             exit 1
