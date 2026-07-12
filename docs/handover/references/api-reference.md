@@ -75,7 +75,8 @@ threat, same-cuisine, restroScore 6-pillar composite), `seo.ts` (5 s homepage fe
 | Mount | Contents |
 |---|---|
 | `/api/auth` | Merchant Firebase-OTP verification → JWT; session |
-| `/api/restaurant` | Profile CRUD, `getAnalytics` (dashboard numbers) |
+| `/api/restaurant` | Profile CRUD, `getAnalytics` (dashboard numbers). **Brief 04:** `GET`/`PATCH /profile` (OWNER — own restaurant business facts; PATCH partial, whitelist = `RESTAURANT_PROFILE_FIELDS` in `packages/shared`, validators for pincode/GSTIN/FSSAI/email, `null`→`$unset`, blocked keys silently dropped); `POST /assets` (OWNER, multipart `file` + `kind`, images only ≤5 MB — ext AND MIME must agree → `201 {assetId,url}` / `413` oversize / `400` bad type; client then PATCHes `logoUrl`/`coverImageUrl`). Both `/profile` + `/assets` are registered BEFORE `GET /:id`. `PUT /:id` HARDENED to the same whitelist (closes NEXT.md §10). Public `GET /:id` + `GET /profile` sanitized via `sanitizeRestaurantForPublic` (strips `instagramCredentials`, `razorpayCustomerId`) |
+| `/api/assets` | **Brief 04, public read:** `GET /api/assets/:id` streams a GridFS logo/cover with `Cache-Control: public, max-age=31536000, immutable` + `ETag: "<id>"` (`If-None-Match`→304) + `X-Content-Type-Options: nosniff`; malformed/unknown id → 404. JSON-side mount (NOT near the raw-body webhook mounts) |
 | `/api/posts` | Content studio: list/approve/reject/schedule; **POST `/api/posts/generate`** — used by the ✨ generator (client sends `{brief, tone, concept, type}`); brief/tone consumption seam = `docs/NEXT.md` §8 |
 | `/api/strategy` | Strategy cycles + themes (8-theme fixture system) |
 | `/api/integrations` | Instagram OAuth (redirect + callback), status |

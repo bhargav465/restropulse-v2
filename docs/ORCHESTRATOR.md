@@ -180,6 +180,40 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   code 85 but the real conflict on adding `unique` to an auto-named index is **86** — handled
   both.
 
+### Brief 04 · Restaurant profile — details upload in the v2 admin dashboard — DESIGN-04 (local commits, owner review)
+- **Data model:** `RestaurantAddress` + additive optional `Restaurant` fields (`legalName`,
+  `cuisineTags`, `email`, `address`, `gstin`, `fssaiLicense`, `logoUrl`, `coverImageUrl`) in
+  `packages/shared`; single-source `RESTAURANT_PROFILE_FIELDS` whitelist + `RestaurantProfilePatch`.
+  Seeds + web fixtures carry `[SAMPLE]` profile values.
+- **GridFS assets (net-new):** `packages/db/src/assets.ts` (bucket `assets`, `uploadAsset` /
+  `openAssetDownload` / `ensureAssetIndexes`), rides `MONGODB_URI` — no new env vars. Behind the
+  `AssetStore { put, openDownload }` seam in `apps/api/src/services/assets.ts` (Azure Blob swap +
+  orphan GC deferred → NEXT.md §11).
+- **Routes:** `GET`/`PATCH /api/restaurant/profile` (OWNER) + `POST /api/restaurant/assets`
+  (multipart, 5 MB, ext+MIME must agree → 413/400) registered BEFORE `router.get('/:id')`;
+  new public `GET /api/assets/:id` (immutable cache + ETag/304 + nosniff + 404). Shared
+  `sanitizeProfilePatch` (whitelist + pincode/GSTIN/FSSAI/email validators, null→$unset) now runs
+  on BOTH `PATCH /profile` and the hardened `PUT /:id` — **closes NEXT.md §10** (mass-assignment).
+- **Security fix (owner decision 3):** shared `sanitizeRestaurantForPublic` strips
+  `instagramCredentials` + `razorpayCustomerId` from BOTH `GET /profile` and public `GET /:id`.
+  Non-secret `integrations`/`instagramConnection`/`accountManager` intentionally RETAINED — the
+  admin dashboard loads `restaurantData` from `GET /:id` (App.tsx `metaConnected`, ProfileSheet
+  does a non-optional `restaurantData.integrations.instagram`), so stripping them would crash v1.
+- **Clients + demo parity:** `restaurantAPI.getProfile/updateProfile/uploadAsset` + demo twins
+  (`uploadAsset` = `URL.createObjectURL`, ZERO network; never persisted to fixtures).
+- **UI (v2, tokens only, 0 raw hex):** new `RestaurantDetailsV2` (Basics · Address & Contact ·
+  Legal · Branding · Hours via `SubNav`); `HoursEditor` extracted from `SiteContentEditor` so
+  hours stay single-source in `storefront_content.draft` ("Saved to draft — publish to go live");
+  6th sidebar bucket + `PAGE_META` + render branch; onboarding step 1 typed `isProfileComplete`
+  (Basics+Address) → deep-links PROFILE; DashboardV2 "Complete your restaurant profile" attention row.
+- New tests: api `restaurant-profile` (13) + `restaurant-assets` (8); web `RestaurantDetailsV2` +
+  ShellV2 PROFILE routing. Gates: web **591**, storefront **34**, api **915 pass / 1 skip**
+  (ordering suites green); my packages (shared/db/api/web) build + type-check clean.
+  Pre-existing (not ours): `@restropulse/content-engine` + `@restropulse/db-cli` fail to build
+  (media-catalog artifact). ASSUMPTIONS: GridFS default; GSTIN/FSSAI format-only; public-route
+  sanitizer strips credentials only (see security note above). Follow-up: before/after screenshots
+  of the 5 tabs + contrast check (muted on surface) = owner/PR manual step.
+
 ### Rest Intelligence · PR2 — api services + routes (branch `feat/intelligence-v1`)
 - **Scan pipeline** in `apps/api/src/services/intelligence/`: `places.ts` (Places API (New),
   field masks + exclusion lists + Haversine ported verbatim; every place upserted to

@@ -182,7 +182,16 @@ change. A poll index `campaigns { status: 1, createdAt: 1 }` is also live
 (`ensureOrderingIndexes`) for the oldest-first `status: 'QUEUED'` scan. `POST /campaigns`
 still writes `'QUEUED'` only — no delivery code shipped in Brief 03.
 
-## 10. `PUT /api/restaurant/:id` field whitelist (Brief 04)
+## 10. `PUT /api/restaurant/:id` field whitelist (Brief 04) — ✅ SHIPPED (Brief 04 / DESIGN-04)
+
+**Status:** Implemented. `PUT /:id` and the new `PATCH /api/restaurant/profile` both run
+the SAME `sanitizeProfilePatch` server-side whitelist, sourced from the single
+`RESTAURANT_PROFILE_FIELDS` constant in `packages/shared`. Blocked keys (`slug`,
+`instagramCredentials`, `razorpayCustomerId`, `integrations`, `ordering`, …) are silently
+dropped + warn-logged and can no longer be mass-assigned. Additionally, the public
+`GET /api/restaurant/:id` and `GET /profile` share a `sanitizeRestaurantForPublic` helper
+that strips server-internal credential fields (`instagramCredentials`, `razorpayCustomerId`)
+from every response. The original guidance below is retained for context.
 
 **Plugs in at:** `apps/api/src/routes/restaurant.ts` (`PUT /:id`), which today passes
 `req.body` straight into a `$set` (mass-assignment). Profile fields DO persist, so this
@@ -197,3 +206,26 @@ serviceOptions, activeOffers, chefSpecials }` — and rejects/ignores everything
 Explicitly NOT settable via this route: `slug`, `instagramCredentials`,
 `razorpayCustomerId`, `integrations`, `ordering`. Whitelist server-side (pick allowed
 keys before `$set`); do not rely on the client to omit them.
+
+## 11. Asset storage — Azure Blob swap + orphan-asset GC (Brief 04 seam)
+
+**Plugs in at:** `apps/api/src/services/assets.ts` — the `AssetStore { put, openDownload }`
+interface. Brief 04 ships GridFS as the sole implementation (`packages/db/src/assets.ts`,
+bucket `assets`), riding the existing `MONGODB_URI` for zero new infra. Routes
+(`POST /api/restaurant/assets`, `GET /api/assets/:id`) talk ONLY to `assetStore`, never to
+GridFS directly.
+
+**Contract (Azure Blob):** add one `AzureBlobAssetStore` class implementing the same
+`AssetStore` interface (container + connection string via new env vars documented in
+`.env.example`), and select it from an `ASSET_STORE=gridfs|azure-blob` flag in
+`assets.ts`. The public URL shape stays `/api/assets/:id` — the serve route resolves the
+id through `assetStore.openDownload`, so the storefront/admin never see the backend
+change. `metadata: { restaurantId, kind }` is already attached at upload time, so a blob
+impl can key objects by `restaurantId/<id>`.
+
+**Contract (orphan-asset GC — deferred, harmless):** replacing a logo/cover writes a NEW
+write-once id and PATCHes `logoUrl`/`coverImageUrl`; the previous asset is left in the
+bucket (not deleted). A GC pass (worker or cron, same pattern as the other poll workers)
+can enumerate `assets.files` and delete any id not referenced by a `restaurants`
+`logoUrl`/`coverImageUrl` or a `storefront_content` `theme.logoUrl`. Safe to defer:
+orphaned images are unreferenced and immutable, so they only cost storage.
