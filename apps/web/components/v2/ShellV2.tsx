@@ -12,6 +12,7 @@ import IntelligenceV2 from './IntelligenceV2';
 import WebsiteDesignV2 from './WebsiteDesignV2';
 import type { DeepLinkTarget, OrderingSubTab } from './intelligence/deep-links';
 import { GRADIENT } from './theme';
+import { Icon, IconName, BUCKET_ACCENT } from './icons';
 import { computeOnboardingProgress, isOnboardingDismissed } from './onboarding';
 
 /**
@@ -50,14 +51,33 @@ interface ShellV2Props {
     refreshKey: number;
 }
 
-const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> = [
-    { id: 'DASHBOARD', emoji: '🏠', label: 'Dashboard', title: 'Your restaurant at a glance' },
-    { id: 'PROFILE', emoji: '🏪', label: 'Restaurant Details', title: 'Business facts, branding & hours' },
-    { id: 'CONTENT', emoji: '🎯', label: 'Content Engine', title: 'Strategy, posts & publishing' },
-    { id: 'ORDERING', emoji: '🛒', label: 'Online Ordering', title: 'Menu, orders & storefront' },
-    { id: 'INTELLIGENCE', emoji: '📊', label: 'Restaurant Intelligence', title: 'Competitor & self insights' },
-    { id: 'DESIGN', emoji: '🎨', label: 'Website Design', title: 'Themes & templates' },
+// `primary` buckets ride the mobile bottom tab bar; the rest (Restaurant
+// Details, plus the Get-started shortcut) stay in the drawer as secondary items
+// (Brief 05 item 1). Icons replace the old emoji (item 5); `currentColor` +
+// BUCKET_ACCENT give each one accent tint.
+const NAV: Array<{ id: BucketV2; icon: IconName; label: string; title: string; primary: boolean }> = [
+    { id: 'DASHBOARD', icon: 'dashboard', label: 'Dashboard', title: 'Your restaurant at a glance', primary: true },
+    { id: 'PROFILE', icon: 'profile', label: 'Restaurant Details', title: 'Business facts, branding & hours', primary: false },
+    { id: 'CONTENT', icon: 'content', label: 'Content Engine', title: 'Strategy, posts & publishing', primary: true },
+    { id: 'ORDERING', icon: 'ordering', label: 'Online Ordering', title: 'Menu, orders & storefront', primary: true },
+    { id: 'INTELLIGENCE', icon: 'intelligence', label: 'Restaurant Intelligence', title: 'Competitor & self insights', primary: true },
+    { id: 'DESIGN', icon: 'design', label: 'Website Design', title: 'Themes & templates', primary: true },
 ];
+
+/** Short tab labels for the compact mobile bottom bar. */
+const TAB_LABEL: Partial<Record<BucketV2, string>> = {
+    DASHBOARD: 'Home',
+    CONTENT: 'Content',
+    ORDERING: 'Ordering',
+    INTELLIGENCE: 'Insights',
+    DESIGN: 'Design',
+};
+
+/** Time-aware greeting for the dashboard hero (Brief 05 item 6). */
+const greetingFor = (d: Date): string => {
+    const h = d.getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
 
 const PAGE_META: Record<BucketV2, { title: string; subtitle: string }> = {
     DASHBOARD: { title: 'Dashboard', subtitle: "Today's orders, revenue and anything that needs your attention." },
@@ -126,12 +146,38 @@ const ShellV2: React.FC<ShellV2Props> = ({
     const progress = computeOnboardingProgress({ restaurant: restaurantData, menuItemCount });
     const showGetStarted = !dismissed && !progress.allDone;
 
-    const navItemClass = (isActive: boolean) =>
-        `w-full text-left rounded-lg pl-3 pr-4 py-2.5 flex items-center gap-3 border-l-[3px] transition-colors ${
+    const navItemClass = (isActive: boolean, extra = '') =>
+        `w-full text-left rounded-lg pl-3 pr-4 py-2.5 min-h-[44px] flex items-center gap-3 border-l-[3px] transition-colors active:scale-[0.98] ${
             isActive
                 ? 'border-primary bg-primary/10 text-white'
                 : 'border-transparent text-sidebar-ink hover:bg-white/5'
-        }`;
+        } ${extra}`;
+
+    // Restaurant identity tile (Brief 05 item 10): logo if present, else the
+    // gradient initial. Kept small so it reads as "their app" without shouting.
+    const initial = (restaurantData.name || '?').trim().charAt(0).toUpperCase() || '?';
+    const cityLine = restaurantData.address?.city || restaurantData.sourceCity || 'Your restaurant';
+    const IdentityTile: React.FC<{ size: number }> = ({ size }) => (
+        restaurantData.logoUrl ? (
+            <img
+                src={restaurantData.logoUrl}
+                alt=""
+                className="rounded-xl object-cover shrink-0"
+                style={{ width: size, height: size }}
+            />
+        ) : (
+            <span
+                className="rounded-xl flex items-center justify-center text-white font-bold shrink-0"
+                style={{ width: size, height: size, background: GRADIENT, fontSize: size * 0.4 }}
+                aria-hidden="true"
+            >
+                {initial}
+            </span>
+        )
+    );
+
+    const greeting = greetingFor(new Date());
+    const storeOpen = restaurantData.storeOpen !== false;
 
     return (
         <div className="flex h-screen bg-canvas">
@@ -173,6 +219,14 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     </div>
                     <p className="text-xs text-sidebar-ink/70 mt-2 leading-snug">Social media made simple for restaurants</p>
                 </div>
+                {/* Restaurant identity (Brief 05 item 10) */}
+                <div className="mx-3 mb-4 flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-2.5">
+                    <IdentityTile size={36} />
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{restaurantData.name}</p>
+                        <p className="text-[11px] text-sidebar-ink truncate">{cityLine}</p>
+                    </div>
+                </div>
                 <nav className="flex-1 px-3 space-y-1" aria-label="Main navigation">
                     {showGetStarted && (
                         <button
@@ -182,7 +236,9 @@ const ShellV2: React.FC<ShellV2Props> = ({
                             title="Finish setting up your restaurant"
                             className={navItemClass(bucket === 'GET_STARTED')}
                         >
-                            <span className="text-base leading-none" aria-hidden="true">🚀</span>
+                            <span className={bucket === 'GET_STARTED' ? 'text-white' : BUCKET_ACCENT.GET_STARTED} aria-hidden="true">
+                                <Icon name="getStarted" size={19} />
+                            </span>
                             <span className="flex-1 font-semibold text-sm">Get started</span>
                             <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-soft text-primary-strong tabular-nums">
                                 {progress.completed}/{progress.total}
@@ -191,6 +247,9 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     )}
                     {NAV.map((item) => {
                         const isActive = bucket === item.id;
+                        // Primary buckets live on the mobile bottom bar, so the
+                        // drawer hides them below md and only shows secondary items.
+                        const drawerVisibility = item.primary ? 'hidden md:flex' : 'flex';
                         return (
                             <button
                                 key={item.id}
@@ -198,9 +257,11 @@ const ShellV2: React.FC<ShellV2Props> = ({
                                 onClick={() => go(item.id)}
                                 aria-current={isActive ? 'page' : undefined}
                                 title={item.title}
-                                className={navItemClass(isActive)}
+                                className={navItemClass(isActive, drawerVisibility)}
                             >
-                                <span className="text-base leading-none" aria-hidden="true">{item.emoji}</span>
+                                <span className={isActive ? 'text-white' : BUCKET_ACCENT[item.id]} aria-hidden="true">
+                                    <Icon name={item.icon} size={19} />
+                                </span>
                                 <span className={`font-semibold text-sm ${isActive ? 'text-white' : ''}`}>{item.label}</span>
                             </button>
                         );
@@ -214,42 +275,71 @@ const ShellV2: React.FC<ShellV2Props> = ({
             </aside>
 
             {/* Main panel */}
-            <main className="flex-1 overflow-y-auto">
-                {/* Mobile top bar — hamburger + wordmark, hidden on md+ */}
-                <div className="md:hidden sticky top-0 z-20 flex items-center gap-3 bg-sidebar px-4 h-14">
+            <main className="flex-1 overflow-y-auto v2-scroll">
+                {/* Mobile top bar — identity + hamburger (secondary drawer), hidden on md+ */}
+                <div className="md:hidden sticky top-0 z-20 flex items-center justify-between gap-3 bg-sidebar px-4 h-14">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <IdentityTile size={34} />
+                        <span className="text-base font-semibold text-white leading-none truncate">{restaurantData.name}</span>
+                    </div>
                     <button
                         type="button"
                         onClick={() => setMobileNavOpen(true)}
                         aria-label="Open navigation"
                         aria-expanded={mobileNavOpen}
-                        className="p-1 -ml-1 text-white hover:opacity-80 transition-opacity active:scale-95"
+                        className="w-11 h-11 -mr-1 flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95"
                     >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                            <path d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
+                        <Icon name="hamburger" size={24} />
                     </button>
-                    <span className="text-lg font-bold tracking-tight text-white leading-none">
-                        Restro<span className="text-primary">pulse</span>
-                    </span>
                 </div>
                 {/* DEMO MODE: once-per-session "backend not connected" toast */}
                 <DemoNotice />
-                <div className="px-4 sm:px-6 md:px-8 py-6 md:py-8 mx-auto max-w-[1100px]">
-                    {/* Page header */}
+                <div className="px-4 sm:px-6 md:px-8 pt-6 md:pt-8 pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-8 mx-auto max-w-[1100px]">
+                    {/* Page header — greeting hero on the dashboard (Brief 05 item 6), plain title elsewhere */}
                     <header className="flex items-start justify-between gap-4 flex-wrap mb-6">
                         <div>
-                            <h2 className="text-[26px] sm:text-[34px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
-                            <p className="text-muted mt-1.5 text-base leading-relaxed">{meta.subtitle}</p>
+                            {bucket === 'DASHBOARD' ? (
+                                <>
+                                    <h2 className="text-[26px] sm:text-[34px] font-semibold text-ink tracking-tight leading-tight">
+                                        {greeting}, {restaurantData.name} <span aria-hidden="true">👋</span>
+                                    </h2>
+                                    <p className="text-muted mt-1.5 text-base leading-relaxed">Here's how today is going.</p>
+                                    <div className="h-[3px] w-16 rounded-full mt-3" style={{ background: GRADIENT }} aria-hidden="true" />
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="text-[26px] sm:text-[34px] font-semibold text-ink tracking-tight leading-tight">{meta.title}</h2>
+                                    <p className="text-muted mt-1.5 text-base leading-relaxed">{meta.subtitle}</p>
+                                </>
+                            )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {bucket === 'DASHBOARD' && (
+                                <span
+                                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-[13px] font-semibold min-h-[36px] ${
+                                        storeOpen ? 'border-line bg-surface text-ink' : 'border-danger/40 bg-danger/10 text-danger'
+                                    }`}
+                                    role="status"
+                                >
+                                    <span className="relative flex w-2 h-2" aria-hidden="true">
+                                        {storeOpen && <span className="v2-pulse-ring absolute inset-0 rounded-full border-2 border-success" />}
+                                        <span className={`w-2 h-2 rounded-full ${storeOpen ? 'bg-success' : 'bg-danger'}`} />
+                                    </span>
+                                    {storeOpen ? 'Open · accepting orders' : 'Closed'}
+                                </span>
+                            )}
                             {isDemoMode() && (
                                 <span className="px-2 py-0.5 rounded-md bg-warning/15 text-warning border border-warning/40 text-[10px] font-bold tracking-widest">
                                     DEMO
                                 </span>
                             )}
-                            <span className="inline-flex items-center px-4 py-2 rounded-full bg-primary-soft text-primary-strong text-sm font-semibold whitespace-nowrap">
-                                {restaurantData.name}
-                            </span>
+                            {/* Identity pill — redundant with the greeting on the dashboard, so
+                                shown only on the other buckets (declutter §3). */}
+                            {bucket !== 'DASHBOARD' && (
+                                <span className="inline-flex items-center px-4 py-2 rounded-full bg-primary-soft text-primary-strong text-sm font-semibold whitespace-nowrap">
+                                    {restaurantData.name}
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 onClick={onProfileOpen}
@@ -262,6 +352,8 @@ const ShellV2: React.FC<ShellV2Props> = ({
                         </div>
                     </header>
 
+                    {/* keyed wrapper → 150–200 ms ease-out enter on every bucket switch (item 4) */}
+                    <div key={bucket} className="v2-bucket-enter">
                     {bucket === 'DASHBOARD' && (
                         <DashboardV2
                             restaurantData={restaurantData}
@@ -297,8 +389,35 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     {bucket === 'ORDERING' && <OrderingV2 restaurantData={restaurantData} initialTab={orderingInitialTab} />}
                     {bucket === 'INTELLIGENCE' && <IntelligenceV2 restaurantData={restaurantData} onNavigate={goDeepLink} />}
                     {bucket === 'DESIGN' && <WebsiteDesignV2 />}
+                    </div>
                 </div>
             </main>
+
+            {/* Mobile bottom tab bar (Brief 05 item 1) — primary buckets only, hidden md+.
+                Safe-area padding keeps tappables clear of the iPhone home bar. */}
+            <nav
+                className="md:hidden fixed inset-x-0 bottom-0 z-40 flex justify-around bg-sidebar border-t border-white/10 px-1 pt-1.5"
+                style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
+                aria-label="Primary"
+            >
+                {NAV.filter((n) => n.primary).map((item) => {
+                    const isActive = bucket === item.id;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => go(item.id)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg min-h-[48px] transition-colors active:scale-[0.94] ${
+                                isActive ? 'text-primary' : 'text-sidebar-ink'
+                            }`}
+                        >
+                            <Icon name={item.icon} size={21} />
+                            <span className="text-[10px] font-bold leading-none">{TAB_LABEL[item.id] ?? item.label}</span>
+                        </button>
+                    );
+                })}
+            </nav>
         </div>
     );
 };
