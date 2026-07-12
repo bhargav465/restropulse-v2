@@ -5,6 +5,7 @@
 // -------------------------------------------------------
 
 import type { RestaurantOrderingSettings } from './ordering.js';
+import type { WatchlistEntry } from './intelligence.js';
 
 // ----- Enums / Literal Unions -----
 
@@ -230,6 +231,12 @@ export interface Restaurant {
   storeOpen?: boolean;
   /** Ordering configuration: tax rate, delivery fee/min order, enabled order types. */
   ordering?: RestaurantOrderingSettings;
+  // ----- Intelligence v2 (Brief 06, additive — optional; existing docs stay valid) -----
+  /** Intelligence v2 settings: competitor watchlist (server-enforced ≤ WATCHLIST_MAX) + self Zomato URL. */
+  intelligence?: {
+    watchlist: WatchlistEntry[];        // server-enforced ≤ WATCHLIST_MAX
+    selfZomatoUrl?: string;
+  };
 }
 
 /**
