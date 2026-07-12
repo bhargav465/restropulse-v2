@@ -302,6 +302,27 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   only. **Follow-up:** narrow `apps/content-engine/.gitignore` and commit the real
   `media-catalog.ts`.
 
+### Intelligence v2 · two-bucket dashboard (branch `feat/intelligence-v2-buckets`)
+- **Brief 06 `db48337`** (`feat(shared,db)`): additive data model — `DailySnapshot`,
+  `WatchlistEntry` (+`WATCHLIST_MAX`), `NearbyPlaceSighting`, `MetricGap`, `CompareRow`,
+  `SnapshotReview`/`REVIEW_THEMES`, `Restaurant.intelligence`; db getters
+  `getIntelligenceSnapshotsCollection`/`getNearbySightingsCollection`, `assertWatchlistSize`,
+  extended `ensureIntelligenceIndexes` (snapshots unique `restaurantId+targetPlaceId+source+date`;
+  sightings unique `restaurantId+placeId`).
+- **Brief 07 `39aa7b7`/`11f83ae`/`a864ce5`** (`feat(api)`): v2 API appended to
+  `routes/admin/intelligence.ts` (same merchant-JWT + OWNER, `{success,data?,error?}`).
+  New services `services/intelligence/{snapshots,zomato,themes,compare}.ts`:
+  `captureSnapshot`/`runDailySnapshotJob`/`getSeries`/`getFeedbackChanges` (idempotent
+  target×source×day upsert, review diff, month aggregate), `tagReviewThemes` (one batched
+  forced-tool `claude-haiku-4-5`, unknown-theme drop, empty short-circuit),
+  `buildCompareRows`/`getCompareRows`/`getNewOpenings` (exact "Where They Beat You" thresholds),
+  `manualZomatoAdapter`/`stubZomatoAdapter` registry (`ZOMATO_ADAPTER` env, default manual).
+  8 new routes: `GET/PUT /watchlist`, `GET /snapshots`, `GET /feedback-changes`, `GET /compare`,
+  `GET /new-openings`, `POST /zomato-manual`, `POST /snapshots/capture` (OWNER, 1/hour). No v1
+  route/type touched. +38 api tests (themes 5, compare+new-openings 10, snapshots 7, routes 16).
+  Client methods frozen for Brief 09; worker (Brief 08) imports `captureSnapshot`,
+  `runDailySnapshotJob`, `tagReviewThemes`. `ZOMATO_ADAPTER` documented in `apps/api/.env.example`.
+
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
 ---

@@ -70,6 +70,25 @@ Pipeline services (`apps/api/src/services/intelligence/`): `places.ts` (Places A
 threat, same-cuisine, restroScore 6-pillar composite), `seo.ts` (5 s homepage fetch),
 `report-builder.ts`, `pipeline.ts`. Env (server-only): `GOOGLE_MAPS_API_KEY`, `ANTHROPIC_API_KEY`.
 
+### Intelligence v2 — two-bucket dashboard (Brief 07, additive; same auth/envelope)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/watchlist` | `{ entries: WatchlistEntry[], max: 5 }` |
+| PUT | `/watchlist` | Replace-style. Body `{ entries: [{placeId, name?, zomatoUrl?}] }`. **422** if > 5, duplicate placeIds, or a placeId unknown to `competitor_cache`/reports. Returns the stored entries |
+| GET | `/snapshots` | `target=self\|<placeId>` (default self) · `source=google\|zomato\|both` (default both) · `from` · `to` · `granularity=day\|month` (default day). Rejects target ∉ watchlist∪self (**422**). Returns `{target, source, granularity, points: SnapshotSeriesPoint[]}` — day = raw rows, month = server aggregate (rating=last-of-month, newReviews=sum, photos/seo=last) |
+| GET | `/feedback-changes` | `from`,`to` (default trailing 30 d). Self only, both sources merged with a `source` tag → `{ days: [{date, newReviews[], ratingBefore, ratingAfter, themesTrending}] }` |
+| GET | `/compare` | `granularity=day&date=<YYYY-MM-DD>` or `granularity=month&month=<YYYY-MM>` → `CompareRow[]` (self row first, `beatsYou:[]`; per-competitor `beatsYou: MetricGap[]` — rating ≥ 0.1, review-velocity > 1.25×, responseRate ≥ 10 pts, photoCount ≥ 10, each per source both sides have data for) |
+| GET | `/new-openings` | `radiusKm` (default 5, hard max 10) · `sinceDays ∈ {30,60,90}` (**400** otherwise) → openings sorted by distance, `fastStarter` when ≥ 30 reviews gained in ≤ 21 days |
+| POST | `/zomato-manual` | `{ target:'self'\|placeId, rating (0–5), reviewCount (≥0 int), photoCount (≥0 int) }`. **422** on bad ranges / target ∉ watchlist. Records the merchant entry and writes today's zomato snapshot via `captureSnapshot` |
+| POST | `/snapshots/capture` | Manual "refresh today" (OWNER). **429** if a self snapshot was captured < 1 h ago. Runs `runDailySnapshotJob` (same job the worker runs) → `{ captured: n }` |
+
+v2 services (`services/intelligence/`): `snapshots.ts` (`captureSnapshot`, `runDailySnapshotJob`,
+`getSeries`, `getFeedbackChanges`, `resolveSelfPlaceId`), `themes.ts` (`tagReviewThemes` — one
+batched forced-tool `claude-haiku-4-5`, unknown-theme drop, empty short-circuit), `compare.ts`
+(`buildCompareRows` pure, `getCompareRows`, `getNewOpenings`), `zomato.ts` (`ZomatoAdapter`
+registry via `ZOMATO_ADAPTER=manual|stub`, default manual). No new secrets.
+
 ## 3. SaaS routes (pre-existing — do not break)
 
 | Mount | Contents |
