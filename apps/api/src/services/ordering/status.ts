@@ -7,7 +7,8 @@ import type { OrderStatus, OrderType } from '@restropulse/shared';
 
 /** Allowed forward transitions per status. */
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-    PENDING_PAYMENT: ['RECEIVED', 'CANCELLED'],
+    PENDING_PAYMENT: ['RECEIVED', 'PAYMENT_FAILED', 'CANCELLED'],
+    PAYMENT_FAILED: ['PENDING_PAYMENT', 'CANCELLED'],
     RECEIVED: ['PREPARING', 'CANCELLED'],
     PREPARING: ['READY', 'CANCELLED'],
     READY: ['OUT_FOR_DELIVERY', 'COMPLETED', 'CANCELLED'],

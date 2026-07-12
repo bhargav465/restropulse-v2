@@ -13,7 +13,8 @@ export type MenuItemAvailability = 'in_stock' | 'out_of_stock' | 'hidden';
 export type OrderType = 'delivery' | 'pickup' | 'dine_in';
 
 export type OrderStatus =
-  | 'PENDING_PAYMENT'    // Created, payment not confirmed (payment is stubbed in v1)
+  | 'PENDING_PAYMENT'    // Created, awaiting payment capture (Razorpay checkout)
+  | 'PAYMENT_FAILED'     // Payment attempt failed; customer may retry (re-arms payment)
   | 'RECEIVED'           // Restaurant has the order
   | 'PREPARING'          // Kitchen working on it
   | 'READY'              // Ready for pickup / handoff to rider
@@ -241,6 +242,14 @@ export interface CustomerCohort {
 
 export type CampaignKind = 'whatsapp_nudge' | 'discount_offer';
 
+/**
+ * Lifecycle of a queued campaign. v1 only ever persists `'QUEUED'`
+ * (POST /campaigns); the delivery worker (docs/NEXT.md §9) transitions
+ * `QUEUED → SENDING → SENT | FAILED`. Shipping the full union now makes those
+ * transitions persistable without a later shared-types change.
+ */
+export type CampaignStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED';
+
 export interface CampaignDiscount {
   percentOff: number;      // 1–100
   code: string;            // e.g. "COMEBACK20"
@@ -267,7 +276,11 @@ export interface CampaignRecord {
   discount?: CampaignDiscount;
   /** Cohort size at queue time. */
   audienceCount: number;
-  status: 'QUEUED';
+  /**
+   * Delivery lifecycle. POST /campaigns always writes `'QUEUED'`; later states
+   * are set by the delivery worker (docs/NEXT.md §9).
+   */
+  status: CampaignStatus;
   createdAt: string | Date;
 }
 

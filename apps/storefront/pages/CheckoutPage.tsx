@@ -7,6 +7,7 @@ import { useAuth } from '../store/AuthContext';
 import { addressAPI, orderAPI } from '../api';
 import { formatMoney } from '../lib/format';
 import { track } from '../lib/analytics';
+import { isDemoMode } from '../lib/demo';
 import AuthForms from '../components/AuthForms';
 import { EmptyState } from '../components/States';
 
@@ -75,12 +76,8 @@ const CheckoutPage: React.FC = () => {
           ✓
         </div>
         <h1 className="text-xl font-extrabold text-slate-800 mb-2">Order placed!</h1>
-        <p className="text-sm text-slate-600 mb-1">
+        <p className="text-sm text-slate-600 mb-6">
           Your order <span className="font-bold">{placedOrder.orderNumber}</span> has been received.
-        </p>
-        <p className="text-xs text-slate-500 mb-6">
-          Note: online payment is not live yet — this order was placed with payment stubbed
-          (pay on {orderType === 'delivery' ? 'delivery' : 'pickup'}).
         </p>
         <div className="flex flex-col gap-2">
           <Link
@@ -161,8 +158,18 @@ const CheckoutPage: React.FC = () => {
         idempotencyKey.current,
       );
 
-      track(slug, 'order_placed', { orderId: order.id, total: order.totals.total }, customer?.id);
       clear();
+
+      // Razorpay path: order is created PENDING_PAYMENT — go pay. order_placed is
+      // emitted server-side on capture (verify/webhook), so no client event here.
+      if (order.status === 'PENDING_PAYMENT') {
+        navigate(`/${slug}/pay/${order.id}`);
+        return;
+      }
+
+      // Unconfigured-stub path: order was auto-confirmed to RECEIVED. Keep the
+      // client-side funnel event for this path only.
+      track(slug, 'order_placed', { orderId: order.id, total: order.totals.total }, customer?.id);
       setPlacedOrder(order);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to place the order');
@@ -342,7 +349,9 @@ const CheckoutPage: React.FC = () => {
             <div className="flex justify-between font-bold text-slate-800"><dt>Total</dt><dd>{formatMoney(totals.total, currency)}</dd></div>
           </dl>
           <p className="text-xs text-slate-400 mt-2">
-            Payment: pay on {orderType === 'delivery' ? 'delivery' : 'pickup'} — online payment coming soon.
+            {isDemoMode() || import.meta.env.VITE_RAZORPAY_KEY_ID
+              ? 'You’ll pay securely online on the next step.'
+              : `Payment: pay on ${orderType === 'delivery' ? 'delivery' : 'pickup'}.`}
           </p>
         </div>
 

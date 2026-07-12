@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 10_000;
 
 const STATUS_BADGE_CLASSES: Record<OrderStatus, string> = {
     PENDING_PAYMENT: 'bg-slate-100 text-slate-600',
+    PAYMENT_FAILED: 'bg-red-50 text-red-700',
     RECEIVED: 'bg-blue-50 text-blue-700',
     PREPARING: 'bg-amber-50 text-amber-700',
     READY: 'bg-emerald-50 text-emerald-700',

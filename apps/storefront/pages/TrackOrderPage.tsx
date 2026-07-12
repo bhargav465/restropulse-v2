@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 10_000;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: 'Payment pending',
+  PAYMENT_FAILED: 'Payment failed',
   RECEIVED: 'Order received',
   PREPARING: 'Being prepared',
   READY: 'Ready',
