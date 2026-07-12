@@ -79,3 +79,7 @@ tests/integration/.env.integration.*
 
 # Acquired restaurant fixture data (large generated files)
 apps/db-cli/data/restaurants/*.json
+
+# Stray Next.js artifacts (monorepo is Vite-based; these are not ours)
+.next/
+next-env.d.ts
