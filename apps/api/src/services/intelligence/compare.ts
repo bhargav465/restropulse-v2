@@ -73,10 +73,10 @@ function beatsYouFor(self: CompareTarget, comp: CompareTarget): MetricGap[] {
         // Never zeros-as-data: only compare a source both sides actually have.
         if (!mine || !theirs) continue;
 
-        // rating gap ≥ 0.1
-        const ratingGap = theirs.rating - mine.rating;
+        // rating gap ≥ 0.1 (round first — avoids 4.1 − 4.0 = 0.0999… float miss)
+        const ratingGap = round2(theirs.rating - mine.rating);
         if (ratingGap >= RATING_GAP_MIN) {
-            gaps.push({ metric: 'rating', source, yours: mine.rating, theirs: theirs.rating, gap: round2(ratingGap) });
+            gaps.push({ metric: 'rating', source, yours: mine.rating, theirs: theirs.rating, gap: ratingGap });
         }
 
         // review-velocity ratio > 1.25× (new reviews per day over the window)
