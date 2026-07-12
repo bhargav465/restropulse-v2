@@ -214,6 +214,41 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   sanitizer strips credentials only (see security note above). Follow-up: before/after screenshots
   of the 5 tabs + contrast check (muted on surface) = owner/PR manual step.
 
+### Brief 05 · Admin v2 look & feel + installable PWA — (branch `feat/brief-04-05`, local commits, owner review)
+- **UI-only, ZERO new endpoints / client methods / chart libraries.** All behind
+  `VITE_ADMIN_SHELL=v2`; default builds byte-identical (no service worker, v1 theme + SW-unregister
+  guard preserved). Electric Lavender tokens only in components — raw hex confined to manifest/config.
+- **App feel (Phase 1):** mobile **bottom tab bar** (`ShellV2`) — 5 primary buckets (Home/Content/
+  Ordering/Insights/Design) with `env(safe-area-inset-bottom)` padding; Restaurant Details + Get
+  started stay in the drawer (primary items `hidden md:flex`). **Skeleton→count-up** on the dashboard
+  (`primitives` `Skeleton` + `AnimatedNumber`, rAF with a setTimeout completion net; snaps under
+  reduced-motion). **Touch/motion** (`index.css`): `.v2-bucket-enter` (0.18s ease-out), momentum
+  `.v2-scroll`, 44px targets, `active:scale`, all gated by `prefers-reduced-motion`.
+- **PWA (item 3):** `vite-plugin-pwa` (`autoUpdate`) added to `apps/web`, wired ONLY when
+  `env.VITE_ADMIN_SHELL === 'v2'`. Manifest `#221833`/`#FAF8FF`, icons 192/512 + maskable +
+  apple-touch (hand-generated PNGs in `public/`); `scope`/`start_url` inherit Vite `base`
+  (verified `= /restropulse-v2/admin-v2/`); precache shell, NetworkFirst `/api/*` (GET-only),
+  `navigateFallback` index.html (offline shell, no white screen). `index.html` guard: v2 sets
+  theme-color + touch icon; every other build keeps `#f97316` + unregisters stale SWs.
+- **Look (Phase 2):** new `components/v2/icons.tsx` (stroke, `currentColor`, `BUCKET_ACCENT` tint)
+  replaces all nav emoji; **greeting hero** (time-aware + `👋`, the one permitted emoji) with a live
+  store-status pill wired to `storeOpen`; **richer StatCards** (soft icon chip, hover lift, 7-day
+  micro-sparkline); **hand-rolled area chart** (gradient fill, day labels, hover tooltip,
+  highlight-today) replacing the flat sparkline; `EmptyState` (lavender line-art + one CTA).
+- **Personalization (Phase 3):** restaurant identity tile (logo/gradient initial + name + city) in
+  the sidebar and mobile top bar; 3-up **quick-actions** row deep-linking Content/Ordering via the
+  existing shell navigation (no endpoints).
+- New tests: `ShellV2Look` (bottom-tab render/nav, greeting, skeleton→data count-up, icon, EmptyState,
+  quick-action deep links) + `pwa-config` (icon assets, config gating, index.html guard); ShellV2
+  smoke updated for the greeting hero + `Primary` bar. Gates: web **602** (was 591), storefront **34**,
+  api **916 pass / 1 skip**; `turbo build` 11/11, `turbo type-check` 14/14. Demo v2 build emits
+  manifest + `sw.js` under the `/admin-v2/` base; default build emits neither.
+- ASSUMPTIONS: store-status pill is read-only (toggling would need an endpoint); per-KPI 7-day
+  sparklines derived from real order/reservation/post timestamps (posts use `scheduledFor ?? postedAt`,
+  `Post` has no `createdAt`); quick-actions use state navigation (no router hrefs); bottom bar carries
+  the 5 primary buckets, Restaurant Details lives in the drawer. Manual PR artifacts (owner): phone-width
+  screenshots (bottom tabs / skeletons / hero), Lighthouse installability run, contrast check.
+
 ### Rest Intelligence · PR2 — api services + routes (branch `feat/intelligence-v1`)
 - **Scan pipeline** in `apps/api/src/services/intelligence/`: `places.ts` (Places API (New),
   field masks + exclusion lists + Haversine ported verbatim; every place upserted to

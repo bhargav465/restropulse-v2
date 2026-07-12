@@ -85,8 +85,9 @@ describe('ShellV2 (v2 admin shell)', () => {
         }
         expect(screen.getByText(/Social media made simple for restaurants/i)).toBeInTheDocument();
         expect(screen.getByText(/Prototype · sample data/i)).toBeInTheDocument();
-        // Restaurant chip in the page header
-        expect(screen.getByText(DEMO_RESTAURANT.name)).toBeInTheDocument();
+        // Restaurant identity now appears in the sidebar tile, mobile top bar and
+        // dashboard greeting (Brief 05 items 6 & 10) — at least one node carries it.
+        expect(screen.getAllByText(DEMO_RESTAURANT.name).length).toBeGreaterThan(0);
     });
 
     it('routes to the Restaurant Details page from the sidebar', async () => {
@@ -107,8 +108,9 @@ describe('ShellV2 (v2 admin shell)', () => {
     it('shows the Dashboard landing page by default with KPI cards', async () => {
         render(<ShellV2 {...shellProps} />);
 
-        // Dashboard is the default landing bucket (design.md §4.2).
-        expect(screen.getByRole('heading', { name: /^Dashboard$/i })).toBeInTheDocument();
+        // Dashboard is the default landing bucket (design.md §4.2). Its header is
+        // now a time-aware greeting hero (Brief 05 item 6) carrying the name.
+        expect(screen.getByRole('heading', { name: new RegExp(DEMO_RESTAURANT.name.replace(/[[\]]/g, '\\$&'), 'i') })).toBeInTheDocument();
         expect(screen.getByText(/Orders today/i)).toBeInTheDocument();
         await waitFor(() => {
             expect(screen.getByText(/Needs attention/i)).toBeInTheDocument();
@@ -176,7 +178,8 @@ describe('App shell switch (VITE_ADMIN_SHELL flag)', () => {
         });
         expect(screen.getByText('Website Design')).toBeInTheDocument();
         expect(screen.getByText(/Prototype · sample data/i)).toBeInTheDocument();
-        // v1 bottom nav must not render
-        expect(screen.queryByText('Home')).not.toBeInTheDocument();
+        // v1 bottom nav must not render. ('Home' is now a v2 bottom-tab label, so
+        // assert on 'Studio', which is unique to the v1 Layout.)
+        expect(screen.queryByText('Studio')).not.toBeInTheDocument();
     });
 });
