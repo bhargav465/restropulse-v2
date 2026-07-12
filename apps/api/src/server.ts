@@ -6,7 +6,7 @@ import fs from 'fs';
 import http from 'node:http';
 import { fileURLToPath } from 'url';
 import { loadAndValidateEnv, z } from '@restropulse/shared';
-import { connectDB, disconnectDB, ensureOrderingIndexes, ensureIntelligenceIndexes } from '@restropulse/db';
+import { connectDB, disconnectDB, ensureOrderingIndexes, ensureIntelligenceIndexes, ensureAssetIndexes } from '@restropulse/db';
 import { createLogger, requestLoggingMiddleware, errorHandlerMiddleware, shutdownServerTelemetry } from '@restropulse/telemetry/server';
 import { createSecretsProvider, hydrateEnvFromProvider, API_SECRET_KEYS } from '@restropulse/secrets';
 import { initializeFirebaseAdmin } from './services/firebase-admin.js';
@@ -26,6 +26,7 @@ import storefrontRoutes from './routes/storefront.js';
 import adminOrderingRoutes from './routes/admin-ordering.js';
 import adminIntelligenceRoutes from './routes/admin/intelligence.js';
 import paymentsWebhookRoutes from './routes/payments-webhook.js';
+import assetsRoutes from './routes/assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -161,6 +162,9 @@ app.use('/api/admin/ordering', adminOrderingRoutes);
 app.use('/api/admin/intelligence', adminIntelligenceRoutes);
 // Ordering payments webhook (Razorpay) — raw-body mount is above, next to subscriptions.
 app.use('/api/payments', paymentsWebhookRoutes);
+// Restaurant assets (logos/covers) — public read, served from GridFS. JSON-side
+// mount (NOT near the raw-body webhook mounts above).
+app.use('/api/assets', assetsRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).
 // Allows the single ngrok tunnel to serve both API routes and placeholder media
@@ -204,6 +208,7 @@ const startServer = async () => {
         // legacy duplicate data (it falls back + warns).
         await ensureOrderingIndexes();
         await ensureIntelligenceIndexes();
+        await ensureAssetIndexes();
 
         // Wrap listen() in a Promise so EADDRINUSE and other server errors are
         // caught by the try/catch below instead of escaping to uncaughtException.
