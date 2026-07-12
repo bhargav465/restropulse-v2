@@ -10,16 +10,28 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>RestroPulse</title>
 
-  <!-- Unregister any service workers blocking video requests -->
+  <!--
+    v2 admin shell (VITE_ADMIN_SHELL=v2) installs a PWA service worker + manifest
+    (injected by vite-plugin-pwa at build time) and switches to the aubergine
+    theme color + touch icon. Every other build keeps the v1 theme and unregisters
+    any stale service worker (legacy video-request fix), so default builds stay
+    behavior-identical. %VITE_ADMIN_SHELL% is replaced by Vite at build time.
+  -->
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) {
-          registration.unregister();
-          console.log('Service worker unregistered:', registration);
-        }
-      });
-    }
+    (function () {
+      if ('%VITE_ADMIN_SHELL%' === 'v2') {
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', '#221833');
+        var icon = document.createElement('link');
+        icon.rel = 'apple-touch-icon';
+        icon.href = 'apple-touch-icon.png';
+        document.head.appendChild(icon);
+      } else if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          for (var i = 0; i < registrations.length; i++) registrations[i].unregister();
+        });
+      }
+    })();
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
