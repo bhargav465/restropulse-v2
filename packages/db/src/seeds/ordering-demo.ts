@@ -48,6 +48,9 @@ export const DEMO_RESTAURANT = {
   _id: R,
   name: '[SAMPLE] Demo Kitchen',
   cuisine: 'Multi-cuisine (sample data)',
+  legalName: '[SAMPLE] Demo Kitchen Private Ltd',
+  cuisineTags: ['North Indian', 'Biryani', 'Desserts'],
+  email: 'demo-kitchen@example.com',
   slug: 'demo',
   storeOpen: true,
   location: {
@@ -56,6 +59,18 @@ export const DEMO_RESTAURANT = {
     lng: 77.5946,
     mapUrl: 'https://maps.example.com/demo',
   },
+  address: {
+    line1: '[SAMPLE] 1 Demo Lane',
+    line2: 'Indiranagar',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    pincode: '560038',
+    geo: { lat: 12.9716, lng: 77.5946 },
+  },
+  gstin: '29ABCDE1234F1Z5',
+  fssaiLicense: '12345678901234',
+  logoUrl: '',
+  coverImageUrl: '',
   accountManager: { name: '[SAMPLE] Demo AM', phone: '+910000000003', email: 'demo-am@example.com', avatar: '' },
   integrations: { instagram: false },
   ordering: {
