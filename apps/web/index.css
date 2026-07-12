@@ -46,3 +46,55 @@ html, body {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/**
+ * V2 admin shell — touch & motion polish (Brief 05 item 4). Only applied by
+ * components under components/v2/ (the v1 shell never references these classes),
+ * so default builds are behavior-identical. All motion respects
+ * prefers-reduced-motion.
+ */
+
+/* Momentum / rubber-band scrolling inside scroll regions on iOS. */
+.v2-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* 150–200 ms ease-out fade/slide when a bucket panel mounts. */
+@keyframes v2-bucket-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.v2-bucket-enter { animation: v2-bucket-enter 0.18s ease-out; }
+
+/* Shimmer sweep for skeleton loading placeholders. */
+@keyframes v2-shimmer {
+  to { transform: translateX(100%); }
+}
+.v2-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+.v2-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: v2-shimmer 1.2s infinite;
+}
+
+/* Pulsing "open" dot on the store-status pill. */
+@keyframes v2-pulse {
+  from { transform: scale(0.6); opacity: 0.7; }
+  to { transform: scale(1.5); opacity: 0; }
+}
+.v2-pulse-ring { animation: v2-pulse 1.6s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-bucket-enter,
+  .v2-skeleton::after,
+  .v2-pulse-ring {
+    animation: none;
+  }
+}
