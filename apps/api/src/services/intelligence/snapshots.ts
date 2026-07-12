@@ -222,6 +222,20 @@ export async function captureSnapshot(
 }
 
 /**
+ * The self target's stable Google placeId (shared across sources). Resolved from
+ * the most recent self snapshot; falls back to a synthetic id before the first
+ * capture. Both Google and Zomato self snapshots use this same id so the compare
+ * and series joins line up.
+ */
+export async function resolveSelfPlaceId(restaurantId: string): Promise<string> {
+    const selfSnap = (await getIntelligenceSnapshotsCollection().findOne(
+        { restaurantId, isSelf: true },
+        { sort: { date: -1 } },
+    )) as unknown as DailySnapshot | null;
+    return selfSnap?.targetPlaceId ?? `self:${restaurantId}`;
+}
+
+/**
  * Capture self + every watchlist competitor across both sources for `date`.
  * The same job the weekly/daily worker (Brief 08) runs; the on-demand
  * `POST /snapshots/capture` route calls this for instant gratification.
@@ -236,18 +250,14 @@ export async function runDailySnapshotJob(
 
     const written: DailySnapshot[] = [];
 
-    // Resolve self's Google placeId from the most recent self snapshot, if any.
-    const selfSnap = (await getIntelligenceSnapshotsCollection().findOne(
-        { restaurantId, isSelf: true, source: 'google' },
-        { sort: { date: -1 } },
-    )) as unknown as DailySnapshot | null;
+    const selfPlaceId = await resolveSelfPlaceId(restaurantId);
 
     const selfCity =
         (restaurant as { sourceCity?: string }).sourceCity ??
         restaurant.location?.address ??
         '';
     const selfTarget: CaptureTarget = {
-        placeId: selfSnap?.targetPlaceId ?? `self:${restaurantId}`,
+        placeId: selfPlaceId,
         isSelf: true,
         name: restaurant.name,
         zomatoUrl: restaurant.intelligence?.selfZomatoUrl,
