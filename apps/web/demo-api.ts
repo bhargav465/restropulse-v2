@@ -54,7 +54,9 @@ import type {
     IntelligenceReportSummary,
     IntelligenceSelfMetrics,
     ScanStatus,
+    RestaurantProfilePatch,
 } from '@restropulse/shared';
+import { RESTAURANT_PROFILE_FIELDS } from '@restropulse/shared';
 import type { ContentDraftResponse, GeneratePostTone, MenuCsvImportReport, MenuItemUpsertInput, OrderingAnalyticsSummary } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
 import {
@@ -229,7 +231,39 @@ export const restaurantAPI = {
         await delay();
         return clone(DEMO_ANALYTICS);
     },
+
+    // ----- Restaurant Details (Brief 04) — in-session state, zero network -----
+    getProfile: async (): Promise<Restaurant> => {
+        await delay();
+        return clone(state.restaurant);
+    },
+
+    updateProfile: async (patch: RestaurantProfilePatch): Promise<Restaurant> => {
+        await delay();
+        notifyDemoBackendAction();
+        // Mirror the server whitelist: keep only known profile keys; null clears.
+        const next: Record<string, unknown> = { ...state.restaurant };
+        for (const key of RESTAURANT_PROFILE_FIELDS) {
+            if (!(key in patch)) continue;
+            const value = (patch as Record<string, unknown>)[key];
+            if (value === null) delete next[key];
+            else next[key] = value;
+        }
+        state.restaurant = clone(next) as unknown as Restaurant;
+        return clone(state.restaurant);
+    },
+
+    // Local object URL, no persistence, ZERO network (never saved into fixtures).
+    uploadAsset: async (file: File, _kind: 'logo' | 'cover'): Promise<{ assetId: string; url: string }> => {
+        await delay();
+        notifyDemoBackendAction();
+        demoAssetCounter += 1;
+        return { assetId: `demo-asset-${demoAssetCounter}`, url: URL.createObjectURL(file) };
+    },
 };
+
+/** Monotonic id source for demo asset uploads (session-scoped). */
+let demoAssetCounter = 0;
 
 // ----- Posts (Content Studio) -----
 

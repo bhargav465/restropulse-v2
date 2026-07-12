@@ -7,7 +7,7 @@
  * way — the `typeof real*` annotations at the bottom guarantee both clients
  * expose the exact same interface. With the flag off, behavior is unchanged.
  */
-import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform } from '@restropulse/shared';
+import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform, RestaurantProfilePatch } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
 import type { IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
@@ -223,6 +223,38 @@ const realRestaurantAPI = {
             platformMix: { platform: string; count: number }[];
         }>>(`/restaurant/${id}/analytics`);
         return response.data!;
+    },
+
+    // ----- Restaurant Details (Brief 04): own-profile read/write + asset upload -----
+    getProfile: async (): Promise<Restaurant> => {
+        const response = await fetchAPI<ApiResponse<Restaurant>>('/restaurant/profile');
+        return response.data!;
+    },
+
+    updateProfile: async (patch: RestaurantProfilePatch): Promise<Restaurant> => {
+        const response = await fetchAPI<ApiResponse<Restaurant>>('/restaurant/profile', {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        });
+        return response.data!;
+    },
+
+    // Multipart upload (bypasses the JSON fetch helper, like importMenuCsv).
+    uploadAsset: async (file: File, kind: 'logo' | 'cover'): Promise<{ assetId: string; url: string }> => {
+        const token = localStorage.getItem('rp_token');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('kind', kind);
+        const response = await fetch(`${API_BASE_URL}/restaurant/assets`, {
+            method: 'POST',
+            headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+            body: formData,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(body.message || body.error || `HTTP ${response.status}`);
+        }
+        return body.data as { assetId: string; url: string };
     },
 };
 
