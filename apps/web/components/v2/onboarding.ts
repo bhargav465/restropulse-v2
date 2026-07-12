@@ -19,7 +19,7 @@ export interface OnboardingStep {
     title: string;
     description: string;
     /** Sidebar bucket to jump to when the user acts on this step. */
-    bucket: 'CONTENT' | 'ORDERING' | 'DESIGN';
+    bucket: 'PROFILE' | 'CONTENT' | 'ORDERING' | 'DESIGN';
     done: boolean;
 }
 
@@ -33,12 +33,16 @@ export interface OnboardingSignals {
     campaignsSent?: number;
 }
 
-/** Profile is "done" once the basics an owner sets during onboarding exist. */
+/**
+ * Profile is "done" once Basics + Address are filled (Brief 04): a name, at
+ * least one cuisine signal, and a real address (line1 + city + pincode). Typed
+ * against the `Restaurant` shape — no untyped probing.
+ */
 function isProfileComplete(r: Restaurant): boolean {
     const hasName = typeof r.name === 'string' && r.name.trim().length > 0;
-    const anyR = r as unknown as Record<string, unknown>;
-    const hasDetail = Boolean(anyR.description || anyR.cuisine || anyR.logoUrl || anyR.address);
-    return hasName && hasDetail;
+    const hasCuisine = (r.cuisineTags?.length ?? 0) > 0 || (typeof r.cuisine === 'string' && r.cuisine.trim().length > 0);
+    const hasAddress = Boolean(r.address?.line1 && r.address?.city && r.address?.pincode);
+    return hasName && hasCuisine && hasAddress;
 }
 
 /** Storefront is "live" once it has a slug and the store is switched on. */
@@ -53,7 +57,7 @@ export function computeOnboardingSteps(signals: OnboardingSignals): OnboardingSt
             id: 'profile',
             title: 'Complete your restaurant profile',
             description: 'Name, cuisine, address and logo — the basics your storefront and posts are built on.',
-            bucket: 'CONTENT',
+            bucket: 'PROFILE',
             done: isProfileComplete(restaurant),
         },
         {

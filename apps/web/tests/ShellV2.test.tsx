@@ -37,6 +37,7 @@ vi.mock('../api', () => ({
         getReservations: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
         getAnalyticsSummary: vi.fn().mockResolvedValue({ from: '', to: '', events: [] }),
+        getContentDraft: vi.fn().mockResolvedValue({ draft: { heroImages: [], hours: [] }, publishedVersion: null, versions: [] }),
     },
 }));
 
@@ -50,7 +51,7 @@ vi.mock('../firebase', () => ({
 
 import { restaurantAPI, configAPI, postsAPI } from '../api';
 
-const BUCKETS = ['Content Engine', 'Online Ordering', 'Restaurant Intelligence', 'Website Design'];
+const BUCKETS = ['Restaurant Details', 'Content Engine', 'Online Ordering', 'Restaurant Intelligence', 'Website Design'];
 
 describe('ShellV2 (v2 admin shell)', () => {
     const shellProps = {
@@ -75,7 +76,7 @@ describe('ShellV2 (v2 admin shell)', () => {
         vi.unstubAllEnvs();
     });
 
-    it('renders the four sidebar buckets with wordmark and prototype footer', () => {
+    it('renders the sidebar buckets with wordmark and prototype footer', () => {
         render(<ShellV2 {...shellProps} />);
 
         const nav = screen.getByRole('navigation', { name: /main navigation/i });
@@ -86,6 +87,21 @@ describe('ShellV2 (v2 admin shell)', () => {
         expect(screen.getByText(/Prototype · sample data/i)).toBeInTheDocument();
         // Restaurant chip in the page header
         expect(screen.getByText(DEMO_RESTAURANT.name)).toBeInTheDocument();
+    });
+
+    it('routes to the Restaurant Details page from the sidebar', async () => {
+        render(<ShellV2 {...shellProps} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Restaurant Details/i }));
+        // The 5 quiet underline tabs render, Basics is the default.
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name: /^Basics$/i })).toBeInTheDocument();
+        });
+        expect(screen.getByRole('tab', { name: /Address & Contact/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Legal/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Branding/i })).toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Hours/i })).toBeInTheDocument();
+        expect(screen.getByLabelText(/Restaurant name/i)).toBeInTheDocument();
     });
 
     it('shows the Dashboard landing page by default with KPI cards', async () => {

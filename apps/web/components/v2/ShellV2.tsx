@@ -5,6 +5,7 @@ import { orderingAdminAPI } from '../../api';
 import DemoNotice from '../DemoNotice';
 import DashboardV2 from './DashboardV2';
 import GetStartedV2 from './GetStartedV2';
+import RestaurantDetailsV2 from './RestaurantDetailsV2';
 import ContentEngineV2 from './ContentEngineV2';
 import OrderingV2 from './OrderingV2';
 import IntelligenceV2 from './IntelligenceV2';
@@ -33,7 +34,7 @@ import { computeOnboardingProgress, isOnboardingDismissed } from './onboarding';
  * onboarding checklist with a sidebar progress chip until it's dismissed.
  */
 
-type BucketV2 = 'DASHBOARD' | 'GET_STARTED' | 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
+type BucketV2 = 'DASHBOARD' | 'GET_STARTED' | 'PROFILE' | 'CONTENT' | 'ORDERING' | 'INTELLIGENCE' | 'DESIGN';
 
 interface ShellV2Props {
     restaurantData: Restaurant;
@@ -51,6 +52,7 @@ interface ShellV2Props {
 
 const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> = [
     { id: 'DASHBOARD', emoji: '🏠', label: 'Dashboard', title: 'Your restaurant at a glance' },
+    { id: 'PROFILE', emoji: '🏪', label: 'Restaurant Details', title: 'Business facts, branding & hours' },
     { id: 'CONTENT', emoji: '🎯', label: 'Content Engine', title: 'Strategy, posts & publishing' },
     { id: 'ORDERING', emoji: '🛒', label: 'Online Ordering', title: 'Menu, orders & storefront' },
     { id: 'INTELLIGENCE', emoji: '📊', label: 'Restaurant Intelligence', title: 'Competitor & self insights' },
@@ -60,6 +62,7 @@ const NAV: Array<{ id: BucketV2; emoji: string; label: string; title: string }> 
 const PAGE_META: Record<BucketV2, { title: string; subtitle: string }> = {
     DASHBOARD: { title: 'Dashboard', subtitle: "Today's orders, revenue and anything that needs your attention." },
     GET_STARTED: { title: 'Get started', subtitle: 'A few quick steps to get your restaurant fully live.' },
+    PROFILE: { title: 'Restaurant Details', subtitle: 'Business facts, branding and hours — the profile your storefront and posts are built on.' },
     CONTENT: { title: 'Content Engine', subtitle: 'Plan, create and publish your social content — on autopilot.' },
     ORDERING: { title: 'Online Ordering', subtitle: 'Menu, orders, reservations and your storefront in one place.' },
     INTELLIGENCE: { title: 'Restaurant Intelligence', subtitle: 'Insights that help you run a smarter restaurant.' },
@@ -283,6 +286,12 @@ const ShellV2: React.FC<ShellV2Props> = ({
                             onConnectInstagram={onConnectInstagram}
                             onRefreshRestaurant={onRefreshRestaurant}
                             refreshKey={refreshKey}
+                        />
+                    )}
+                    {bucket === 'PROFILE' && (
+                        <RestaurantDetailsV2
+                            restaurantData={restaurantData}
+                            onRefreshRestaurant={onRefreshRestaurant}
                         />
                     )}
                     {bucket === 'ORDERING' && <OrderingV2 restaurantData={restaurantData} initialTab={orderingInitialTab} />}

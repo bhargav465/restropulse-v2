@@ -21,7 +21,7 @@ import { GRADIENT, TOKENS } from './theme';
 
 interface GetStartedV2Props {
     restaurantData: Restaurant;
-    onNavigate: (bucket: 'CONTENT' | 'ORDERING' | 'DESIGN') => void;
+    onNavigate: (bucket: 'PROFILE' | 'CONTENT' | 'ORDERING' | 'DESIGN') => void;
     onDismiss: () => void;
 }
 

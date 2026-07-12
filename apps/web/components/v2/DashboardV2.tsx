@@ -3,6 +3,7 @@ import { Restaurant, Order, Reservation, Post } from '@restropulse/shared';
 import { orderingAdminAPI, postsAPI } from '../../api';
 import { StatCard } from './primitives';
 import { TOKENS } from './theme';
+import { computeOnboardingProgress } from './onboarding';
 
 /**
  * Dashboard bucket — the default v2 landing page (design.md §4.2). Four KPIs,
@@ -13,7 +14,7 @@ import { TOKENS } from './theme';
 
 interface DashboardV2Props {
     restaurantData: Restaurant;
-    onNavigate: (bucket: 'CONTENT' | 'ORDERING') => void;
+    onNavigate: (bucket: 'PROFILE' | 'CONTENT' | 'ORDERING') => void;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -89,7 +90,10 @@ const DashboardV2: React.FC<DashboardV2Props> = ({ restaurantData, onNavigate })
 
     const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-    const attention: Array<{ text: string; bucket: 'CONTENT' | 'ORDERING' }> = [];
+    const attention: Array<{ text: string; bucket: 'PROFILE' | 'CONTENT' | 'ORDERING' }> = [];
+    // Profile completeness is derived from the restaurant doc (no extra fetch).
+    const profileStep = computeOnboardingProgress({ restaurant: restaurantData }).steps.find((s) => s.id === 'profile');
+    if (profileStep && !profileStep.done) attention.push({ text: 'Complete your restaurant profile', bucket: 'PROFILE' });
     if (stats.pendingPosts > 0) attention.push({ text: `${stats.pendingPosts} post${stats.pendingPosts > 1 ? 's' : ''} waiting for your approval`, bucket: 'CONTENT' });
     if (stats.pendingReservations > 0) attention.push({ text: `${stats.pendingReservations} reservation${stats.pendingReservations > 1 ? 's' : ''} awaiting a decision`, bucket: 'ORDERING' });
     if (stats.activeOrders > 0) attention.push({ text: `${stats.activeOrders} order${stats.activeOrders > 1 ? 's' : ''} in the kitchen right now`, bucket: 'ORDERING' });
