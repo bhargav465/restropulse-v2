@@ -5,31 +5,42 @@ fulfilment) and deliberately deferred the areas below. Each subsection names the
 seam in code where the feature plugs in and the contract it must honour, so the next
 engineer starts from a known socket rather than a blank page.
 
-## 1. Payments (Razorpay checkout for orders)
+## 1. Payments (Razorpay checkout for orders) — ✅ SHIPPED (Brief 02 / DESIGN-02)
 
-**Plugs in at:** `apps/api/src/routes/storefront.ts` → `POST /orders` handler, and
-`apps/api/src/services/razorpay.ts` (already has `createRazorpayOrder`,
-`verifyPaymentSignature`, `verifyWebhookSignature` from SaaS billing).
+**Status:** Implemented. This section is retained as a pointer; the guidance below
+is superseded by what actually shipped.
 
-**Contract:** Orders are already created with a `PENDING_PAYMENT` status stub: v1
-writes `statusHistory: [PENDING_PAYMENT, RECEIVED]` in one insert (auto-confirm).
-To integrate payments:
+**What shipped (see DESIGN-02):**
+- A dedicated `payments` collection (one doc per order) — NOT extra fields on `Order`.
+  Helpers `findPaymentByOrderId` / `findPaymentByProviderOrderId` and indexes
+  (`{orderId}` unique, `{restaurantId,createdAt}`, `{providerOrderId}`) live in
+  `packages/db/src/ordering.ts`; types in `packages/shared/src/types/payment.ts`.
+- `POST /orders` inserts `PENDING_PAYMENT` only when `isRazorpayConfigured()`; the
+  legacy auto-confirm stub is kept for key-less dev/demo backends.
+- Routes: `POST /api/storefront/:slug/payments/intent`,
+  `POST /api/storefront/:slug/payments/verify`, and webhook `POST /api/payments/webhook`
+  (raw-body mount sibling to the subscriptions webhook in `server.ts`).
+- `OrderStatus` gained `PAYMENT_FAILED`; both status-machine mirrors updated:
+  `PENDING_PAYMENT → RECEIVED | PAYMENT_FAILED | CANCELLED`,
+  `PAYMENT_FAILED → PENDING_PAYMENT | CANCELLED` (retry re-arms payment).
+- `order_placed` / `payment_succeeded` / `payment_failed` are emitted SERVER-side at
+  capture (verify/webhook), so the funnel counts paid orders.
 
-1. Stop auto-confirming — insert the order with `status: 'PENDING_PAYMENT'` only.
-2. Call `createRazorpayOrder(amountPaise, currency, receipt)` with
-   `order.totals.total` (convert to paise) and return `{ order, razorpayOrderId, keyId }`
-   to the storefront; open Razorpay checkout on `CheckoutPage.tsx`.
-3. On payment webhook/callback, verify the signature (`verifyPaymentSignature`) and
-   transition `PENDING_PAYMENT → RECEIVED` through the state machine
-   (`canTransitionOrderStatus` in `apps/api/src/services/ordering/status.ts`) — it
-   already models `PENDING_PAYMENT → RECEIVED | CANCELLED`.
-4. The idempotency plumbing (`Idempotency-Key` header + partial unique index on
-   `orders.{restaurantId,idempotencyKey}`) already prevents double-submits and must be
-   preserved across the payment redirect.
+## 1a. Refunds (order payments) — NOT built, contract only
 
-Money fields: `OrderTotals` (`packages/shared/src/ordering.ts`) is the single money
-shape — add `paymentId` / `razorpayOrderId` fields to `Order` rather than a new
-collection.
+**Plugs in at:** a new merchant admin route + the existing payments webhook
+(`apps/api/src/routes/payments-webhook.ts`) and the `payments` collection.
+
+**Contract:**
+- `POST /api/admin/ordering/orders/:id/refund` `{ amount?: number /* paise */, reason: string }`
+  — merchant JWT, role `OWNER`. Full refund when `amount` omitted.
+- Calls Razorpay `POST /payments/:paymentId/refund` (add `refundRazorpayPayment` to
+  `apps/api/src/services/razorpay.ts`); `paymentId` is `payments.providerPaymentId`.
+- Webhook `refund.processed` → payment `captured → refunded`, append
+  `events[] { type: 'webhook:refund.processed', source: 'webhook', providerPaymentId }`.
+- The order stays in its terminal state (COMPLETED/CANCELLED untouched) — refunds are a
+  money concern, not an order-status transition.
+- UI: a refund button in the admin order-detail view.
 
 ## 2. WhatsApp / Email Automation (order + reservation notifications)
 
@@ -163,3 +174,26 @@ customers"): add an `optIn: boolean` (default false) to `Customer` and filter co
 membership on it before sending. Cohort definitions: drop-off = `add_to_cart`/
 `begin_checkout` sessions with no `order_placed` in 7 days; non-transacted = customers
 with 0 orders; lapsed = latest order older than 30 days.
+
+**Update (Brief 03 / DESIGN-03):** the `CampaignStatus` union
+(`'QUEUED' | 'SENDING' | 'SENT' | 'FAILED'`) and `CampaignRecord.status` widening
+already shipped, so the worker can persist its transitions without a shared-types
+change. A poll index `campaigns { status: 1, createdAt: 1 }` is also live
+(`ensureOrderingIndexes`) for the oldest-first `status: 'QUEUED'` scan. `POST /campaigns`
+still writes `'QUEUED'` only — no delivery code shipped in Brief 03.
+
+## 10. `PUT /api/restaurant/:id` field whitelist (Brief 04)
+
+**Plugs in at:** `apps/api/src/routes/restaurant.ts` (`PUT /:id`), which today passes
+`req.body` straight into a `$set` (mass-assignment). Profile fields DO persist, so this
+is a hardening item, not a Mongo gap — but a merchant JWT could currently overwrite
+sensitive fields (`slug`, `instagramCredentials`, `razorpayCustomerId`, `integrations`,
+`ordering`) on its own restaurant.
+
+**Contract (implement alongside Brief 04's profile UI):** the route accepts ONLY the
+owner-editable profile fields —
+`{ name, cuisine, description, phone, website, priceRange, location, operatingHours,
+serviceOptions, activeOffers, chefSpecials }` — and rejects/ignores everything else.
+Explicitly NOT settable via this route: `slug`, `instagramCredentials`,
+`razorpayCustomerId`, `integrations`, `ordering`. Whitelist server-side (pick allowed
+keys before `$set`); do not rely on the client to omit them.

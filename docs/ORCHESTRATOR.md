@@ -116,6 +116,70 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
 - `4ff5374` storefront media: colorful per-category menu images, video hero, restaurant photo strip, popular dishes
 - `314470d`/`62c36e4` self-hosted ffmpeg-generated hero video (external host 503'd) + branded poster fallback
 
+### Brief 02 · Storefront payment page (Razorpay) — DESIGN-02 (uncommitted, owner review)
+- **Real payment step replaces the `PENDING_PAYMENT → RECEIVED` stub.** New `payments`
+  collection (one doc/order; types in `packages/shared/src/types/payment.ts`, now exported;
+  helpers + 3 indexes in `packages/db/src/ordering.ts`). `POST /orders` inserts
+  `PENDING_PAYMENT` only when `isRazorpayConfigured()`; the key-less auto-confirm stub is
+  preserved for dev/demo backends.
+- **Routes:** `POST /api/storefront/:slug/payments/intent` (idempotent per order — one
+  Razorpay order, amount recomputed server-side in paise), `.../payments/verify` (HMAC
+  verify → capture → `PENDING_PAYMENT → RECEIVED`), and `POST /api/payments/webhook`
+  (new file `payments-webhook.ts`; raw-body mount is a SIBLING line to the subscriptions
+  webhook in `server.ts` — subscriptions mount untouched). Rank-safe transitions guard the
+  webhook-vs-verify race.
+- **Status machine:** `OrderStatus` gains `PAYMENT_FAILED`; both mirrors updated identically
+  (`PENDING_PAYMENT → RECEIVED|PAYMENT_FAILED|CANCELLED`, `PAYMENT_FAILED → PENDING_PAYMENT|CANCELLED`).
+  Web badge + storefront label added.
+- **Funnel semantics changed:** `order_placed` / `payment_succeeded` / `payment_failed` now
+  emit server-side at capture (paid orders), not at insert — cohort/funnel counts shift to "paid".
+- **Storefront UI:** new `pages/PaymentPage.tsx` (`pay/:orderId`) with `--sf-*` theme vars,
+  lazy `lib/razorpay.ts` checkout loader (never in index.html/demo), retry state; CheckoutPage
+  navigates to the pay page. `api.ts` `paymentAPI` + `demo-api.ts` twin (`typeof realPaymentAPI`);
+  demo = 1.5s fake processing, zero backend, no razorpay.com request.
+- **Refunds:** out of scope; contract in `docs/NEXT.md` §1a.
+- Gates: web **552**, storefront **34**, api **845 pass / 1 skip** (ordering + new
+  `storefront-payments` signature/idempotency/race suites green). ASSUMPTIONS: provider =
+  Razorpay/INR (brief-fixed); unconfigured fallback keeps the stub; retries reuse the same
+  Razorpay order; funnel now counts paid orders.
+
+### Brief 03 · All touchpoints integrated with MongoDB — audit + gap close — DESIGN-03 (uncommitted, owner review)
+- **Audit shipped** as `docs/DB-TOUCHPOINT-MATRIX.md`: 35 touchpoints (every route family +
+  both workers), all Mongo-first in real mode — 0 stub, 0 gap after fixes (was 7 gaps).
+  Demo mode (zero-backend static bundles) explicitly out of scope, not counted as gaps.
+- **G1 — `menu_items (restaurantId, name)` now UNIQUE** (the CSV upsert key). Boot-safe
+  upgrade path in `ensureOrderingIndexes`: a legacy non-unique index throws on adding
+  `unique` (observed code **86** IndexKeySpecsConflict, also handles 85) → drop + recreate
+  unique; if legacy duplicate data blocks it (11000) → restore non-unique, warn once naming
+  `db-cli dedupe-menu-items`, and **continue booting** (never crash on dup data).
+  `POST`/`PATCH /menu/items` return **409** on 11000; CSV import **retries the upsert once**
+  on an 11000 race. New owner-run `db-cli dedupe-menu-items` (dry-run default; `--apply`
+  RENAMES later dups to `"<name> (2)"`, never deletes/merges).
+- **G2 — boot-time index bootstrap:** `ensureOrderingIndexes()` + `ensureIntelligenceIndexes()`
+  now run inside `startServer()` after `connectDB()` (idempotent). Both webhook raw-body
+  mounts in `server.ts` untouched.
+- **G3 — `CampaignStatus = 'QUEUED'|'SENDING'|'SENT'|'FAILED'`** exported; `CampaignRecord.status`
+  widened so the deferred delivery worker (NEXT.md §9) can persist transitions. `POST /campaigns`
+  still writes `'QUEUED'`. Poll index `campaigns {status, createdAt}` added.
+- **G4 additive indexes:** `orders {restaurantId, createdAt}` (unfiltered admin feed),
+  `events {restaurantId, ts}` (analytics summary range), `users {phone}` + `users {firebaseUid
+  sparse}` (OTP-login hot path, in db-cli `collections.ts` — the single SaaS index home).
+- **Ops:** `MONGO_CLIENT_OPTIONS` (pool 20/1, `serverSelectionTimeoutMS 10s`, retryWrites/Reads)
+  exported from `packages/db/src/connection.ts`, used by BOTH `connectDB` and db-cli's connect —
+  no bare-option `new MongoClient(` left. No new env vars; `.env.example` verified current.
+- **No new routes ⇒ no new client methods ⇒ no demo twins** (parity rule vacuously satisfied).
+  `docs/NEXT.md`: §9 status-union note + new §10 `PUT /api/restaurant/:id` field-whitelist
+  contract for Brief 04.
+- New tests (+9): `menu-items-unique` (409 on create + rename, CSV retry-once, non-11000
+  rethrow) and `ordering-indexes-upgrade` (fresh→unique, non-unique→upgraded,
+  duplicates→non-unique fallback + warn + boot succeeds). Gates: web **552**, storefront **34**,
+  api **894 pass / 1 skip** (ordering suites green). Known pre-existing (not ours):
+  `@restropulse/content-engine` and the `feat/intelligence-v1` intelligence routes/services
+  fail type-check on this branch. ASSUMPTIONS: dedupe = rename-only (owner-confirmed); name
+  uniqueness case-sensitive per-restaurant (matches CSV upsert key); the DESIGN said conflict
+  code 85 but the real conflict on adding `unique` to an auto-named index is **86** — handled
+  both.
+
 ### Rest Intelligence · PR2 — api services + routes (branch `feat/intelligence-v1`)
 - **Scan pipeline** in `apps/api/src/services/intelligence/`: `places.ts` (Places API (New),
   field masks + exclusion lists + Haversine ported verbatim; every place upserted to

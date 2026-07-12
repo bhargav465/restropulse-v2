@@ -18,7 +18,9 @@ code wins; fix this file in the same PR.
 | GET | `/me` | customer JWT | Public profile (never passwordHash) |
 | GET | `/addresses` | customer JWT | |
 | POST | `/addresses` | customer JWT | |
-| POST | `/orders` | customer JWT + `Idempotency-Key` header | Server re-validates items/prices against menu; computes totals (subtotal, tax, flat delivery fee, discount, total); enforces min order + store open; `PENDING_PAYMENT → RECEIVED` (payment stub); duplicate key → same order returned |
+| POST | `/orders` | customer JWT + `Idempotency-Key` header | Server re-validates items/prices against menu; computes totals (subtotal, tax, flat delivery fee, discount, total); enforces min order + store open. Razorpay configured → order stays `PENDING_PAYMENT` (pay via `/payments/*`); unconfigured backends keep the `PENDING_PAYMENT → RECEIVED` auto-confirm stub. Duplicate key → same order returned |
+| POST | `/payments/intent` | customer JWT, 20/min/IP | `{orderId}` → `ApiResponse<PaymentIntent>` `{providerOrderId, keyId, amount /* paise */, currency:'INR'}`. Amount recomputed server-side from `order.totals.total`; idempotent per order (reuses the Razorpay order, incl. E11000 race). `503` if Razorpay unconfigured, `409` if already paid, re-arms `PAYMENT_FAILED → PENDING_PAYMENT` on retry |
+| POST | `/payments/verify` | customer JWT, 20/min/IP | `{orderId, razorpayPaymentId, razorpayOrderId, razorpaySignature}` → `ApiResponse<{order}>`. HMAC-verifies (`verifyPaymentSignature`); valid → payment `captured`, order `PENDING_PAYMENT → RECEIVED`, emits `order_status_changed`/`order_placed`/`payment_succeeded`. Already-captured → 200 replay (webhook race). Tampered signature → 400, no transition |
 | GET | `/orders` | customer JWT | Own orders |
 | GET | `/orders/:id` | customer JWT | |
 | GET | `/orders/:id/track` | customer JWT **or** `?orderNumber=&phone=` | Status + statusHistory; tracking page polls 10s |
@@ -31,13 +33,13 @@ code wins; fix this file in the same PR.
 | GET / POST | `/menu/categories` | |
 | PATCH / DELETE | `/menu/categories/:id` | |
 | PUT | `/menu/categories/reorder` | `{ids: []}` |
-| GET / POST | `/menu/items` | Variants = absolute price; addons = additive |
-| PATCH / DELETE | `/menu/items/:id` | |
+| GET / POST | `/menu/items` | Variants = absolute price; addons = additive. **`409`** `{error:'An item with this name already exists'}` on duplicate name — `(restaurantId, name)` is a UNIQUE index (Brief 03) |
+| PATCH / DELETE | `/menu/items/:id` | PATCH returns **`409`** on a name rename that collides with an existing item |
 | PATCH | `/menu/items/:id/availability` | `in_stock \| out_of_stock \| hidden` |
 | PUT | `/menu/items/reorder` | |
-| POST | `/menu/import` | multipart CSV; per-row error report; upsert key `(restaurantId, name)` |
+| POST | `/menu/import` | multipart CSV; per-row error report; upsert key `(restaurantId, name)` now UNIQUE-index-backed — a concurrent-import 11000 race retries the upsert once (resolves as an update) |
 | GET | `/orders` | Feed; `?status=` filter |
-| PATCH | `/orders/:id/status` | Validated machine: RECEIVED→PREPARING→READY→OUT_FOR_DELIVERY(delivery only)→COMPLETED; CANCELLED. Emits `order_status_changed` |
+| PATCH | `/orders/:id/status` | Validated machine: `PENDING_PAYMENT → RECEIVED\|PAYMENT_FAILED`, `PAYMENT_FAILED → PENDING_PAYMENT` (retry), RECEIVED→PREPARING→READY→OUT_FOR_DELIVERY(delivery only)→COMPLETED; CANCELLED. Emits `order_status_changed` |
 | PATCH | `/store` | `{open: boolean}` |
 | GET | `/reservations` | `?date=` |
 | PATCH | `/reservations/:id` | confirm / decline / no_show |
@@ -78,6 +80,7 @@ threat, same-cuisine, restroScore 6-pillar composite), `seo.ts` (5 s homepage fe
 | `/api/strategy` | Strategy cycles + themes (8-theme fixture system) |
 | `/api/integrations` | Instagram OAuth (redirect + callback), status |
 | `/api/subscriptions` | Plans; Razorpay webhook at `/api/subscriptions/webhook` (raw body — mounted BEFORE json parser; keep it that way) |
+| `/api/payments` | Ordering-payments Razorpay webhook at `/api/payments/webhook` (raw body — mounted BEFORE json parser, on a SIBLING line next to the subscriptions raw mount). Handles `payment.captured` (order → RECEIVED) / `payment.failed` (order → PAYMENT_FAILED); unknown provider orders (e.g. subscription payments) → 200 ignore. Rank-safe; never regresses a captured payment |
 | `/api/coupons` `/api/credit-packs` `/api/invoices` `/api/config` `/api/account` | Billing + account management |
 
 ## 4. Client layers (parity is a hard rule)
@@ -96,7 +99,7 @@ threat, same-cuisine, restroScore 6-pillar composite), `seo.ts` (5 s homepage fe
 |---|---|---|
 | Meta Graph v18 | publisher worker, integrations | Instagram/Facebook publishing; token refresh cron |
 | Firebase Identity | apps/web login, api middleware | Merchant phone-OTP |
-| Razorpay | subscriptions (live), ordering payments (planned seam) | Webhook signature-verified |
+| Razorpay | subscriptions (live), ordering payments (live — DESIGN-02) | Two signature-verified webhooks: `/api/subscriptions/webhook` + `/api/payments/webhook` (shared `RAZORPAY_WEBHOOK_SECRET`) |
 | Replicate | tools/image-studio | Dish/hero image generation |
 | WhatsApp Business Cloud | planned | Campaign delivery worker (NEXT.md §9); opt-in filter mandatory |
 | Google Maps Places | web onboarding autocomplete | `VITE_GOOGLE_MAPS_API_KEY` |
