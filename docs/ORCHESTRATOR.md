@@ -364,6 +364,33 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   no raw hex, demo parity compiler-enforced. +38 web tests (period 11, my-restaurant 9, competition 11,
   demo-buckets 7). No new secrets, no v1 route/type/component deleted.
 
+- **Brief 10 `9c0eba5`/`06f7e39`/`7dacb9a`/`204df2a`** (`feat(intelligence)`, branch
+  `feat/intelligence-brief-10`): Google place picker + report competition buckets — additive on
+  v1+v2. **Shared:** `Restaurant.googlePlaceId` (owner-editable, whitelisted in
+  `RESTAURANT_PROFILE_FIELDS`); `CompetitionBuckets` type + optional `IntelligenceReport.buckets`
+  (old reports render — optional-field guard). **API:** `services/intelligence/buckets.ts` (PURE —
+  `cuisineMatch` same-family table, `aovBandLabel`, `buildCompetitionBuckets`, no new Places/Sonnet
+  calls); `BaseRestaurant.priceLevel` (measured AOV proxy, `location`/`priceLevel`/`id` added to the
+  detail field mask); `getBaseRestaurantDetails(name,city,placeId?)` skips text-search
+  disambiguation when a placeId is present; `POST /scan` + pipeline thread optional `placeId`
+  (request > saved `googlePlaceId`); `report-builder` attaches `report.buckets`. **Web:**
+  `place-picker-engine.ts` (engine iface + real Google engine reusing the existing Maps loader +
+  demo twin `typeof realPlacePickerEngine` with 3 `[SAMPLE]` restaurants), `PlacePicker.tsx`
+  (city→name-after-city, 25 km bias, preview→confirm emits `{placeId,name,city,location}`),
+  `PlacePickerHost.tsx` (demo engine in demo mode; real engine under `APIProvider` with the
+  referrer-restricted `VITE_GOOGLE_MAPS_BROWSER_KEY`); wired into ScanFlow empty state
+  (manual-entry fallback), which persists `googlePlaceId` via `PATCH /profile`; `competition/
+  TopThreats.tsx` (new FIRST competition sub-tab — segmented Same-cuisine&AOV / Overall over one
+  ranked table, expand→v1 strengths/weaknesses, 5-cap add-to-watchlist, empty Bucket-A niche copy);
+  `my-restaurant/RevenueCard.tsx` (banner-surface 9% projection, editable guests `clamp(reviews×2,
+  400,8000)` + avg spend ₹400, all computed, no pill deltas) + ranking summary line;
+  `startScan` gains optional `placeId` (real + demo twin). +tests: api buckets math + placeId
+  call-count short-circuit + googlePlaceId whitelist; web PlacePicker (city→name enable, 25 km bias,
+  emits placeId, demo suggestions), Top Threats (switch/empty/expand/watchlist-cap), revenue card
+  (9% math + input clamp + no pill deltas). New env: `VITE_GOOGLE_MAPS_BROWSER_KEY` (browser key,
+  documented in `apps/web/.env.example`). Grader site (§3): `restropulse-grader-site/README.md`
+  spec written; site deferred pending its own spec (ASSUMPTION). No v1/v2 route/type/component deleted.
+
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
 ---

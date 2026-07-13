@@ -255,3 +255,23 @@ in the series. **Contract:** either (a) a new `GET /compare/:placeId/reviews?fro
 the self series to optionally embed `newReviews: SnapshotReview[]` behind a `?withReviews=1` flag for
 `DailyTrends` star-mix. Both are additive server routes; the web components already have the render
 seams (`CompareView` expand, `DailyTrends` "Computed metrics" card).
+
+## Standalone grader site (public lead-gen) — DEFERRED (Brief 10 §3)
+
+**Status:** Spec written, site not built. See `restropulse-grader-site/README.md`.
+
+**Why deferred:** Brief 10 §3 points at `restropulse-grader-site/index.html` "see
+its README", but that README and the reference `Royal-Biryani-House-rapport.pdf`
+were not provided. Building a full public marketing site blind risks drift from
+its real spec and from the server bucket logic.
+
+**Seam / contract when it lands:**
+- Public single-page site = browser twin of `PlacePicker` + both competition
+  buckets + revenue card, calling Google directly with a **referrer-restricted
+  browser key** (never the server `GOOGLE_MAPS_API_KEY`).
+- Bucket thresholds MUST mirror `apps/api/src/services/intelligence/buckets.ts`
+  (`cuisineMatch` family table, AOV band map, `|priceLevel−base|≤1`, 5 km, threat
+  desc, slice 10) and the threat formula in `services/intelligence/scoring.ts`.
+- CTA "Get the full report" deep-links to RestroPulse signup carrying the
+  confirmed `placeId`, so the first authenticated scan skips text-search
+  disambiguation (`getBaseRestaurantDetails(name,city,placeId)`).
