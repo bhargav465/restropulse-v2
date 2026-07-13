@@ -322,6 +322,23 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   route/type touched. +38 api tests (themes 5, compare+new-openings 10, snapshots 7, routes 16).
   Client methods frozen for Brief 09; worker (Brief 08) imports `captureSnapshot`,
   `runDailySnapshotJob`, `tagReviewThemes`. `ZOMATO_ADAPTER` documented in `apps/api/.env.example`.
+- **Brief 08 `8688b17`/`465fd23`/`b103da3`/`8e5ad69`** (`feat(worker)`): daily snapshot loop,
+  nearby sweep, backfill — additive; the weekly re-scan job is byte-identical for v1 tenants.
+  New `apps/intelligence-worker/src/`: `tz.ts` (tenant-local `YYYY-MM-DD`, default `Asia/Kolkata`,
+  ≤7-day window), `snapshot-store.ts` (worker-local idempotent capture — DEFERS theme tagging so
+  the loop can batch, stamps `backfilled`; upsert key/diff kept identical to the api twin),
+  `measure.ts` (default google-from-`competitor_cache` + zomato-from-`zomato_manual_entries`
+  measurers, no-op tagger seam), `daily.ts` (`runDailySnapshotJob`: self+watchlist × google+zomato,
+  ONE batched Haiku tag across all tenants, kill switch `INTELLIGENCE_DAILY_ENABLED` def-true/off-in-test,
+  `places_calls` counter), `sweep.ts` (`runNearbySweep`: upsert `nearby_sightings`, first-seen baseline
+  vs `lastSeenAt`, emit `intelligence.alert.new_competitor` once ≤5 km), `backfill.ts` (fills missing
+  days in last 7 with `backfilled:true`, older gaps stay), `daily-cron.ts` (`0 2 * * *` IST),
+  `cli.ts` (`snapshot`/`sweep`/`weekly`, `--date` capped 7-days-back). Weekly job gains ONE additive
+  step: folds the week's sighting deltas into `ReportDeltas.competitorAlerts` (empty for v1 → no change).
+  Cross-app seam follows `rescan.ts` (no import of `apps/api`; heavy calls injected). Telemetry:
+  additive `placesCalls` counter. Scripts `snapshot:run`/`sweep:nearby`/`refresh:weekly`;
+  `CRON_INTELLIGENCE_DAILY` + `INTELLIGENCE_DAILY_ENABLED` in `apps/intelligence-worker/.env.example`.
+  Worker suite 22→32 (daily 5, sweep 3, backfill 2). No new secrets, no v1 route/type touched.
 
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
