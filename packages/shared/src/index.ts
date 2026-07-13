@@ -200,6 +200,12 @@ export interface Restaurant {
   menu?: MenuItem[];
   /** City this record was sourced from. Set by the acquire-restaurants script. */
   sourceCity?: string;
+  /**
+   * Confirmed Google Places placeId for this restaurant (Brief 10). Set when the
+   * owner picks their restaurant via the Google place picker; lets the scan
+   * pipeline skip text-search disambiguation. Owner-editable (whitelisted).
+   */
+  googlePlaceId?: string;
   /** Source of the data: acquisition script writes this; manual entries leave it absent. */
   dataSource?: 'kaggle-zomato' | 'osm' | 'merged' | 'manual';
   /**
@@ -249,6 +255,7 @@ export const RESTAURANT_PROFILE_FIELDS = [
   'name', 'legalName', 'cuisine', 'cuisineTags', 'description', 'phone', 'email', 'website',
   'priceRange', 'address', 'location', 'operatingHours', 'serviceOptions',
   'activeOffers', 'chefSpecials', 'gstin', 'fssaiLicense', 'logoUrl', 'coverImageUrl',
+  'googlePlaceId', // Brief 10: confirmed Google Places id from the place picker.
 ] as const;
 
 export type RestaurantProfileField = (typeof RESTAURANT_PROFILE_FIELDS)[number];

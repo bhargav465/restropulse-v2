@@ -220,7 +220,29 @@ export interface IntelligenceReport {
   keywords: KeywordCluster; // ai-inferred
   narrative: ReportNarrative; // ai-inferred (Sonnet)
   deltas?: ReportDeltas; // vs previous report (worker fills)
+  /**
+   * Competition buckets (Brief 10, additive + optional). Reports generated before
+   * Brief 10 have no `buckets`; the UI guards for `undefined` and renders fine.
+   */
+  buckets?: CompetitionBuckets;
   generatedAt: Date;
+}
+
+/**
+ * Competition buckets on the report (Brief 10, additive). Built by
+ * `report-builder.ts` from already-measured/computed data — no new Places or
+ * Sonnet calls. The standalone grader site mirrors the same thresholds
+ * (`buckets.ts`). Provenance: `directTop10`/`overallTop10` are computed
+ * (threat-sorted slices of the measured competitor set); `aovBand` is measured
+ * (Places priceLevel) mapped to a computed display band.
+ */
+export interface CompetitionBuckets {
+  /** Top ≤10 within 5 km matching base cuisine family AND AOV band (priceLevel ±1), by threat desc. */
+  directTop10: CompetitorProfile[];
+  /** Top ≤10 overall within 5 km by threat desc, any cuisine/price. */
+  overallTop10: CompetitorProfile[];
+  /** Base AOV proxy: Places price_level (0–4; null when Google has none) + display band label. */
+  aovBand: { base: number | null; label: string };
 }
 
 /**
