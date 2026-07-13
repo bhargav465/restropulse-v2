@@ -340,6 +340,30 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   `CRON_INTELLIGENCE_DAILY` + `INTELLIGENCE_DAILY_ENABLED` in `apps/intelligence-worker/.env.example`.
   Worker suite 22→32 (daily 5, sweep 3, backfill 2). No new secrets, no v1 route/type touched.
 
+- **Brief 09 `39c761b`/`bdf05ea`/`ab0ea92`/`8be5bbb`/`bb9facb`/…** (`feat(web)`): the two-bucket
+  Intelligence dashboard — additive restructure, every v1 sub-tab's content survives re-homed
+  (nothing deleted). `IntelligenceV2.tsx` now renders the unchanged RestroScore band → `BucketSwitch`
+  (My Restaurant | Competition, persisted per session + `?bucket=`) → bucket-scoped `PeriodFilter`
+  (My: MTD·Date·Overall; Competition: Day·Month) → bucket content. Pure `period.ts` maps every preset
+  to the exact BRIEF-07 `{from,to,granularity}` / compare `{date|month}` query. **My Restaurant**
+  (`components/v2/intelligence/my-restaurant/`): `Overview` (v1 Overview + `/self-metrics` ops strip),
+  `DailyTrends` (snapshot series with gaps-not-zeros + hollow backfilled markers, Zomato-when-present
+  else `ZomatoManualModal`, photo small-multiples + 14-day stagnation nudge, SEO sparkline, computed
+  chips, specific-date stat cards + `DELTA_TEXT`), `FeedbackChanges` (day-grouped feed, theme-hashtag
+  filter chips, 7-day negative-trend `border-danger` alert, "Reply now"→Get-started), `SearchSEO`
+  (v1, re-exported). **Competition** (`competition/`): `Watchlist` (5-cap client + server-422 surface,
+  N/5, 30-day sparkline + threat bar), `Compare` (matrix + Google/Zomato/Both toggle + overlaid rating
+  trend self-`primaryStrong`/competitors-`SERIES` + row expand), `WhereTheyBeatYou` (computed gaps
+  then v1 ai-inferred lists, severity-sorted, ThreatRadar, "Close this gap"→typed deep link),
+  `NewOpenings` (sinceDays 30/60/90, 5 km, fastStarter, add-to-watchlist disabled at 5/5,
+  "Draft a response post"→Content). Client: 8 `intelligenceAPI` methods (`getWatchlist`/`putWatchlist`/
+  `getSnapshots`/`getFeedbackChanges`/`getCompare`/`getNewOpenings`/`postZomatoManual`/`captureNow`) +
+  compiler-typed `demo-api.ts` twins + lazy `lib/demo-fixtures-intelligence-v2.ts` ([SAMPLE], deterministic,
+  mirrors the Brief 06 seed; demo `captureNow` 1.5 s, `putWatchlist` local 5-cap, `postZomatoManual`
+  mutates in-memory so Zomato appears live). Token-native `charts.tsx` (gap/hollow-aware). Tokens only,
+  no raw hex, demo parity compiler-enforced. +38 web tests (period 11, my-restaurant 9, competition 11,
+  demo-buckets 7). No new secrets, no v1 route/type/component deleted.
+
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
 ---

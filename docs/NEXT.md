@@ -229,3 +229,29 @@ bucket (not deleted). A GC pass (worker or cron, same pattern as the other poll 
 can enumerate `assets.files` and delete any id not referenced by a `restaurants`
 `logoUrl`/`coverImageUrl` or a `storefront_content` `theme.logoUrl`. Safe to defer:
 orphaned images are unreferenced and immutable, so they only cost storage.
+
+## Intelligence v2 — computed fields not exposed by the frozen BRIEF-07 shapes (Brief 09)
+
+**Status:** UI ships against the frozen BRIEF-07 response shapes. Three DailyTrends/Compare
+adornments named in BRIEF-09 need data the frozen shapes do not carry; each is deferred with
+its exact seam below (no route was changed by Brief 09 — client-only slice).
+
+**Response-rate on trends + the Compare matrix.** `SnapshotSeriesPoint` (services/intelligence/
+`snapshots.ts` `toDayPoint`) and the `CompareRow.google|zomato` projection (services/intelligence/
+`compare.ts` `projectSource`) both omit `responseRate`, though `DailySnapshot.responseRate` exists.
+So `DailyTrends` computed chips render rating-velocity / net-new-reviews / latest-rating (all
+`computed`) but not response rate, and `Compare.tsx` shows Rating/Reviews/New/Photos but no
+response-rate column. **Contract:** add `responseRate?: number` to `toDayPoint`'s output and to
+`projectSource` (both server-side, additive), then the web `SnapshotSeriesPoint` (already has the
+optional field pattern) and `CompareRow` pick it up; `Compare.tsx` adds a 5th column and `DailyTrends`
+a `Response rate` chip — no client refetch shape change.
+
+**Competitor review text on Compare row-expand + star-mix / avg-review-length chips.**
+`CompareRow.*.newReviews` is a COUNT, and `feedback-changes` is self-only, so a competitor row
+expands to "N new reviews this period" rather than the review cards + theme chips BRIEF-09 sketches;
+likewise `DailyTrends` cannot compute star-mix / avg-review-length for self without review-level rows
+in the series. **Contract:** either (a) a new `GET /compare/:placeId/reviews?from&to` returning
+`FeedbackReview[]` for a watchlisted target, consumed by `Compare.tsx`'s expand block, or (b) widen
+the self series to optionally embed `newReviews: SnapshotReview[]` behind a `?withReviews=1` flag for
+`DailyTrends` star-mix. Both are additive server routes; the web components already have the render
+seams (`CompareView` expand, `DailyTrends` "Computed metrics" card).
