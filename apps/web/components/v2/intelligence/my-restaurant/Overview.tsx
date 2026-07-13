@@ -4,6 +4,7 @@ import V1Overview from '../Overview';
 import { intensity } from '../../theme';
 import { ProvenanceChip } from '../provenance';
 import type { DeepLinkTarget } from '../deep-links';
+import RevenueCard from './RevenueCard';
 
 /**
  * My-Restaurant · Overview (Brief 09 §2). Re-homes the v1 Overview (narrative,
@@ -63,6 +64,12 @@ const Overview: React.FC<{
     onNavigate: (t: DeepLinkTarget) => void;
 }> = ({ report, metrics, onNavigate }) => (
     <div className="space-y-6">
+        {/* Ranking summary line (Brief 10, from the sample report). */}
+        <p className="text-sm text-ink font-semibold" data-testid="ranking-summary">
+            You are ranked #{report.ranking.rank}{' '}
+            <span className="text-muted font-normal">of {report.ranking.total} nearby</span>
+        </p>
+        <RevenueCard report={report} />
         <V1Overview report={report} onNavigate={onNavigate} />
         {metrics && <OpsStrip metrics={metrics} />}
     </div>

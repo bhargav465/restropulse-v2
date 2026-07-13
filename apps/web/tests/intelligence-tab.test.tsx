@@ -49,10 +49,13 @@ describe('IntelligenceV2 two-bucket dashboard', () => {
         expect(screen.getByRole('tab', { name: 'Competition' })).toBeInTheDocument();
     });
 
-    test('switching to the Competition bucket shows the Watchlist', async () => {
+    test('switching to the Competition bucket lands on Top Threats, then Watchlist is reachable', async () => {
         render(<IntelligenceV2 restaurantData={DEMO_RESTAURANT} />);
         await waitFor(() => expect(screen.getByText('68')).toBeInTheDocument());
         fireEvent.click(screen.getByRole('tab', { name: 'Competition' }));
+        // Top Threats is the first sub-tab (Brief 10).
+        await waitFor(() => expect(screen.getByRole('tab', { name: 'Top Threats' })).toHaveAttribute('aria-selected', 'true'));
+        fireEvent.click(screen.getByRole('tab', { name: 'Watchlist' }));
         await waitFor(() => expect(screen.getByText('Your watchlist')).toBeInTheDocument());
     });
 

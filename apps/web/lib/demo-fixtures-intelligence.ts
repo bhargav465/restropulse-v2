@@ -133,6 +133,17 @@ const sameCuisineNearby = competitors
     .filter((c) => c.cuisine === 'North Indian')
     .sort((a, b) => b.sameCuisineThreatScore - a.sameCuisineThreatScore);
 
+// Competition buckets (Brief 10) — mirrors report-builder/buckets.ts: base is
+// North Indian @ priceLevel 2 (Value). Indian-family + AOV ±1, within 5 km.
+const INDIAN_FAMILY = new Set(['Biryani', 'Andhra', 'South Indian', 'North Indian']);
+const withinRadius = competitors.filter((c) => c.distanceKm <= 5);
+const directTop10 = withinRadius
+    .filter((c) => INDIAN_FAMILY.has(c.cuisine) && Math.abs(c.priceLevel - 2) <= 1)
+    .sort(byThreat)
+    .slice(0, 10);
+const overallTop10 = [...withinRadius].sort(byThreat).slice(0, 10);
+const buckets = { directTop10, overallTop10, aovBand: { base: 2, label: 'Value' } };
+
 const cuisineBreakdown: CuisineBucket[] = [
     { cuisine: 'Continental', count: 3, totalRatings: 22500, reviewShare: 0.402, avgRating: 4.53, restaurants: ['[SAMPLE] Truffles', '[SAMPLE] Toit Brewpub', '[SAMPLE] Byg Brewski'] },
     { cuisine: 'South Indian', count: 3, totalRatings: 10600, reviewShare: 0.189, avgRating: 4.57, restaurants: ['[SAMPLE] CTR Shri Sagar', '[SAMPLE] Mavalli Tiffin Room', '[SAMPLE] Vidyarthi Bhavan'] },
@@ -229,6 +240,7 @@ export const DEMO_INTELLIGENCE_REPORT: IntelligenceReport = {
     sameCuisineNearby,
     cuisineBreakdown,
     ranking: { rank: 4, total: 38, leaderboard },
+    buckets,
     searchRankings,
     keywords: {
         primary: ['[SAMPLE] butter chicken indiranagar', '[SAMPLE] north indian restaurant indiranagar', '[SAMPLE] family dinner indiranagar'],

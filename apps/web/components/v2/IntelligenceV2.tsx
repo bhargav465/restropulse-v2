@@ -23,6 +23,7 @@ import DailyTrends from './intelligence/my-restaurant/DailyTrends';
 import FeedbackChanges from './intelligence/my-restaurant/FeedbackChanges';
 import SearchSEO from './intelligence/my-restaurant/SearchSEO';
 // Competition bucket (Competitors + Reviews re-homed/rebuilt here).
+import TopThreats from './intelligence/competition/TopThreats';
 import Watchlist from './intelligence/competition/Watchlist';
 import Compare from './intelligence/competition/Compare';
 import WhereTheyBeatYou from './intelligence/competition/WhereTheyBeatYou';
@@ -37,7 +38,7 @@ import NewOpenings from './intelligence/competition/NewOpenings';
  */
 
 type MineTab = 'OVERVIEW' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
-type CompTab = 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
+type CompTab = 'THREATS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
 
 function initialBucket(): BucketId {
     if (typeof window !== 'undefined') {
@@ -172,7 +173,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
     // Two-bucket state (persisted per session + ?bucket= param).
     const [bucket, setBucket] = useState<BucketId>(initialBucket);
     const [mineTab, setMineTab] = useState<MineTab>('OVERVIEW');
-    const [compTab, setCompTab] = useState<CompTab>('WATCHLIST');
+    const [compTab, setCompTab] = useState<CompTab>('THREATS');
     const [mineSel, setMineSel] = useState<MineSelection>(() => defaultMineSelection());
     const [compSel, setCompSel] = useState<CompetitionSelection>(() => defaultCompetitionSelection());
 
@@ -214,6 +215,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         { id: 'SEARCH', label: 'Search & SEO' },
     ];
     const compTabs: Array<SubNavTab<CompTab>> = [
+        { id: 'THREATS', label: 'Top Threats' },
         { id: 'WATCHLIST', label: 'Watchlist' },
         { id: 'COMPARE', label: 'Compare' },
         { id: 'BEAT', label: 'Where They Beat You' },
@@ -292,6 +294,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
             ) : (
                 <>
                     <SubNav tabs={compTabs} active={compTab} onChange={setCompTab} label="Competition sections" />
+                    {compTab === 'THREATS' && <TopThreats buckets={report.buckets} />}
                     {compTab === 'WATCHLIST' && <Watchlist />}
                     {compTab === 'COMPARE' && <Compare query={compPeriod} />}
                     {compTab === 'BEAT' && <WhereTheyBeatYou query={compPeriod} report={report} onNavigate={nav} />}
