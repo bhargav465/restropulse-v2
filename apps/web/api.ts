@@ -10,6 +10,7 @@
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform, RestaurantProfilePatch } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
 import type { IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics } from '@restropulse/shared';
+import type { WatchlistEntry, CompareRow, SnapshotSource, SnapshotReview, ReviewTheme } from '@restropulse/shared';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
 import { isDemoMode } from './lib/demo';
@@ -870,6 +871,91 @@ const realOrderingAdminAPI = {
     },
 };
 
+// ----- Restaurant Intelligence v2 — two-bucket dashboard DTOs -----
+// Response shapes frozen by BRIEF-07 (services/intelligence/{snapshots,compare}.ts).
+// `backfilled` is web-side + optional (fixture-driven) so DailyTrends can render
+// hollow markers; the live series endpoint simply omits it.
+
+/** One numeric point in a snapshot trend series (newReviews is a COUNT). */
+export interface SnapshotSeriesPoint {
+    date: string; // YYYY-MM-DD (day) or YYYY-MM (month)
+    source: SnapshotSource;
+    rating: number;
+    reviewCount: number;
+    newReviews: number;
+    photoCount: number;
+    seoScore?: number;
+    backfilled?: boolean;
+}
+
+/** A new review in the feedback feed, tagged with its source. */
+export interface FeedbackReview extends SnapshotReview {
+    source: SnapshotSource;
+}
+
+/** One day of the self-only "what changed" feed. */
+export interface FeedbackDay {
+    date: string;
+    newReviews: FeedbackReview[];
+    ratingBefore: number | null;
+    ratingAfter: number;
+    themesTrending: ReviewTheme[];
+}
+
+/** One New Openings radar row (nearby sighting first seen within the window). */
+export interface NewOpening {
+    placeId: string;
+    name: string;
+    distanceKm: number;
+    cuisine?: string;
+    firstSeenAt: string; // ISO
+    ratingAtFirstSeen: number;
+    reviewsAtFirstSeen: number;
+    currentReviewCount: number;
+    reviewsSinceFirstSeen: number;
+    daysSinceFirstSeen: number;
+    fastStarter: boolean;
+}
+
+export interface SnapshotSeriesResponse {
+    target: string;
+    source: string;
+    granularity: string;
+    points: SnapshotSeriesPoint[];
+}
+
+export interface WatchlistResponse {
+    entries: WatchlistEntry[];
+    max: number;
+}
+
+export interface SnapshotQuery {
+    target?: string; // 'self' | placeId
+    source?: SnapshotSource | 'both';
+    granularity: 'day' | 'month';
+    from?: string;
+    to?: string;
+}
+
+export interface CompareQuery {
+    granularity: 'day' | 'month';
+    date?: string; // YYYY-MM-DD (day)
+    month?: string; // YYYY-MM (month)
+}
+
+export interface WatchlistInput {
+    placeId: string;
+    name?: string;
+    zomatoUrl?: string;
+}
+
+export interface ZomatoManualInput {
+    target?: string;
+    rating: number;
+    reviewCount: number;
+    photoCount: number;
+}
+
 // ----- Restaurant Intelligence (competitor + self intelligence) -----
 // Routes under /api/admin/intelligence (merchant JWT + OWNER). Scans are async
 // jobs: startScan returns a scanId, the UI polls getScan until COMPLETED.
@@ -904,6 +990,77 @@ const realIntelligenceAPI = {
 
     getSelfMetrics: async (): Promise<IntelligenceSelfMetrics> => {
         const res = await fetchAPI<ApiResponse<IntelligenceSelfMetrics>>('/admin/intelligence/self-metrics');
+        return res.data!;
+    },
+
+    // ----- v2: two-bucket dashboard (BRIEF-07 §3) -----
+
+    getWatchlist: async (): Promise<WatchlistResponse> => {
+        const res = await fetchAPI<ApiResponse<WatchlistResponse>>('/admin/intelligence/watchlist');
+        return res.data!;
+    },
+
+    putWatchlist: async (entries: WatchlistInput[]): Promise<WatchlistResponse> => {
+        const res = await fetchAPI<ApiResponse<WatchlistResponse>>('/admin/intelligence/watchlist', {
+            method: 'PUT',
+            body: JSON.stringify({ entries }),
+        });
+        return res.data!;
+    },
+
+    getSnapshots: async (query: SnapshotQuery): Promise<SnapshotSeriesResponse> => {
+        const params = new URLSearchParams();
+        if (query.target) params.set('target', query.target);
+        if (query.source) params.set('source', query.source);
+        params.set('granularity', query.granularity);
+        if (query.from) params.set('from', query.from);
+        if (query.to) params.set('to', query.to);
+        const res = await fetchAPI<ApiResponse<SnapshotSeriesResponse>>(`/admin/intelligence/snapshots?${params}`);
+        return res.data!;
+    },
+
+    getFeedbackChanges: async (query: { from?: string; to?: string } = {}): Promise<{ days: FeedbackDay[] }> => {
+        const params = new URLSearchParams();
+        if (query.from) params.set('from', query.from);
+        if (query.to) params.set('to', query.to);
+        const qs = params.toString();
+        const res = await fetchAPI<ApiResponse<{ days: FeedbackDay[] }>>(
+            `/admin/intelligence/feedback-changes${qs ? `?${qs}` : ''}`,
+        );
+        return res.data ?? { days: [] };
+    },
+
+    getCompare: async (query: CompareQuery): Promise<CompareRow[]> => {
+        const params = new URLSearchParams({ granularity: query.granularity });
+        if (query.granularity === 'day' && query.date) params.set('date', query.date);
+        if (query.granularity === 'month' && query.month) params.set('month', query.month);
+        const res = await fetchAPI<ApiResponse<CompareRow[]>>(`/admin/intelligence/compare?${params}`);
+        return res.data ?? [];
+    },
+
+    getNewOpenings: async (query: { sinceDays?: 30 | 60 | 90; radiusKm?: number } = {}): Promise<NewOpening[]> => {
+        const params = new URLSearchParams();
+        if (query.sinceDays) params.set('sinceDays', String(query.sinceDays));
+        if (query.radiusKm) params.set('radiusKm', String(query.radiusKm));
+        const qs = params.toString();
+        const res = await fetchAPI<ApiResponse<NewOpening[]>>(
+            `/admin/intelligence/new-openings${qs ? `?${qs}` : ''}`,
+        );
+        return res.data ?? [];
+    },
+
+    postZomatoManual: async (body: ZomatoManualInput): Promise<{ snapshotWritten: boolean }> => {
+        const res = await fetchAPI<ApiResponse<{ snapshotWritten: boolean }>>('/admin/intelligence/zomato-manual', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+        return res.data!;
+    },
+
+    captureNow: async (): Promise<{ captured: number }> => {
+        const res = await fetchAPI<ApiResponse<{ captured: number }>>('/admin/intelligence/snapshots/capture', {
+            method: 'POST',
+        });
         return res.data!;
     },
 };

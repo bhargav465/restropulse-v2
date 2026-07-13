@@ -11,7 +11,12 @@ import { describe, test, expect } from 'vitest';
 import { intelligenceAPI as realClient } from '../api';
 import { intelligenceAPI as demoClient } from '../demo-api';
 
-const EXPECTED_METHODS = ['startScan', 'getScan', 'getReports', 'getReport', 'getLatestReport', 'getSelfMetrics'];
+const EXPECTED_METHODS = [
+    'startScan', 'getScan', 'getReports', 'getReport', 'getLatestReport', 'getSelfMetrics',
+    // v2 two-bucket dashboard (Brief 09)
+    'getWatchlist', 'putWatchlist', 'getSnapshots', 'getFeedbackChanges', 'getCompare',
+    'getNewOpenings', 'postZomatoManual', 'captureNow',
+];
 
 describe('intelligenceAPI demo parity', () => {
     test('real client exposes exactly the expected methods', () => {
