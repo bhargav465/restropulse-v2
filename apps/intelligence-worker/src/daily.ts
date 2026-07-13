@@ -82,7 +82,7 @@ export async function getActiveDailyRestaurantIds(): Promise<string[]> {
     const [withSettings, withSnapshots, withReports] = await Promise.all([
         getRestaurantsCollection()
             .find({ intelligence: { $exists: true } })
-            .project({ id: 1 })
+            .project({ _id: 1 })
             .toArray(),
         getIntelligenceSnapshotsCollection().distinct('restaurantId'),
         getIntelligenceReportsCollection().distinct('restaurantId'),
@@ -90,8 +90,8 @@ export async function getActiveDailyRestaurantIds(): Promise<string[]> {
 
     const ids = new Set<string>();
     for (const doc of withSettings) {
-        const id = (doc as { id?: unknown }).id;
-        if (typeof id === 'string' && id) ids.add(id);
+        const id = (doc as { _id?: unknown })._id;
+        if (id != null) ids.add(String(id));
     }
     for (const id of withSnapshots) if (typeof id === 'string' && id) ids.add(id);
     for (const id of withReports) if (typeof id === 'string' && id) ids.add(id);
