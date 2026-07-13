@@ -20,10 +20,11 @@
  */
 
 import cron from 'node-cron';
-import { getIntelligenceReportsCollection } from '@restropulse/db';
-import type { IntelligenceReport } from '@restropulse/shared';
+import { getIntelligenceReportsCollection, getNearbySightingsCollection } from '@restropulse/db';
+import type { CompetitorAlert, IntelligenceReport, NearbyPlaceSighting } from '@restropulse/shared';
 import { createLogger, tracedCronJob } from '@restropulse/telemetry/server';
 import { computeCompetitorAlerts } from './alerts.js';
+import { NEW_COMPETITOR_RADIUS_KM } from './sweep.js';
 import { pruneReports } from './prune.js';
 import { emitAlertEvents, emitScanCompleted } from './events.js';
 import { createEnqueueRescan, type RescanFn, type RescanTarget } from './rescan.js';
@@ -62,6 +63,39 @@ export interface RefreshStats {
 export async function getActiveIntelligenceRestaurantIds(): Promise<string[]> {
     const ids = await getIntelligenceReportsCollection().distinct('restaurantId');
     return ids.filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+/** The week's window in ms (for "snapshot deltas since the last weekly report"). */
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * ADDITIVE (Brief 08): copy the week's snapshot-loop deltas into
+ * `competitorAlerts`. Reads `nearby_sightings` first-seen in the last 7 days
+ * within the new-competitor radius and maps each to a `new_competitor` alert.
+ *
+ * v1 tenants have no sightings, so this returns `[]` and the weekly job is
+ * byte-identical to what shipped; only v2 tenants (running the daily sweep) gain
+ * these alerts.
+ */
+async function weeklySnapshotAlerts(restaurantId: string, now: Date): Promise<CompetitorAlert[]> {
+    const cutoff = new Date(now.getTime() - WEEK_MS);
+    const sightings = (await getNearbySightingsCollection()
+        .find({
+            restaurantId,
+            firstSeenAt: { $gte: cutoff },
+            distanceKm: { $lte: NEW_COMPETITOR_RADIUS_KM },
+        })
+        .sort({ distanceKm: 1 })
+        .toArray()) as unknown as NearbyPlaceSighting[];
+
+    return sightings.map((s) => ({
+        type: 'new_competitor' as const,
+        severity: 'info' as const,
+        message: `New nearby place "${s.name}" first seen ${s.distanceKm.toFixed(
+            1,
+        )} km away. Track their momentum in New Openings.`,
+        competitorName: s.name,
+    }));
 }
 
 async function latestReports(restaurantId: string, limit: number): Promise<StoredReport[]> {
@@ -105,7 +139,16 @@ async function processRestaurant(
         return;
     }
 
-    const alerts = computeCompetitorAlerts(previous ?? null, current);
+    const reportAlerts = computeCompetitorAlerts(previous ?? null, current);
+
+    // ADDITIVE (Brief 08): fold in the week's snapshot-loop deltas. Empty for v1
+    // tenants (no sightings) → the array below is identical to what shipped.
+    const snapshotAlerts = await weeklySnapshotAlerts(restaurantId, now);
+    const seenNames = new Set(reportAlerts.map((a) => a.competitorName).filter(Boolean));
+    const alerts = [
+        ...reportAlerts,
+        ...snapshotAlerts.filter((a) => !seenNames.has(a.competitorName)),
+    ];
 
     // Enrich competitorAlerts only when deltas exist (i.e. there was a previous
     // report at build time); never fabricate a partial ReportDeltas.

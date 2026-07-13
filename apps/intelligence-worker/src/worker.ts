@@ -21,6 +21,8 @@ import { loadAndValidateEnv, z } from '@restropulse/shared';
 import { connectDB, disconnectDB } from '@restropulse/db';
 import { createLogger, shutdownServerTelemetry } from '@restropulse/telemetry/server';
 import { startIntelligenceRefreshCron } from './refresh.js';
+import { startDailySnapshotCron } from './daily-cron.js';
+import { runBackfill } from './backfill.js';
 
 const logger = createLogger('intelligence-worker');
 
@@ -33,6 +35,9 @@ loadAndValidateEnv({
             MONGODB_URI: z.string().min(1),
             MONGODB_DB_NAME: z.string().min(1).default('restropulse'),
             CRON_INTELLIGENCE: z.string().default('0 3 * * 1'),
+            // Daily snapshot loop (Brief 08): schedule + kill switch.
+            CRON_INTELLIGENCE_DAILY: z.string().default('0 2 * * *'),
+            INTELLIGENCE_DAILY_ENABLED: z.string().optional(),
             // Server-side only; needed once the in-process re-scan seam is wired
             // (see src/rescan.ts). The default enqueue seam does not use them.
             GOOGLE_MAPS_API_KEY: z.string().optional(),
@@ -47,8 +52,13 @@ const startWorker = async (): Promise<void> => {
 
         await connectDB();
         startIntelligenceRefreshCron();
+        startDailySnapshotCron();
 
-        logger.info('Intelligence worker is running -- weekly refresh cron scheduled');
+        // Backfill on boot: fill any missing days in the last 7 (Brief 08).
+        // Best-effort — never blocks the crons from being scheduled.
+        runBackfill().catch((error) => logger.error({ err: error }, 'Backfill on boot failed'));
+
+        logger.info('Intelligence worker is running -- weekly + daily crons scheduled');
     } catch (error) {
         logger.error({ err: error }, 'Failed to start worker');
         process.exit(1);
