@@ -50,6 +50,9 @@ export const serverMetrics = {
     webhooksReceived: meter.createCounter('webhooks.received', {
         description: 'Webhook events received',
     }),
+    placesCalls: meter.createCounter('places.calls', {
+        description: 'Google Places (New) API calls made by the intelligence worker',
+    }),
 };
 
 /**
@@ -70,7 +73,7 @@ export function recordMetric(
  * Increment a counter metric.
  */
 export function incrementCounter(
-    name: 'publishAttempts' | 'tokenRefreshes' | 'contentGenerated' | 'webhooksReceived',
+    name: 'publishAttempts' | 'tokenRefreshes' | 'contentGenerated' | 'webhooksReceived' | 'placesCalls',
     attributes?: Attributes,
 ): void {
     const counter = serverMetrics[name];
