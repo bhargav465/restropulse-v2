@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { IntelligenceReport, IntelligenceSelfMetrics, PillarScore, Restaurant } from '@restropulse/shared';
-import { intelligenceAPI } from '../../api';
+import { intelligenceAPI, restaurantAPI } from '../../api';
 import { SubNav, SubNavTab } from './primitives';
 import { ScoreDial, PillarBar, CheckRow, type Grade, PILLAR_LABELS, gradeTextClass } from './intelligence/primitives';
 import { ProvenanceChip, ProvenanceLegend } from './intelligence/provenance';
@@ -247,7 +247,18 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
 
     // Empty state (no report yet)
     if (report === null) {
-        return <ScanFlow variant="first-run" defaults={scanDefaults} api={intelligenceAPI} onReport={setReport} />;
+        return (
+            <ScanFlow
+                variant="first-run"
+                defaults={scanDefaults}
+                api={intelligenceAPI}
+                onReport={setReport}
+                onPlaceConfirmed={(sel) => {
+                    // Persist the confirmed placeId so future scans skip text search.
+                    void restaurantAPI.updateProfile({ googlePlaceId: sel.placeId }).catch(() => {});
+                }}
+            />
+        );
     }
 
     return (

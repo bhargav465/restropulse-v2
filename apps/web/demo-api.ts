@@ -901,7 +901,7 @@ const intelScanPolls = new Map<string, number>();
 const intelFixtures = () => import('./lib/demo-fixtures-intelligence');
 
 export const intelligenceAPI = {
-    startScan: async (_body: { name?: string; city?: string; force?: boolean }): Promise<{ scanId: string }> => {
+    startScan: async (_body: { name?: string; city?: string; force?: boolean; placeId?: string }): Promise<{ scanId: string }> => {
         await delay();
         notifyDemoBackendAction();
         const scanId = `demo-scan-${randomSuffix()}`;

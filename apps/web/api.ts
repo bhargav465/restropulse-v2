@@ -960,7 +960,7 @@ export interface ZomatoManualInput {
 // Routes under /api/admin/intelligence (merchant JWT + OWNER). Scans are async
 // jobs: startScan returns a scanId, the UI polls getScan until COMPLETED.
 const realIntelligenceAPI = {
-    startScan: async (body: { name?: string; city?: string; force?: boolean }): Promise<{ scanId: string }> => {
+    startScan: async (body: { name?: string; city?: string; force?: boolean; placeId?: string }): Promise<{ scanId: string }> => {
         const res = await fetchAPI<ApiResponse<{ scanId: string }>>('/admin/intelligence/scan', {
             method: 'POST',
             body: JSON.stringify(body),
