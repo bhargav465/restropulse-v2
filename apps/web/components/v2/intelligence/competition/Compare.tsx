@@ -5,8 +5,6 @@ import type { PeriodQuery } from '../period';
 import { compareParamsFor } from '../period';
 import { TOKENS, SERIES } from '../../theme';
 import { TrendChart, type TrendSeries } from '../charts';
-import WhereTheyBeatYou from './WhereTheyBeatYou';
-import type { DeepLinkTarget } from '../deep-links';
 
 /**
  * Compare (Brief 09 §3) — the competition matrix (rows self + watchlist; columns
@@ -139,7 +137,7 @@ export const CompareView: React.FC<{
 };
 
 /** Container: fetches the compare rows + per-target rating trend for the period. */
-const Compare: React.FC<{ query: PeriodQuery; report: IntelligenceReport | null; onNavigate: (t: DeepLinkTarget) => void }> = ({ query, report, onNavigate }) => {
+const Compare: React.FC<{ query: PeriodQuery }> = ({ query }) => {
     const [rows, setRows] = useState<CompareRow[] | null>(null);
     const [trend, setTrend] = useState<{ labels: string[]; series: TrendSeries[] } | undefined>(undefined);
 
@@ -189,12 +187,7 @@ const Compare: React.FC<{ query: PeriodQuery; report: IntelligenceReport | null;
 
     if (rows === null) return <p className="text-sm text-muted">Loading the comparison…</p>;
 
-    return (
-        <div className="space-y-8">
-            <CompareView rows={rows} trend={trend} />
-            <WhereTheyBeatYou rows={rows} report={report} onNavigate={onNavigate} />
-        </div>
-    );
+    return <CompareView rows={rows} trend={trend} />;
 };
 
 export default Compare;

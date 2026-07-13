@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { CompareRow, MetricGap, CompetitorProfile, IntelligenceReport } from '@restropulse/shared';
+import { intelligenceAPI } from '../../../../api';
+import { compareParamsFor, type PeriodQuery } from '../period';
 import { ThreatRadar } from '../ThreatRadar';
 import { ProvenanceChip } from '../provenance';
 import { resolveDeepLink, type DeepLinkTarget } from '../deep-links';
@@ -134,12 +136,33 @@ export const WhereTheyBeatYouView: React.FC<{
     );
 };
 
-/** Adapter used by the Compare container (rows + report already loaded upstream). */
+/** Container: fetches compare rows for the period and joins the v1 report layer. */
 const WhereTheyBeatYou: React.FC<{
-    rows: CompareRow[];
+    query: PeriodQuery;
     report: IntelligenceReport | null;
     onNavigate: (t: DeepLinkTarget) => void;
-}> = ({ rows, report, onNavigate }) => {
+}> = ({ query, report, onNavigate }) => {
+    const [rows, setRows] = useState<CompareRow[] | null>(null);
+    const params = useMemo(() => compareParamsFor(query), [query.from, query.to, query.granularity]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setRows(null);
+            try {
+                const data = await intelligenceAPI.getCompare(params);
+                if (!cancelled) setRows(data);
+            } catch {
+                if (!cancelled) setRows([]);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [params.granularity, (params as { date?: string }).date, (params as { month?: string }).month]);
+
+    if (rows === null) return <p className="text-sm text-muted">Loading where they beat you…</p>;
+
     const profilesByName = report ? Object.fromEntries(report.competitors.map((c) => [c.name, c])) : {};
     const radar = report
         ? { base: { lat: report.base.location.lat, lng: report.base.location.lng, name: report.base.name }, competitors: report.topCompetitors }

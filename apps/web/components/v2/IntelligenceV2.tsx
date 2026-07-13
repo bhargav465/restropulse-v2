@@ -6,20 +6,49 @@ import { ScoreDial, PillarBar, CheckRow, type Grade, PILLAR_LABELS, gradeTextCla
 import { ProvenanceChip, ProvenanceLegend } from './intelligence/provenance';
 import { resolveActionHref, type DeepLinkTarget } from './intelligence/deep-links';
 import ScanFlow from './intelligence/ScanFlow';
-import Overview from './intelligence/Overview';
-import Competitors from './intelligence/Competitors';
-import Reviews from './intelligence/Reviews';
-import SearchSEO from './intelligence/SearchSEO';
-import YourMetrics from './intelligence/YourMetrics';
+import { BucketSwitch } from './intelligence/BucketSwitch';
+import { PeriodFilter } from './intelligence/PeriodFilter';
+import {
+    type BucketId,
+    type MineSelection,
+    type CompetitionSelection,
+    defaultMineSelection,
+    defaultCompetitionSelection,
+    mineQuery,
+    competitionQuery,
+} from './intelligence/period';
+// My Restaurant bucket (v1 Overview + Search re-homed; Trends + Feedback new).
+import MyOverview from './intelligence/my-restaurant/Overview';
+import DailyTrends from './intelligence/my-restaurant/DailyTrends';
+import FeedbackChanges from './intelligence/my-restaurant/FeedbackChanges';
+import SearchSEO from './intelligence/my-restaurant/SearchSEO';
+// Competition bucket (Competitors + Reviews re-homed/rebuilt here).
+import Watchlist from './intelligence/competition/Watchlist';
+import Compare from './intelligence/competition/Compare';
+import WhereTheyBeatYou from './intelligence/competition/WhereTheyBeatYou';
+import NewOpenings from './intelligence/competition/NewOpenings';
 
 /**
- * Restaurant Intelligence bucket (DESIGN.md). Replaces the placeholder with a
- * sub-tab router: RestroScore header band (§3) + 5 sub-tabs (§4), plus the
- * empty state / scan stepper (§2). Renders entirely from the [SAMPLE] fixture
- * in demo mode with zero backend (intelligenceAPI → demo twin).
+ * Restaurant Intelligence bucket — two-bucket dashboard (Brief 09). RestroScore
+ * header band (unchanged) → BucketSwitch (My Restaurant | Competition) →
+ * bucket-scoped PeriodFilter → bucket content. Every v1 sub-tab's content
+ * survives, re-homed under a bucket (nothing deleted). Renders entirely from the
+ * [SAMPLE] fixtures in demo mode with zero backend (intelligenceAPI → demo twin).
  */
 
-type IntelTab = 'OVERVIEW' | 'COMPETITORS' | 'REVIEWS' | 'SEARCH' | 'METRICS';
+type MineTab = 'OVERVIEW' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
+type CompTab = 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
+
+function initialBucket(): BucketId {
+    if (typeof window !== 'undefined') {
+        const param = new URLSearchParams(window.location.search).get('bucket');
+        if (param === 'competition') return 'COMPETITION';
+        if (param === 'mine') return 'MINE';
+        const saved = window.sessionStorage?.getItem('intel_bucket');
+        if (saved === 'COMPETITION' || saved === 'MINE') return saved;
+    }
+    return 'MINE';
+}
 
 interface IntelligenceV2Props {
     restaurantData: Restaurant;
@@ -137,9 +166,19 @@ function restroGrade(score: number): Grade {
 const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavigate }) => {
     const [report, setReport] = useState<IntelligenceReport | null | undefined>(undefined);
     const [selfMetrics, setSelfMetrics] = useState<IntelligenceSelfMetrics | null>(null);
-    const [tab, setTab] = useState<IntelTab>('OVERVIEW');
     const [selectedPillar, setSelectedPillar] = useState<PillarScore['key'] | null>(null);
     const [rescanning, setRescanning] = useState(false);
+
+    // Two-bucket state (persisted per session + ?bucket= param).
+    const [bucket, setBucket] = useState<BucketId>(initialBucket);
+    const [mineTab, setMineTab] = useState<MineTab>('OVERVIEW');
+    const [compTab, setCompTab] = useState<CompTab>('WATCHLIST');
+    const [mineSel, setMineSel] = useState<MineSelection>(() => defaultMineSelection());
+    const [compSel, setCompSel] = useState<CompetitionSelection>(() => defaultCompetitionSelection());
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.sessionStorage?.setItem('intel_bucket', bucket);
+    }, [bucket]);
 
     useEffect(() => {
         let cancelled = false;
@@ -168,13 +207,21 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         [restaurantData.name, restaurantData.sourceCity],
     );
 
-    const tabs: Array<SubNavTab<IntelTab>> = [
+    const mineTabs: Array<SubNavTab<MineTab>> = [
         { id: 'OVERVIEW', label: 'Overview' },
-        { id: 'COMPETITORS', label: 'Competitors' },
-        { id: 'REVIEWS', label: 'Reviews & Sentiment' },
+        { id: 'TRENDS', label: 'Daily Trends' },
+        { id: 'FEEDBACK', label: 'Feedback Changes' },
         { id: 'SEARCH', label: 'Search & SEO' },
-        { id: 'METRICS', label: 'Your Metrics' },
     ];
+    const compTabs: Array<SubNavTab<CompTab>> = [
+        { id: 'WATCHLIST', label: 'Watchlist' },
+        { id: 'COMPARE', label: 'Compare' },
+        { id: 'BEAT', label: 'Where They Beat You' },
+        { id: 'OPENINGS', label: 'New Openings' },
+    ];
+
+    const minePeriod = mineQuery(mineSel);
+    const compPeriod = competitionQuery(compSel);
 
     // Loading
     if (report === undefined) {
@@ -213,18 +260,33 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 onNavigate={nav}
             />
 
-            <SubNav tabs={tabs} active={tab} onChange={setTab} label="Intelligence sections" />
-
-            {tab === 'OVERVIEW' && <Overview report={report} onNavigate={nav} />}
-            {tab === 'COMPETITORS' && <Competitors report={report} />}
-            {tab === 'REVIEWS' && <Reviews report={report} onNavigate={nav} />}
-            {tab === 'SEARCH' && <SearchSEO report={report} onNavigate={nav} />}
-            {tab === 'METRICS' &&
-                (selfMetrics ? (
-                    <YourMetrics metrics={selfMetrics} onNavigate={nav} />
+            {/* Bucket switch + bucket-scoped period filter */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <BucketSwitch value={bucket} onChange={setBucket} />
+                {bucket === 'MINE' ? (
+                    <PeriodFilter bucket="MINE" selection={mineSel} onChange={setMineSel} />
                 ) : (
-                    <div className="text-sm text-muted">Loading your metrics…</div>
-                ))}
+                    <PeriodFilter bucket="COMPETITION" selection={compSel} onChange={setCompSel} />
+                )}
+            </div>
+
+            {bucket === 'MINE' ? (
+                <>
+                    <SubNav tabs={mineTabs} active={mineTab} onChange={setMineTab} label="My Restaurant sections" />
+                    {mineTab === 'OVERVIEW' && <MyOverview report={report} metrics={selfMetrics} onNavigate={nav} />}
+                    {mineTab === 'TRENDS' && <DailyTrends query={minePeriod} />}
+                    {mineTab === 'FEEDBACK' && <FeedbackChanges query={minePeriod} onNavigate={nav} />}
+                    {mineTab === 'SEARCH' && <SearchSEO report={report} onNavigate={nav} />}
+                </>
+            ) : (
+                <>
+                    <SubNav tabs={compTabs} active={compTab} onChange={setCompTab} label="Competition sections" />
+                    {compTab === 'WATCHLIST' && <Watchlist />}
+                    {compTab === 'COMPARE' && <Compare query={compPeriod} />}
+                    {compTab === 'BEAT' && <WhereTheyBeatYou query={compPeriod} report={report} onNavigate={nav} />}
+                    {compTab === 'OPENINGS' && <NewOpenings onNavigate={nav} />}
+                </>
+            )}
         </div>
     );
 };
