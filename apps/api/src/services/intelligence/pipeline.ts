@@ -49,11 +49,15 @@ function compact(rows: Array<{ name: string; rating: number; totalRatings: numbe
  * Run the full scan pipeline for an existing QUEUED scan. Resolves when the scan
  * reaches a terminal state; never throws (failures are written to the scan doc).
  */
-export async function runScanPipeline(scanId: string, query: { name: string; city: string }): Promise<void> {
+export async function runScanPipeline(
+    scanId: string,
+    query: { name: string; city: string; placeId?: string },
+): Promise<void> {
     try {
         // ---- FETCHING_PLACES ----
         await setStatus(scanId, 'FETCHING_PLACES');
-        const base = await getBaseRestaurantDetails(query.name, query.city);
+        // Brief 10: a confirmed placeId skips text-search disambiguation.
+        const base = await getBaseRestaurantDetails(query.name, query.city, query.placeId);
         if (!base) {
             throw new StageError(
                 `Could not find "${query.name}" in ${query.city} on Google. Check the name and city and try again.`,

@@ -81,7 +81,12 @@ const SCAN_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
 router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ scanId: string }>>) => {
     const rid = restaurantId(req);
-    const { name, city, force } = (req.body ?? {}) as { name?: unknown; city?: unknown; force?: unknown };
+    const { name, city, force, placeId } = (req.body ?? {}) as {
+        name?: unknown;
+        city?: unknown;
+        force?: unknown;
+        placeId?: unknown;
+    };
 
     // Defaults from the restaurant profile.
     const restaurant = await findRestaurantById(rid);
@@ -90,6 +95,11 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
         typeof city === 'string' && city.trim()
             ? city.trim()
             : (restaurant?.sourceCity ?? restaurant?.location?.address);
+    // Brief 10: confirmed placeId from the picker (request) → else the saved profile id.
+    const scanPlaceId =
+        typeof placeId === 'string' && placeId.trim()
+            ? placeId.trim()
+            : restaurant?.googlePlaceId;
 
     if (!scanName || !scanCity) {
         return res.status(400).json({
@@ -119,7 +129,7 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
     const scan: IntelligenceScan = {
         _id: scanId,
         restaurantId: rid,
-        query: { name: scanName, city: scanCity },
+        query: { name: scanName, city: scanCity, ...(scanPlaceId ? { placeId: scanPlaceId } : {}) },
         status: 'QUEUED',
         requestedBy: req.user!.userId,
         createdAt: now,
@@ -129,7 +139,7 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
 
     // Fire-and-forget: the pipeline writes status to the scan doc; the response
     // does not wait on it. runScanPipeline never throws (writes FAILED itself).
-    void runScanPipeline(scanId, { name: scanName, city: scanCity });
+    void runScanPipeline(scanId, { name: scanName, city: scanCity, ...(scanPlaceId ? { placeId: scanPlaceId } : {}) });
 
     log.info({ scanId, restaurantId: rid }, 'Intelligence scan queued');
     res.status(202).json({ success: true, data: { scanId } });

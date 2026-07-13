@@ -47,7 +47,7 @@ const PLACES_SEARCH_FIELDS = [
 ].join(',');
 
 const BASE_DETAIL_FIELD_MASK =
-    'displayName,rating,userRatingCount,websiteUri,googleMapsUri,nationalPhoneNumber,regularOpeningHours,photos,reviews,editorialSummary,businessStatus,formattedAddress,addressComponents';
+    'id,location,priceLevel,displayName,rating,userRatingCount,websiteUri,googleMapsUri,nationalPhoneNumber,regularOpeningHours,photos,reviews,editorialSummary,businessStatus,formattedAddress,addressComponents';
 
 const PRICE_LEVEL_MAP: Record<string, number> = {
     PRICE_LEVEL_FREE: 0,
@@ -96,6 +96,8 @@ export interface BaseRestaurant {
     location: { lat: number; lng: number };
     zone: string | null;
     formattedAddress: string | null;
+    /** AOV proxy: Places price level 0–4, or null when Google has none (Brief 10). */
+    priceLevel: number | null;
 }
 
 // ---- Low-level fetch ----
@@ -201,40 +203,54 @@ async function getPlaceCache(placeId: string): Promise<Record<string, unknown> |
  * Returns null if the restaurant cannot be found. Detail lookups hit
  * `competitor_cache` first (TTL 7 days).
  */
-export async function getBaseRestaurantDetails(name: string, city: string): Promise<BaseRestaurant | null> {
-    const findData = await placesTextSearch(
-        { textQuery: `${name}, ${city}`, pageSize: 1 },
-        'places.id,places.displayName,places.rating,places.userRatingCount,places.location',
-    ).catch(() => null);
-
-    const found = findData?.places?.[0];
-    if (!found?.id) return null;
-
-    const placeId = found.id;
+export async function getBaseRestaurantDetails(
+    name: string,
+    city: string,
+    placeId?: string,
+): Promise<BaseRestaurant | null> {
+    // Brief 10: when the owner confirmed their restaurant in the place picker, we
+    // already know the placeId — skip text-search disambiguation entirely and go
+    // straight to Place Details (fewer Places calls, zero wrong-restaurant scans).
+    let found: PlaceApi | undefined;
+    let resolvedPlaceId: string;
+    if (placeId && placeId.trim()) {
+        resolvedPlaceId = placeId.trim();
+    } else {
+        const findData = await placesTextSearch(
+            { textQuery: `${name}, ${city}`, pageSize: 1 },
+            'places.id,places.displayName,places.rating,places.userRatingCount,places.location',
+        ).catch(() => null);
+        found = findData?.places?.[0];
+        if (!found?.id) return null;
+        resolvedPlaceId = found.id;
+    }
 
     // Cache hit skips the detail call.
-    let d = (await getPlaceCache(placeId)) as PlaceApi | null;
+    let d = (await getPlaceCache(resolvedPlaceId)) as PlaceApi | null;
     if (!d) {
-        const detailRes = await fetch(`${PLACES_BASE}/places/${placeId}`, {
+        const detailRes = await fetch(`${PLACES_BASE}/places/${resolvedPlaceId}`, {
             headers: {
                 'X-Goog-Api-Key': getGoogleKey(),
                 'X-Goog-FieldMask': BASE_DETAIL_FIELD_MASK,
             },
         });
         d = detailRes.ok ? ((await detailRes.json()) as PlaceApi) : null;
-        if (d) await upsertPlaceCache(placeId, d as unknown as Record<string, unknown>);
+        if (d) await upsertPlaceCache(resolvedPlaceId, d as unknown as Record<string, unknown>);
     }
 
-    const location = found.location
-        ? { lat: found.location.latitude ?? 0, lng: found.location.longitude ?? 0 }
+    // Prefer the detail location; the search result is the fallback (text path only).
+    const locSource = d?.location ?? found?.location;
+    const location = locSource
+        ? { lat: locSource.latitude ?? 0, lng: locSource.longitude ?? 0 }
         : { lat: 0, lng: 0 };
+    const priceLevel = d?.priceLevel ? (PRICE_LEVEL_MAP[d.priceLevel] ?? null) : null;
 
     if (!d) {
         return {
-            placeId,
-            name: found.displayName?.text ?? name,
-            rating: found.rating ?? 0,
-            totalRatings: found.userRatingCount ?? 0,
+            placeId: resolvedPlaceId,
+            name: found?.displayName?.text ?? name,
+            rating: found?.rating ?? 0,
+            totalRatings: found?.userRatingCount ?? 0,
             website: null,
             phone: null,
             hasHours: false,
@@ -246,6 +262,7 @@ export async function getBaseRestaurantDetails(name: string, city: string): Prom
             location,
             zone: null,
             formattedAddress: null,
+            priceLevel: null,
         };
     }
 
@@ -265,8 +282,8 @@ export async function getBaseRestaurantDetails(name: string, city: string): Prom
     }));
 
     return {
-        placeId,
-        name: d.displayName?.text ?? found.displayName?.text ?? name,
+        placeId: resolvedPlaceId,
+        name: d.displayName?.text ?? found?.displayName?.text ?? name,
         rating: d.rating ?? 0,
         totalRatings: d.userRatingCount ?? 0,
         website: d.websiteUri ?? null,
@@ -282,6 +299,7 @@ export async function getBaseRestaurantDetails(name: string, city: string): Prom
         location,
         zone,
         formattedAddress: d.formattedAddress ?? null,
+        priceLevel,
     };
 }
 
