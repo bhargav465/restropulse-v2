@@ -73,8 +73,9 @@ const HeaderBand: React.FC<{
     selectedPillar: PillarScore['key'] | null;
     onSelectPillar: (key: PillarScore['key']) => void;
     onRescan: () => void;
+    onPickRestaurant: () => void;
     onNavigate: (t: DeepLinkTarget) => void;
-}> = ({ report, selectedPillar, onSelectPillar, onRescan, onNavigate }) => {
+}> = ({ report, selectedPillar, onSelectPillar, onRescan, onPickRestaurant, onNavigate }) => {
     const grade: Grade = restroGrade(report.restroScore);
     const scannedAt = new Date(report.generatedAt);
     const withinWindow = Date.now() - scannedAt.getTime() < DAY_MS;
@@ -108,6 +109,14 @@ const HeaderBand: React.FC<{
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-line text-primary-strong hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:hover:bg-surface"
                     >
                         Re-scan
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onPickRestaurant}
+                        title="Search Google for your restaurant and scan it"
+                        className="text-xs font-semibold text-primary-strong hover:underline"
+                    >
+                        Scan a different restaurant
                     </button>
                 </div>
             </div>
@@ -169,6 +178,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
     const [selfMetrics, setSelfMetrics] = useState<IntelligenceSelfMetrics | null>(null);
     const [selectedPillar, setSelectedPillar] = useState<PillarScore['key'] | null>(null);
     const [rescanning, setRescanning] = useState(false);
+    const [picking, setPicking] = useState(false);
 
     // Two-bucket state (persisted per session + ?bucket= param).
     const [bucket, setBucket] = useState<BucketId>(initialBucket);
@@ -263,6 +273,26 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         );
     }
 
+    // Add / change restaurant via the Google picker (reachable even once a
+    // report exists — otherwise the picker is stranded behind the empty state).
+    if (picking) {
+        return (
+            <ScanFlow
+                variant="first-run"
+                defaults={scanDefaults}
+                api={intelligenceAPI}
+                onReport={(r) => {
+                    setReport(r);
+                    setPicking(false);
+                }}
+                onCancel={() => setPicking(false)}
+                onPlaceConfirmed={(sel) => {
+                    void restaurantAPI.updateProfile({ googlePlaceId: sel.placeId }).catch(() => {});
+                }}
+            />
+        );
+    }
+
     return (
         <div className="space-y-6">
             <HeaderBand
@@ -270,6 +300,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 selectedPillar={selectedPillar}
                 onSelectPillar={(k) => setSelectedPillar((cur) => (cur === k ? null : k))}
                 onRescan={() => setRescanning(true)}
+                onPickRestaurant={() => setPicking(true)}
                 onNavigate={nav}
             />
 

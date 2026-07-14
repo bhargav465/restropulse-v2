@@ -142,9 +142,19 @@ const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, o
         );
     }
 
-    // Empty state (no report yet).
+    // Empty state (no report yet) — also reached from the report view via
+    // "Scan a different restaurant", where onCancel returns to the report.
     return (
         <div className="space-y-6">
+            {variant === 'first-run' && onCancel && (
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="text-xs font-semibold text-muted hover:text-ink"
+                >
+                    ← Back to your report
+                </button>
+            )}
             <div className="bg-banner rounded-2xl p-8 text-white">
                 <div className="text-4xl mb-3" aria-hidden="true">📊</div>
                 <h3 className="text-xl font-semibold">Run your first scan</h3>
