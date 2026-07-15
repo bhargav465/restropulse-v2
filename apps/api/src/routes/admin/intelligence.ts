@@ -67,7 +67,7 @@ const log = createLogger('admin-intelligence');
 const router = express.Router();
 
 // Merchant auth for everything below (OWNER only).
-router.use(requireAuth, requireRole('OWNER'));
+router.use(requireAuth, requireRole('OWNER', 'ADMIN'));
 
 function restaurantId(req: Request): string {
     return req.user!.restaurantId;

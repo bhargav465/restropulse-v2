@@ -68,7 +68,7 @@ const log = createLogger('admin-ordering');
 const router = express.Router();
 
 // Merchant auth for everything below (OWNER only)
-router.use(requireAuth, requireRole('OWNER'));
+router.use(requireAuth, requireRole('OWNER', 'ADMIN'));
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
