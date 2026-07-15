@@ -62,6 +62,7 @@ jobs:
             printf '%s' "$VAL" | vercel env add "$KEY" production --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           }
           set_env MONGODB_URI            "${{ secrets.MONGODB_URI }}"
+          set_env MONGODB_DB_NAME        "${{ secrets.MONGODB_DB_NAME || 'restropulse-dev' }}"
           set_env JWT_SECRET             "${{ secrets.JWT_SECRET }}"
           set_env RAZORPAY_KEY_ID        "${{ secrets.RAZORPAY_KEY_ID }}"
           set_env RAZORPAY_KEY_SECRET    "${{ secrets.RAZORPAY_KEY_SECRET }}"
