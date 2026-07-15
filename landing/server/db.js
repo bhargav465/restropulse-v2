@@ -7,9 +7,11 @@ let clientPromise = null;
 
 async function connect() {
   if (!clientPromise) {
-    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 4000 });
+    // 15s: serverless cold starts need headroom for SRV DNS + TLS to Atlas.
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 15000 });
     clientPromise = client.connect().catch(err => {
       clientPromise = null; // allow retry on next request
+      console.error("[landing] Mongo connect failed:", err && err.message);
       throw err;
     });
   }
