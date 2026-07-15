@@ -5,13 +5,10 @@ name: Deploy to Vercel (production)
 #   restropulse-admin      — merchant dashboard (Vite SPA, v2 shell)
 #   restropulse-storefront — customer ordering site (Vite SPA)
 #
-# Required GitHub repo secrets:
-#   VERCEL_TOKEN          — Vercel personal token (Account Settings → Tokens)
-#   MONGODB_URI           — MongoDB Atlas connection string
-#   JWT_SECRET            — any long random string (keep stable across deploys)
-#   RAZORPAY_KEY_ID       — Razorpay test/live key id (optional; payments stub without it)
-#   RAZORPAY_KEY_SECRET   — Razorpay key secret (optional)
-#   RAZORPAY_WEBHOOK_SECRET — Razorpay webhook secret (optional)
+# Secrets: EITHER individual repo secrets (VERCEL_TOKEN, MONGODB_URI,
+# JWT_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET,
+# MONGODB_DB_NAME) OR a single secret named DEPLOYMENT containing
+# KEY=VALUE lines (like a .env file). DEPLOYMENT lines win.
 
 on:
   push:
@@ -32,6 +29,34 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Load secrets
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          S_MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          S_MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
+          S_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          S_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          S_RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          S_RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          emit MONGODB_URI "$S_MONGODB_URI"
+          emit MONGODB_DB_NAME "$S_MONGODB_DB_NAME"
+          emit JWT_SECRET "$S_JWT_SECRET"
+          emit RAZORPAY_KEY_ID "$S_RAZORPAY_KEY_ID"
+          emit RAZORPAY_KEY_SECRET "$S_RAZORPAY_KEY_SECRET"
+          emit RAZORPAY_WEBHOOK_SECRET "$S_RAZORPAY_WEBHOOK_SECRET"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in ''|\#*) continue;; esac
+            case "$line" in *=*) ;; *) continue;; esac
+            key="${line%%=*}"; val="${line#*=}"
+            key="$(printf '%s' "$key" | tr -d '[:space:]')"
+            emit "$key" "$val"
+          done <<< "$BLOB"
+          [ -n "$S_VERCEL_TOKEN$BLOB" ] || { echo "No secrets configured — add the DEPLOYMENT secret."; exit 1; }
       - name: Install workspace
         run: npm ci --no-audit --no-fund
       - name: Build workspace packages
@@ -44,16 +69,11 @@ jobs:
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
       - name: Configure project env vars
-        working-directory: dist-vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
+          [ -n "$VERCEL_TOKEN" ] || { echo "VERCEL_TOKEN missing (set it in the DEPLOYMENT secret as VERCEL_TOKEN=...)"; exit 1; }
           mkdir -p /tmp/deploy/restropulse-api
-          cp -r . /tmp/deploy/restropulse-api/
+          cp -r dist-vercel/. /tmp/deploy/restropulse-api/
           cd /tmp/deploy/restropulse-api
-          # Create/link the project non-interactively
-          vercel link --yes --project restropulse-api --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" \
-            || vercel deploy --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" > /dev/null
           vercel link --yes --project restropulse-api --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           set_env () {
             KEY="$1"; VAL="$2"
@@ -61,22 +81,19 @@ jobs:
             vercel env rm "$KEY" production --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>/dev/null || true
             printf '%s' "$VAL" | vercel env add "$KEY" production --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           }
-          set_env MONGODB_URI            "${{ secrets.MONGODB_URI }}"
-          set_env MONGODB_DB_NAME        "${{ secrets.MONGODB_DB_NAME || 'restropulse-dev' }}"
-          set_env JWT_SECRET             "${{ secrets.JWT_SECRET }}"
-          set_env RAZORPAY_KEY_ID        "${{ secrets.RAZORPAY_KEY_ID }}"
-          set_env RAZORPAY_KEY_SECRET    "${{ secrets.RAZORPAY_KEY_SECRET }}"
-          set_env RAZORPAY_WEBHOOK_SECRET "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}"
-          set_env NODE_ENV               "production"
+          set_env MONGODB_URI             "$MONGODB_URI"
+          set_env MONGODB_DB_NAME         "${MONGODB_DB_NAME:-restropulse-dev}"
+          set_env JWT_SECRET              "$JWT_SECRET"
+          set_env RAZORPAY_KEY_ID         "$RAZORPAY_KEY_ID"
+          set_env RAZORPAY_KEY_SECRET     "$RAZORPAY_KEY_SECRET"
+          set_env RAZORPAY_WEBHOOK_SECRET "$RAZORPAY_WEBHOOK_SECRET"
+          set_env NODE_ENV                "production"
       - name: Deploy API (production)
         id: deploy
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           cd /tmp/deploy/restropulse-api
           URL=$(vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN")
           echo "Deployment URL: $URL"
-          # Prefer the stable project alias if one exists
           ALIAS=$(vercel inspect "$URL" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>&1 | grep -oE 'https://restropulse-api[a-z0-9.-]*\.vercel\.app' | head -1 || true)
           FINAL="${ALIAS:-$URL}"
           echo "api_url=$FINAL" >> "$GITHUB_OUTPUT"
@@ -91,6 +108,18 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Load secrets
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in ''|\#*) continue;; esac
+            case "$line" in VERCEL_TOKEN=*) emit VERCEL_TOKEN "${line#*=}";; esac
+          done <<< "$BLOB"
       - name: Install workspace
         run: npm ci --no-audit --no-fund
       - name: Build workspace packages
@@ -106,12 +135,10 @@ jobs:
           VITE_STOREFRONT_URL: https://restropulse-storefront.vercel.app
         run: npx vite build
       - name: Deploy admin (production)
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           npm i -g vercel@latest
           mkdir -p /tmp/deploy/restropulse-admin
-          cp -r apps/web/dist/* /tmp/deploy/restropulse-admin/
+          cp -r apps/web/dist/. /tmp/deploy/restropulse-admin/
           cat > /tmp/deploy/restropulse-admin/vercel.json <<'JSON'
           {
             "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -119,6 +146,7 @@ jobs:
           }
           JSON
           cd /tmp/deploy/restropulse-admin
+          vercel link --yes --project restropulse-admin --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
   deploy-storefront:
@@ -130,6 +158,18 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Load secrets
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in ''|\#*) continue;; esac
+            case "$line" in VERCEL_TOKEN=*) emit VERCEL_TOKEN "${line#*=}";; esac
+          done <<< "$BLOB"
       - name: Install workspace
         run: npm ci --no-audit --no-fund
       - name: Build workspace packages
@@ -143,12 +183,10 @@ jobs:
           VITE_API_URL: ${{ needs.deploy-api.outputs.api_url }}/api
         run: npx vite build
       - name: Deploy storefront (production)
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           npm i -g vercel@latest
           mkdir -p /tmp/deploy/restropulse-storefront
-          cp -r apps/storefront/dist/* /tmp/deploy/restropulse-storefront/
+          cp -r apps/storefront/dist/. /tmp/deploy/restropulse-storefront/
           cat > /tmp/deploy/restropulse-storefront/vercel.json <<'JSON'
           {
             "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -156,4 +194,5 @@ jobs:
           }
           JSON
           cd /tmp/deploy/restropulse-storefront
+          vercel link --yes --project restropulse-storefront --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
