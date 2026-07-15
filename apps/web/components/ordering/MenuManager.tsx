@@ -127,6 +127,22 @@ const MenuManager: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importing, setImporting] = useState(false);
     const [importReport, setImportReport] = useState<MenuCsvImportReport | null>(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const imageFileRef = useRef<HTMLInputElement | null>(null);
+
+    const handleImageFile = async (file: File | undefined | null) => {
+        if (!file || !itemForm) return;
+        setUploadingImage(true);
+        try {
+            const { url } = await orderingAdminAPI.uploadMenuImage(file);
+            setItemForm((prev) => (prev ? { ...prev, imageUrl: url } : prev));
+        } catch (err) {
+            fail(err, 'Image upload failed');
+        } finally {
+            setUploadingImage(false);
+            if (imageFileRef.current) imageFileRef.current.value = '';
+        }
+    };
 
     const load = useCallback(async () => {
         setCategories(null);
@@ -456,8 +472,46 @@ const MenuManager: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="item-image-url" className={labelCls}>Image URL (optional)</label>
-                            <input id="item-image-url" className={inputCls} type="url" value={itemForm.imageUrl} onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })} placeholder="https://…" />
+                            <label className={labelCls}>Item photo (optional)</label>
+                            {itemForm.imageUrl && (
+                                <div className="relative w-full h-36 mb-2 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                    <img src={itemForm.imageUrl} alt="Item preview" className="w-full h-full object-cover" />
+                                    <button
+                                        type="button"
+                                        aria-label="Remove image"
+                                        onClick={() => setItemForm({ ...itemForm, imageUrl: '' })}
+                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <input
+                                    ref={imageFileRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    className="hidden"
+                                    onChange={(e) => handleImageFile(e.target.files?.[0])}
+                                />
+                                <button
+                                    type="button"
+                                    disabled={uploadingImage}
+                                    onClick={() => imageFileRef.current?.click()}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                    <UploadCloud size={16} />
+                                    {uploadingImage ? 'Uploading…' : itemForm.imageUrl ? 'Change photo' : 'Upload photo'}
+                                </button>
+                            </div>
+                            <input
+                                id="item-image-url"
+                                className={`${inputCls} mt-2`}
+                                type="url"
+                                value={itemForm.imageUrl}
+                                onChange={(e) => setItemForm({ ...itemForm, imageUrl: e.target.value })}
+                                placeholder="…or paste an image URL (https://…)"
+                            />
                         </div>
                         <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
                             <input type="checkbox" checked={itemForm.isVeg} onChange={(e) => setItemForm({ ...itemForm, isVeg: e.target.checked })} className="w-4 h-4 accent-green-600" />

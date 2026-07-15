@@ -10,7 +10,24 @@
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform, RestaurantProfilePatch } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
 import type { IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics } from '@restropulse/shared';
-import type { WatchlistEntry, CompareRow, SnapshotSource, SnapshotReview, ReviewTheme } from '@restropulse/shared';
+import type { WatchlistEntry, CompareRow, SnapshotSource, SnapshotReview, ReviewTheme, RegisterRequest, RestaurantOrderingSettings } from '@restropulse/shared';
+
+/** Shape returned by GET/PATCH /admin/ordering/settings. */
+export interface OrderingSettingsData {
+    storeOpen: boolean;
+    slug: string | null;
+    ordering: RestaurantOrderingSettings;
+}
+
+/** Partial update accepted by PATCH /admin/ordering/settings. */
+export interface OrderingSettingsPatch {
+    storeOpen?: boolean;
+    taxRatePercent?: number;
+    currency?: string;
+    delivery?: { enabled?: boolean; flatFee?: number; minOrder?: number };
+    pickup?: { enabled?: boolean };
+    dineIn?: { enabled?: boolean };
+}
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
 import { isDemoMode } from './lib/demo';
@@ -83,15 +100,43 @@ const realAuthAPI = {
         return response;
     },
 
-    // Legacy email/password login
-    login: async (credentials: LoginRequest): Promise<AuthResponse> => {
-        const response = await fetchAPI<AuthResponse>('/auth/login', {
+    // Email or phone + password login
+    login: async (credentials: LoginRequest): Promise<AuthResponse & { refreshToken?: string }> => {
+        const response = await fetchAPI<AuthResponse & { refreshToken?: string }>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(credentials),
         }, false);
 
         if (response.success && response.token) {
             localStorage.setItem('rp_token', response.token);
+            if (response.refreshToken) {
+                localStorage.setItem('rp_refresh_token', response.refreshToken);
+            }
+            if (response.user?.restaurantId) {
+                localStorage.setItem('rp_restaurant_id', response.user.restaurantId);
+            } else {
+                localStorage.removeItem('rp_restaurant_id');
+            }
+        }
+
+        return response;
+    },
+
+    // Restaurant self-signup: creates the OWNER user + restaurant, logs straight in
+    register: async (payload: RegisterRequest): Promise<AuthResponse & { refreshToken?: string; restaurant?: { id: string; slug: string } }> => {
+        const response = await fetchAPI<AuthResponse & { refreshToken?: string; restaurant?: { id: string; slug: string } }>('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }, false);
+
+        if (response.success && response.token) {
+            localStorage.setItem('rp_token', response.token);
+            if (response.refreshToken) {
+                localStorage.setItem('rp_refresh_token', response.refreshToken);
+            }
+            if (response.user?.restaurantId) {
+                localStorage.setItem('rp_restaurant_id', response.user.restaurantId);
+            }
         }
 
         return response;
@@ -795,6 +840,37 @@ const realOrderingAdminAPI = {
             body: JSON.stringify({ open }),
         });
         return res.data?.storeOpen === true;
+    },
+
+    // ----- Ordering settings (feature toggles) -----
+    getSettings: async (): Promise<OrderingSettingsData> => {
+        const res = await fetchAPI<ApiResponse<OrderingSettingsData>>('/admin/ordering/settings');
+        return res.data!;
+    },
+
+    updateSettings: async (patch: OrderingSettingsPatch): Promise<OrderingSettingsData> => {
+        const res = await fetchAPI<ApiResponse<OrderingSettingsData>>('/admin/ordering/settings', {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        });
+        return res.data!;
+    },
+
+    // ----- Menu item image upload (multipart, bypasses the JSON helper) -----
+    uploadMenuImage: async (file: File): Promise<{ assetId: string; url: string }> => {
+        const token = localStorage.getItem('rp_token');
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch(`${API_BASE_URL}/admin/ordering/menu/assets`, {
+            method: 'POST',
+            headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+            body: formData,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(body.message || body.error || `HTTP ${response.status}`);
+        }
+        return body.data as { assetId: string; url: string };
     },
 
     // ----- Reservations -----

@@ -45,7 +45,7 @@ export function trackMetric(name: string, value: number, properties?: Record<str
 // -- Predefined Business Event Helpers --
 
 export const browserEvents = {
-    login(method: 'firebase' | 'fallback') {
+    login(method: 'firebase' | 'fallback' | 'password' | 'register') {
         trackEvent('auth.login', { method });
     },
 

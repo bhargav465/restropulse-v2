@@ -132,6 +132,8 @@ export interface User {
   emailVerified?: boolean;
   restaurantId: string;
   razorpayCustomerId?: string;
+  /** bcrypt hash for email/phone + password login. Never returned to clients. */
+  passwordHash?: string;
 }
 
 export interface MenuItem {
@@ -533,8 +535,20 @@ export interface ArchivedAccount {
 // ----- API Types (request/response) -----
 
 export interface LoginRequest {
-  email: string;
+  /** Email or phone — at least one must be provided. */
+  email?: string;
+  phone?: string;
   password: string;
+}
+
+/** Restaurant self-signup: creates the OWNER user + the restaurant in one step. */
+export interface RegisterRequest {
+  name: string;
+  restaurantName: string;
+  email: string;
+  phone: string;
+  password: string;
+  cuisine?: string;
 }
 
 export interface OtpRequest {

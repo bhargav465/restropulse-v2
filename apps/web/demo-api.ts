@@ -59,7 +59,9 @@ import type {
     CompareRow,
     DailySnapshot,
     NearbyPlaceSighting,
+    RegisterRequest,
 } from '@restropulse/shared';
+import type { OrderingSettingsData, OrderingSettingsPatch } from './api';
 import { RESTAURANT_PROFILE_FIELDS, WATCHLIST_MAX } from '@restropulse/shared';
 import type {
     ContentDraftResponse,
@@ -154,9 +156,16 @@ export const authAPI = {
         return startDemoSession();
     },
 
-    login: async (_credentials: LoginRequest): Promise<AuthResponse> => {
+    login: async (_credentials: LoginRequest): Promise<AuthResponse & { refreshToken?: string }> => {
         await delay();
         return startDemoSession();
+    },
+
+    register: async (_payload: RegisterRequest): Promise<AuthResponse & { refreshToken?: string; restaurant?: { id: string; slug: string } }> => {
+        await delay();
+        notifyDemoBackendAction();
+        const session = startDemoSession();
+        return { ...session, restaurant: { id: state.restaurant.id, slug: state.restaurant.slug ?? 'demo' } };
     },
 
     // Demo login form funnels through here: any email/password works.
@@ -809,6 +818,50 @@ export const orderingAdminAPI = {
         notifyDemoBackendAction();
         state.restaurant.storeOpen = open;
         return open;
+    },
+
+    // ----- Ordering settings (feature toggles) -----
+    getSettings: async (): Promise<OrderingSettingsData> => {
+        await delay();
+        return {
+            storeOpen: state.restaurant.storeOpen === true,
+            slug: state.restaurant.slug ?? 'demo',
+            ordering: clone(state.restaurant.ordering ?? {}),
+        };
+    },
+
+    updateSettings: async (patch: OrderingSettingsPatch): Promise<OrderingSettingsData> => {
+        await delay();
+        notifyDemoBackendAction();
+        const current = state.restaurant.ordering ?? {};
+        state.restaurant.ordering = {
+            ...current,
+            ...(patch.taxRatePercent !== undefined ? { taxRatePercent: patch.taxRatePercent } : {}),
+            ...(patch.currency !== undefined ? { currency: patch.currency } : {}),
+            ...(patch.delivery !== undefined
+                ? { delivery: { enabled: true, flatFee: 0, minOrder: 0, ...current.delivery, ...patch.delivery } }
+                : {}),
+            ...(patch.pickup !== undefined
+                ? { pickup: { enabled: patch.pickup.enabled ?? current.pickup?.enabled ?? true } }
+                : {}),
+            ...(patch.dineIn !== undefined
+                ? { dineIn: { enabled: patch.dineIn.enabled ?? current.dineIn?.enabled ?? true } }
+                : {}),
+        };
+        if (patch.storeOpen !== undefined) state.restaurant.storeOpen = patch.storeOpen;
+        return {
+            storeOpen: state.restaurant.storeOpen === true,
+            slug: state.restaurant.slug ?? 'demo',
+            ordering: clone(state.restaurant.ordering),
+        };
+    },
+
+    uploadMenuImage: async (file: File): Promise<{ assetId: string; url: string }> => {
+        await delay();
+        notifyDemoBackendAction();
+        // Demo mode: serve the image straight from memory as an object URL.
+        const url = URL.createObjectURL(file);
+        return { assetId: `demo-asset-${Date.now()}`, url };
     },
 
     // Reservations

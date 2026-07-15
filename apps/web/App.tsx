@@ -186,6 +186,18 @@ const App: React.FC = () => {
         browserEvents.login('fallback');
     };
 
+    // Email/phone + password authentication (primary for production)
+    const handlePasswordLogin = async (identifier: { email?: string; phone?: string }, password: string) => {
+        await onLoginSuccess(await authAPI.login({ ...identifier, password }));
+        browserEvents.login('password');
+    };
+
+    // Restaurant self-signup: creates OWNER + restaurant, then straight to dashboard
+    const handleRegister = async (payload: { name: string; restaurantName: string; email: string; phone: string; password: string }) => {
+        await onLoginSuccess(await authAPI.register(payload));
+        browserEvents.login('register');
+    };
+
     const handleLogout = async () => {
         try {
             await authAPI.logout();
@@ -307,6 +319,8 @@ const App: React.FC = () => {
                 <Login
                     onLogin={handleFirebaseLogin}
                     onFallbackLogin={handleFallbackLogin}
+                    onPasswordLogin={handlePasswordLogin}
+                    onRegister={handleRegister}
                 />
             </ErrorBoundary>
         );
