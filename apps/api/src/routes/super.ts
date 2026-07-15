@@ -76,8 +76,8 @@ router.get('/restaurants', handle(async (_req: Request, res: Response<ApiRespons
 }));
 
 router.patch('/restaurants/:id', handle(async (req: Request, res: Response<ApiResponse>) => {
-    const { storeOpen, suspended } = (req.body ?? {}) as { storeOpen?: unknown; suspended?: unknown };
-    const updates: Record<string, boolean> = {};
+    const { storeOpen, suspended, slug } = (req.body ?? {}) as { storeOpen?: unknown; suspended?: unknown; slug?: unknown };
+    const updates: Record<string, unknown> = {};
     if (storeOpen !== undefined) {
         if (typeof storeOpen !== 'boolean') return res.status(400).json({ success: false, error: 'storeOpen must be a boolean' });
         updates.storeOpen = storeOpen;
@@ -86,13 +86,23 @@ router.patch('/restaurants/:id', handle(async (req: Request, res: Response<ApiRe
         if (typeof suspended !== 'boolean') return res.status(400).json({ success: false, error: 'suspended must be a boolean' });
         updates.suspended = suspended;
     }
+    if (slug !== undefined) {
+        if (typeof slug !== 'string' || !/^[a-z0-9-]{2,40}$/.test(slug)) {
+            return res.status(400).json({ success: false, error: 'slug must be 2-40 chars: lowercase letters, numbers, hyphens' });
+        }
+        const existing = await getRestaurantsCollection().findOne({ slug });
+        if (existing && String(existing._id) !== req.params.id) {
+            return res.status(409).json({ success: false, error: 'That slug is already taken' });
+        }
+        updates.slug = slug;
+    }
     if (Object.keys(updates).length === 0) {
         return res.status(400).json({ success: false, error: 'Nothing to update' });
     }
     const restaurant = await updateRestaurant(req.params.id, updates as never);
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant not found' });
     log.info({ restaurantId: req.params.id, updates }, 'super: restaurant updated');
-    res.json({ success: true, data: { id: req.params.id, storeOpen: restaurant.storeOpen === true, suspended: restaurant.suspended === true } });
+    res.json({ success: true, data: { id: req.params.id, storeOpen: restaurant.storeOpen === true, suspended: restaurant.suspended === true, slug: restaurant.slug ?? null } });
 }));
 
 // ============================================

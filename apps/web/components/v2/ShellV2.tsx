@@ -268,9 +268,9 @@ const ShellV2: React.FC<ShellV2Props> = ({
                     })}
                 </nav>
                 <div className="px-5 py-5 text-[11px] text-sidebar-ink/60 leading-relaxed">
-                    Prototype · sample data
+                    RestroPulse
                     <br />
-                    v0.2 concept
+                    v2.0
                 </div>
             </aside>
 
