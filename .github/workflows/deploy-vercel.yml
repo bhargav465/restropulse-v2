@@ -231,8 +231,10 @@ jobs:
             vercel env rm "$KEY" production --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>/dev/null || true
             printf '%s' "$VAL" | vercel env add "$KEY" production --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           }
+          # Landing content lives in the SAME database as the app — the Atlas
+          # user is scoped to it (no access to other db names).
           set_env MONGODB_URI "$MONGODB_URI"
-          set_env DB_NAME "restropulse_landing"
+          set_env DB_NAME "${MONGODB_DB_NAME:-restropulse-dev}"
           vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
   deploy-storefront:

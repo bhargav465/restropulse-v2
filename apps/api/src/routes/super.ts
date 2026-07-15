@@ -125,7 +125,10 @@ async function landingDb(): Promise<Db> {
         });
     }
     const client = await landingClient;
-    return client.db(process.env.LANDING_DB_NAME || 'restropulse_landing');
+    // Same DB as the main app by default — the Atlas user is scoped to it.
+    // Collections used: settings / plans / pages / assets (no collisions with
+    // the app's collections; GridFS uses assets.files / assets.chunks).
+    return client.db(process.env.LANDING_DB_NAME || process.env.MONGODB_DB_NAME || 'restropulse-dev');
 }
 
 const DEFAULT_LANDING_SETTINGS = {
