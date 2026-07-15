@@ -35,7 +35,18 @@ app.get("/api/config/plans", async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(503).json({ success: false, error: "Database unavailable" });
+    res.status(503).json({
+      success: false,
+      error: "Database unavailable",
+      // Debug detail (no secrets): why the connection failed.
+      ...(req.query.debug === "1"
+        ? {
+            detail: String((err && err.message) || err).slice(0, 300),
+            mongoConfigured: Boolean(process.env.MONGODB_URI),
+            dbName: process.env.DB_NAME || "restropulse_landing"
+          }
+        : {})
+    });
   }
 });
 
