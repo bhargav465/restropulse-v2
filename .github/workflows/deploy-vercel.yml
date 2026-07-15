@@ -87,6 +87,9 @@ jobs:
           set_env RAZORPAY_KEY_ID         "$RAZORPAY_KEY_ID"
           set_env RAZORPAY_KEY_SECRET     "$RAZORPAY_KEY_SECRET"
           set_env RAZORPAY_WEBHOOK_SECRET "$RAZORPAY_WEBHOOK_SECRET"
+          set_env ANTHROPIC_API_KEY      "${ANTHROPIC_API_KEY:-}"
+          set_env GOOGLE_MAPS_API_KEY    "${GOOGLE_MAPS_API_KEY:-}"
+          set_env SUPER_ADMIN_EMAIL      "${SUPER_ADMIN_EMAIL:-}"
           set_env NODE_ENV                "production"
       - name: Deploy API (production)
         id: deploy
@@ -118,7 +121,10 @@ jobs:
           while IFS= read -r line; do
             line="${line%$'\r'}"
             case "$line" in ''|\#*) continue;; esac
-            case "$line" in VERCEL_TOKEN=*) emit VERCEL_TOKEN "${line#*=}";; esac
+            case "$line" in *=*) ;; *) continue;; esac
+            key="${line%%=*}"; val="${line#*=}"
+            key="$(printf '%s' "$key" | tr -d '[:space:]')"
+            emit "$key" "$val"
           done <<< "$BLOB"
       - name: Install workspace
         run: npm ci --no-audit --no-fund
@@ -133,7 +139,11 @@ jobs:
           VITE_API_URL: ${{ needs.deploy-api.outputs.api_url }}/api
           VITE_ADMIN_SHELL: v2
           VITE_STOREFRONT_URL: https://restropulse-storefront.vercel.app
-        run: npx vite build
+        run: |
+          # Google Places dropdown / map picker needs the browser key at build time.
+          export VITE_GOOGLE_MAPS_API_KEY="${GOOGLE_MAPS_API_KEY:-}"
+          export VITE_GOOGLE_MAPS_BROWSER_KEY="${GOOGLE_MAPS_BROWSER_KEY:-${GOOGLE_MAPS_API_KEY:-}}"
+          npx vite build
       - name: Deploy admin (production)
         run: |
           npm i -g vercel@latest

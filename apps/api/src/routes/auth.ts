@@ -306,6 +306,52 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
         findUserByEmail(email.toLowerCase()),
         findUserByPhone(normalizedPhone),
     ]);
+
+    // Platform-owner bootstrap: if a pre-existing account with the super-admin
+    // email has NO password yet (e.g. legacy OTP-era user doc), registering
+    // with that email claims it — sets the password and promotes to ADMIN.
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    if (byEmail && byEmail.email?.toLowerCase() === superEmail && !byEmail.passwordHash) {
+        const passwordHash = await hashPassword(password);
+        let user = await updateUser(byEmail.id, { passwordHash, name }) ?? { ...byEmail, passwordHash, name };
+        let restaurantIdForToken = user.restaurantId;
+        let claimedSlug: string | null = null;
+        if (!restaurantIdForToken) {
+            const slug2 = await uniqueSlug(restaurantName);
+            const r = await createRestaurant({
+                name: restaurantName,
+                cuisine: cuisine || 'Multi-cuisine',
+                location: { address: '', lat: 0, lng: 0, mapUrl: '' },
+                accountManager: { name: 'RestroPulse Team', phone: '', email: 'support@restropulse.app', avatar: '' },
+                integrations: { instagram: false },
+                slug: slug2,
+                storeOpen: true,
+                ordering: {
+                    taxRatePercent: 5,
+                    currency: 'INR',
+                    delivery: { enabled: true, flatFee: 0, minOrder: 0 },
+                    pickup: { enabled: true },
+                    dineIn: { enabled: true },
+                },
+            });
+            restaurantIdForToken = r.id;
+            claimedSlug = slug2;
+            user = await updateUser(user.id, { restaurantId: r.id }) ?? { ...user, restaurantId: r.id };
+        }
+        user = await promoteSuperAdmin(user);
+        const tokens2 = generateTokens(user.id, user.phone, restaurantIdForToken, user.role);
+        log.info({ userId: user.id }, 'Super-admin account claimed via register');
+        return res.status(200).json({
+            success: true,
+            user: sanitizeUser(user),
+            restaurant: { id: restaurantIdForToken, slug: claimedSlug },
+            token: tokens2.accessToken,
+            refreshToken: tokens2.refreshToken,
+            restaurantId: restaurantIdForToken,
+            message: 'Super-admin account claimed — password set',
+        });
+    }
+
     if (byEmail) return res.status(409).json({ success: false, message: 'An account with this email already exists' });
     if (byPhone) return res.status(409).json({ success: false, message: 'An account with this phone number already exists' });
 
