@@ -399,6 +399,35 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
     });
 }));
 
+/**
+ * Super-admin password reset, guarded by SUPER_RESET_KEY (project env var,
+ * set via the DEPLOYMENT repo secret). Only resets the SUPER_ADMIN_EMAIL
+ * account. Disabled entirely when SUPER_RESET_KEY is unset.
+ */
+router.post('/reset-super-password', handle(async (req: Request, res: Response) => {
+    const { setupKey, newPassword } = req.body ?? {};
+    const expected = process.env.SUPER_RESET_KEY;
+    if (!expected) {
+        return res.status(404).json({ success: false, message: 'Not available' });
+    }
+    if (typeof setupKey !== 'string' || setupKey !== expected) {
+        return res.status(403).json({ success: false, message: 'Invalid setup key' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: 'newPassword must be at least 8 characters' });
+    }
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    const user = await findUserByEmail(superEmail);
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'Super-admin account not found' });
+    }
+    const passwordHash = await hashPassword(newPassword);
+    let updated = await updateUser(user.id, { passwordHash }) ?? user;
+    updated = await promoteSuperAdmin(updated);
+    log.warn({ userId: user.id }, 'Super-admin password reset via SUPER_RESET_KEY');
+    res.json({ success: true, message: 'Super-admin password reset', user: sanitizeUser(updated) });
+}));
+
 // Email or phone + password login
 router.post('/login', handle(async (req: Request<{}, {}, LoginRequest>, res: Response<AuthResponse & { refreshToken?: string; restaurantId?: string }>) => {
     const { email, phone, password } = req.body ?? {};

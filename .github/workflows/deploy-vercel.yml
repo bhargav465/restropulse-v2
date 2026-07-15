@@ -90,6 +90,7 @@ jobs:
           set_env ANTHROPIC_API_KEY      "${ANTHROPIC_API_KEY:-}"
           set_env GOOGLE_MAPS_API_KEY    "${GOOGLE_MAPS_API_KEY:-}"
           set_env SUPER_ADMIN_EMAIL      "${SUPER_ADMIN_EMAIL:-}"
+          set_env SUPER_RESET_KEY        "${SUPER_RESET_KEY:-}"
           set_env NODE_ENV                "production"
       - name: Deploy API (production)
         id: deploy
