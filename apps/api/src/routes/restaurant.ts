@@ -92,6 +92,7 @@ function validateProfileField(field: RestaurantProfileField, value: unknown): st
         case 'description':
         case 'phone':
         case 'website':
+        case 'googlePlaceId':
             if (typeof value !== 'string') return `${field} must be a string`;
             if ((field === 'name' || field === 'cuisine') && value.trim().length === 0) return `${field} cannot be empty`;
             return null;

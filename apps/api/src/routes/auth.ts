@@ -1,8 +1,9 @@
 import express, { Request, Response } from 'express';
-import { findUserByEmail, findUserByPhone, findUserById, createUser, findUserByFirebaseUid, updateUser, getOtpChallengesCollection } from '@restropulse/db';
-import { AuthResponse, LoginRequest, OtpRequest, OtpVerifyRequest } from '@restropulse/shared';
+import { findUserByEmail, findUserByPhone, findUserById, createUser, findUserByFirebaseUid, updateUser, getOtpChallengesCollection, createRestaurant, findRestaurantBySlug } from '@restropulse/db';
+import { AuthResponse, LoginRequest, RegisterRequest, OtpRequest, OtpVerifyRequest, User } from '@restropulse/shared';
 import { generateTokens, verifyToken, refreshAccessToken } from '../services/jwt.js';
 import { verifyFirebaseToken, isFirebaseInitialized } from '../services/firebase-admin.js';
+import { hashPassword, verifyPassword } from '../services/password.js';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createLogger } from '@restropulse/telemetry/server';
@@ -15,6 +16,29 @@ const router = express.Router();
 // Generate 6-digit OTP (for development fallback)
 function generateOtp(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/** Never leak the bcrypt hash to clients. */
+function sanitizeUser<T extends Partial<User> | null | undefined>(user: T): T {
+    if (!user) return user;
+    const { passwordHash: _ph, ...rest } = user as User;
+    return rest as unknown as T;
+}
+
+/** Build a URL-safe, unique storefront slug from the restaurant name. */
+async function uniqueSlug(name: string): Promise<string> {
+    const base = name.toLowerCase().trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40) || 'restaurant';
+    let slug = base;
+    for (let i = 2; await findRestaurantBySlug(slug); i++) {
+        slug = `${base}-${i}`;
+        if (i > 50) { slug = `${base}-${Date.now().toString(36)}`; break; }
+    }
+    return slug;
 }
 
 // ============================================
@@ -89,7 +113,7 @@ router.post('/firebase', handle(async (req: Request, res: Response) => {
 
     res.json({
         success: true,
-        user,
+        user: sanitizeUser(user),
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         restaurantId: user.restaurantId,
@@ -204,7 +228,7 @@ router.post('/verify-otp', handle(async (req: Request<{}, {}, OtpVerifyRequest>,
 
     res.json({
         success: true,
-        user,
+        user: sanitizeUser(user),
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         restaurantId: user.restaurantId,
@@ -238,33 +262,117 @@ router.post('/refresh', handle(async (req: Request, res: Response) => {
     });
 }));
 
-// Legacy email/password login (for backwards compatibility)
-router.post('/login', handle(async (req: Request<{}, {}, LoginRequest>, res: Response<AuthResponse>) => {
-    const { email, password } = req.body;
+// ============================================
+// Email / Phone + Password authentication
+// ============================================
 
-    if (!email || !password) {
+/**
+ * Restaurant self-signup: creates the OWNER user (with bcrypt password hash)
+ * and their restaurant (slug + default ordering settings) in one step.
+ */
+router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, res: Response) => {
+    const { name, restaurantName, email, phone, password, cuisine } = req.body ?? {};
+
+    if (!name || !restaurantName || !email || !phone || !password) {
+        return res.status(400).json({ success: false, message: 'name, restaurantName, email, phone and password are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ success: false, message: 'Valid email required' });
+    }
+    const normalizedPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`;
+    if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
+        return res.status(400).json({ success: false, message: 'Valid phone number required' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    }
+
+    const [byEmail, byPhone] = await Promise.all([
+        findUserByEmail(email.toLowerCase()),
+        findUserByPhone(normalizedPhone),
+    ]);
+    if (byEmail) return res.status(409).json({ success: false, message: 'An account with this email already exists' });
+    if (byPhone) return res.status(409).json({ success: false, message: 'An account with this phone number already exists' });
+
+    const slug = await uniqueSlug(restaurantName);
+    const restaurant = await createRestaurant({
+        name: restaurantName,
+        cuisine: cuisine || 'Multi-cuisine',
+        location: { address: '', lat: 0, lng: 0, mapUrl: '' },
+        accountManager: { name: 'RestroPulse Team', phone: '', email: 'support@restropulse.app', avatar: '' },
+        integrations: { instagram: false },
+        slug,
+        storeOpen: true,
+        ordering: {
+            taxRatePercent: 5,
+            currency: 'INR',
+            delivery: { enabled: true, flatFee: 0, minOrder: 0 },
+            pickup: { enabled: true },
+            dineIn: { enabled: true },
+        },
+    });
+
+    const passwordHash = await hashPassword(password);
+    const user = await createUser({
+        name,
+        email: email.toLowerCase(),
+        phone: normalizedPhone,
+        role: 'OWNER',
+        restaurantId: restaurant.id,
+        passwordHash,
+        emailVerified: false,
+    } as Omit<User, 'id'>);
+
+    const tokens = generateTokens(user.id, normalizedPhone, restaurant.id, user.role);
+    log.info({ userId: user.id, restaurantId: restaurant.id, slug }, 'Restaurant registered');
+
+    res.status(201).json({
+        success: true,
+        user: sanitizeUser(user),
+        restaurant: { id: restaurant.id, slug },
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        restaurantId: restaurant.id,
+        message: 'Registration successful',
+    });
+}));
+
+// Email or phone + password login
+router.post('/login', handle(async (req: Request<{}, {}, LoginRequest>, res: Response<AuthResponse & { refreshToken?: string; restaurantId?: string }>) => {
+    const { email, phone, password } = req.body ?? {};
+
+    if ((!email && !phone) || !password) {
         return res.status(400).json({
             success: false,
-            message: 'Email and password are required'
+            message: 'Email or phone, and password are required'
         });
     }
 
-    const user = await findUserByEmail(email);
+    let user = null;
+    if (email) user = await findUserByEmail(email.toLowerCase()) ?? await findUserByEmail(email);
+    if (!user && phone) {
+        const normalizedPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`;
+        user = await findUserByPhone(normalizedPhone) ?? await findUserByPhone(phone);
+    }
 
-    if (user && password) {
-        const tokens = generateTokens(user.id, user.phone, user.restaurantId, user.role);
-        res.json({
-            success: true,
-            user,
-            token: tokens.accessToken,
-            message: 'Login successful'
-        });
-    } else {
-        res.status(401).json({
+    if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
+        return res.status(401).json({
             success: false,
-            message: 'Invalid credentials'
+            message: !user || user.passwordHash
+                ? 'Invalid credentials'
+                : 'This account has no password set. Log in with OTP, or register a new account.'
         });
     }
+
+    const tokens = generateTokens(user.id, user.phone, user.restaurantId, user.role);
+    res.json({
+        success: true,
+        user: sanitizeUser(user),
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        restaurantId: user.restaurantId,
+        message: 'Login successful'
+    });
 }));
 
 // Logout endpoint
@@ -308,7 +416,7 @@ router.get('/session', handle(async (req: Request, res: Response) => {
 
     res.json({
         success: true,
-        user
+        user: sanitizeUser(user)
     });
 }));
 

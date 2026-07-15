@@ -105,6 +105,42 @@ describe('Restaurant profile routes (Brief 04)', () => {
             expect(res.body.data.gstin).toBe('29ABCDE1234F1Z5');
         });
 
+        it('persists googlePlaceId (Brief 10 whitelist) but still drops a non-whitelisted field', async () => {
+            const res = await request(app)
+                .patch('/api/restaurant/profile')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({ googlePlaceId: 'ChIJ_place_123', notAWhitelistedField: 'should-drop' });
+            expect(res.status).toBe(200);
+            expect(res.body.data.googlePlaceId).toBe('ChIJ_place_123');
+
+            const doc = await getRestaurantsCollection().findOne({ _id: 'r1' as any });
+            expect(doc!.googlePlaceId).toBe('ChIJ_place_123');
+            expect(doc).not.toHaveProperty('notAWhitelistedField');
+        });
+
+        it('rejects a request whose only key is non-whitelisted (no valid fields)', async () => {
+            const res = await request(app)
+                .patch('/api/restaurant/profile')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({ notAWhitelistedField: 'x' });
+            expect(res.status).toBe(400);
+            const doc = await getRestaurantsCollection().findOne({ _id: 'r1' as any });
+            expect(doc).not.toHaveProperty('notAWhitelistedField');
+        });
+
+        it('rejects a non-string googlePlaceId with a field-named 400', async () => {
+            const res = await request(app)
+                .patch('/api/restaurant/profile')
+                .set('Authorization', `Bearer ${authToken}`)
+                .send({ googlePlaceId: 123 });
+            expect(res.status).toBe(400);
+            expect(res.body.error).toMatch(/googlePlaceId/i);
+        });
+
+        it('includes googlePlaceId in the RESTAURANT_PROFILE_FIELDS whitelist', () => {
+            expect(RESTAURANT_PROFILE_FIELDS).toContain('googlePlaceId');
+        });
+
         it('clears an optional field when passed null ($unset)', async () => {
             await request(app).patch('/api/restaurant/profile').set('Authorization', `Bearer ${authToken}`).send({ legalName: 'Temp' });
             const res = await request(app).patch('/api/restaurant/profile').set('Authorization', `Bearer ${authToken}`).send({ legalName: null });

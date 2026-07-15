@@ -31,6 +31,7 @@ import {
     sameCuisineThreatScore,
     type PillarInputs,
 } from './scoring.js';
+import { buildCompetitionBuckets } from './buckets.js';
 
 const NEARBY_RADIUS_KM = 5;
 
@@ -91,6 +92,13 @@ export function assembleReport(input: AssembleReportInput): IntelligenceReport {
     });
 
     const topCompetitors = [...profiles].sort((a, b) => b.threatScore - a.threatScore).slice(0, 5);
+
+    // Brief 10: competition buckets (reuses measured competitors + computed threat).
+    const buckets = buildCompetitionBuckets({
+        baseCuisine: classification.baseCuisine,
+        basePriceLevel: base.priceLevel,
+        competitors: profiles,
+    });
 
     const sameCuisineNearby = profiles
         .filter((p) => p.cuisine.toLowerCase() === baseCuisineLower && p.distanceKm <= NEARBY_RADIUS_KM)
@@ -222,6 +230,7 @@ export function assembleReport(input: AssembleReportInput): IntelligenceReport {
         keywords: analysis.keywords,
         narrative,
         ...(deltas ? { deltas } : {}),
+        buckets,
         generatedAt,
     };
 }

@@ -302,6 +302,95 @@ Two disjoint JWT populations: **merchants** (Firebase phone-OTP → JWT, roles i
   only. **Follow-up:** narrow `apps/content-engine/.gitignore` and commit the real
   `media-catalog.ts`.
 
+### Intelligence v2 · two-bucket dashboard (branch `feat/intelligence-v2-buckets`)
+- **Brief 06 `db48337`** (`feat(shared,db)`): additive data model — `DailySnapshot`,
+  `WatchlistEntry` (+`WATCHLIST_MAX`), `NearbyPlaceSighting`, `MetricGap`, `CompareRow`,
+  `SnapshotReview`/`REVIEW_THEMES`, `Restaurant.intelligence`; db getters
+  `getIntelligenceSnapshotsCollection`/`getNearbySightingsCollection`, `assertWatchlistSize`,
+  extended `ensureIntelligenceIndexes` (snapshots unique `restaurantId+targetPlaceId+source+date`;
+  sightings unique `restaurantId+placeId`).
+- **Brief 07 `39aa7b7`/`11f83ae`/`a864ce5`** (`feat(api)`): v2 API appended to
+  `routes/admin/intelligence.ts` (same merchant-JWT + OWNER, `{success,data?,error?}`).
+  New services `services/intelligence/{snapshots,zomato,themes,compare}.ts`:
+  `captureSnapshot`/`runDailySnapshotJob`/`getSeries`/`getFeedbackChanges` (idempotent
+  target×source×day upsert, review diff, month aggregate), `tagReviewThemes` (one batched
+  forced-tool `claude-haiku-4-5`, unknown-theme drop, empty short-circuit),
+  `buildCompareRows`/`getCompareRows`/`getNewOpenings` (exact "Where They Beat You" thresholds),
+  `manualZomatoAdapter`/`stubZomatoAdapter` registry (`ZOMATO_ADAPTER` env, default manual).
+  8 new routes: `GET/PUT /watchlist`, `GET /snapshots`, `GET /feedback-changes`, `GET /compare`,
+  `GET /new-openings`, `POST /zomato-manual`, `POST /snapshots/capture` (OWNER, 1/hour). No v1
+  route/type touched. +38 api tests (themes 5, compare+new-openings 10, snapshots 7, routes 16).
+  Client methods frozen for Brief 09; worker (Brief 08) imports `captureSnapshot`,
+  `runDailySnapshotJob`, `tagReviewThemes`. `ZOMATO_ADAPTER` documented in `apps/api/.env.example`.
+- **Brief 08 `8688b17`/`465fd23`/`b103da3`/`8e5ad69`** (`feat(worker)`): daily snapshot loop,
+  nearby sweep, backfill — additive; the weekly re-scan job is byte-identical for v1 tenants.
+  New `apps/intelligence-worker/src/`: `tz.ts` (tenant-local `YYYY-MM-DD`, default `Asia/Kolkata`,
+  ≤7-day window), `snapshot-store.ts` (worker-local idempotent capture — DEFERS theme tagging so
+  the loop can batch, stamps `backfilled`; upsert key/diff kept identical to the api twin),
+  `measure.ts` (default google-from-`competitor_cache` + zomato-from-`zomato_manual_entries`
+  measurers, no-op tagger seam), `daily.ts` (`runDailySnapshotJob`: self+watchlist × google+zomato,
+  ONE batched Haiku tag across all tenants, kill switch `INTELLIGENCE_DAILY_ENABLED` def-true/off-in-test,
+  `places_calls` counter), `sweep.ts` (`runNearbySweep`: upsert `nearby_sightings`, first-seen baseline
+  vs `lastSeenAt`, emit `intelligence.alert.new_competitor` once ≤5 km), `backfill.ts` (fills missing
+  days in last 7 with `backfilled:true`, older gaps stay), `daily-cron.ts` (`0 2 * * *` IST),
+  `cli.ts` (`snapshot`/`sweep`/`weekly`, `--date` capped 7-days-back). Weekly job gains ONE additive
+  step: folds the week's sighting deltas into `ReportDeltas.competitorAlerts` (empty for v1 → no change).
+  Cross-app seam follows `rescan.ts` (no import of `apps/api`; heavy calls injected). Telemetry:
+  additive `placesCalls` counter. Scripts `snapshot:run`/`sweep:nearby`/`refresh:weekly`;
+  `CRON_INTELLIGENCE_DAILY` + `INTELLIGENCE_DAILY_ENABLED` in `apps/intelligence-worker/.env.example`.
+  Worker suite 22→32 (daily 5, sweep 3, backfill 2). No new secrets, no v1 route/type touched.
+
+- **Brief 09 `39c761b`/`bdf05ea`/`ab0ea92`/`8be5bbb`/`bb9facb`/…** (`feat(web)`): the two-bucket
+  Intelligence dashboard — additive restructure, every v1 sub-tab's content survives re-homed
+  (nothing deleted). `IntelligenceV2.tsx` now renders the unchanged RestroScore band → `BucketSwitch`
+  (My Restaurant | Competition, persisted per session + `?bucket=`) → bucket-scoped `PeriodFilter`
+  (My: MTD·Date·Overall; Competition: Day·Month) → bucket content. Pure `period.ts` maps every preset
+  to the exact BRIEF-07 `{from,to,granularity}` / compare `{date|month}` query. **My Restaurant**
+  (`components/v2/intelligence/my-restaurant/`): `Overview` (v1 Overview + `/self-metrics` ops strip),
+  `DailyTrends` (snapshot series with gaps-not-zeros + hollow backfilled markers, Zomato-when-present
+  else `ZomatoManualModal`, photo small-multiples + 14-day stagnation nudge, SEO sparkline, computed
+  chips, specific-date stat cards + `DELTA_TEXT`), `FeedbackChanges` (day-grouped feed, theme-hashtag
+  filter chips, 7-day negative-trend `border-danger` alert, "Reply now"→Get-started), `SearchSEO`
+  (v1, re-exported). **Competition** (`competition/`): `Watchlist` (5-cap client + server-422 surface,
+  N/5, 30-day sparkline + threat bar), `Compare` (matrix + Google/Zomato/Both toggle + overlaid rating
+  trend self-`primaryStrong`/competitors-`SERIES` + row expand), `WhereTheyBeatYou` (computed gaps
+  then v1 ai-inferred lists, severity-sorted, ThreatRadar, "Close this gap"→typed deep link),
+  `NewOpenings` (sinceDays 30/60/90, 5 km, fastStarter, add-to-watchlist disabled at 5/5,
+  "Draft a response post"→Content). Client: 8 `intelligenceAPI` methods (`getWatchlist`/`putWatchlist`/
+  `getSnapshots`/`getFeedbackChanges`/`getCompare`/`getNewOpenings`/`postZomatoManual`/`captureNow`) +
+  compiler-typed `demo-api.ts` twins + lazy `lib/demo-fixtures-intelligence-v2.ts` ([SAMPLE], deterministic,
+  mirrors the Brief 06 seed; demo `captureNow` 1.5 s, `putWatchlist` local 5-cap, `postZomatoManual`
+  mutates in-memory so Zomato appears live). Token-native `charts.tsx` (gap/hollow-aware). Tokens only,
+  no raw hex, demo parity compiler-enforced. +38 web tests (period 11, my-restaurant 9, competition 11,
+  demo-buckets 7). No new secrets, no v1 route/type/component deleted.
+
+- **Brief 10 `9c0eba5`/`06f7e39`/`7dacb9a`/`204df2a`** (`feat(intelligence)`, branch
+  `feat/intelligence-brief-10`): Google place picker + report competition buckets — additive on
+  v1+v2. **Shared:** `Restaurant.googlePlaceId` (owner-editable, whitelisted in
+  `RESTAURANT_PROFILE_FIELDS`); `CompetitionBuckets` type + optional `IntelligenceReport.buckets`
+  (old reports render — optional-field guard). **API:** `services/intelligence/buckets.ts` (PURE —
+  `cuisineMatch` same-family table, `aovBandLabel`, `buildCompetitionBuckets`, no new Places/Sonnet
+  calls); `BaseRestaurant.priceLevel` (measured AOV proxy, `location`/`priceLevel`/`id` added to the
+  detail field mask); `getBaseRestaurantDetails(name,city,placeId?)` skips text-search
+  disambiguation when a placeId is present; `POST /scan` + pipeline thread optional `placeId`
+  (request > saved `googlePlaceId`); `report-builder` attaches `report.buckets`. **Web:**
+  `place-picker-engine.ts` (engine iface + real Google engine reusing the existing Maps loader +
+  demo twin `typeof realPlacePickerEngine` with 3 `[SAMPLE]` restaurants), `PlacePicker.tsx`
+  (city→name-after-city, 25 km bias, preview→confirm emits `{placeId,name,city,location}`),
+  `PlacePickerHost.tsx` (demo engine in demo mode; real engine under `APIProvider` with the
+  referrer-restricted `VITE_GOOGLE_MAPS_BROWSER_KEY`); wired into ScanFlow empty state
+  (manual-entry fallback), which persists `googlePlaceId` via `PATCH /profile`; `competition/
+  TopThreats.tsx` (new FIRST competition sub-tab — segmented Same-cuisine&AOV / Overall over one
+  ranked table, expand→v1 strengths/weaknesses, 5-cap add-to-watchlist, empty Bucket-A niche copy);
+  `my-restaurant/RevenueCard.tsx` (banner-surface 9% projection, editable guests `clamp(reviews×2,
+  400,8000)` + avg spend ₹400, all computed, no pill deltas) + ranking summary line;
+  `startScan` gains optional `placeId` (real + demo twin). +tests: api buckets math + placeId
+  call-count short-circuit + googlePlaceId whitelist; web PlacePicker (city→name enable, 25 km bias,
+  emits placeId, demo suggestions), Top Threats (switch/empty/expand/watchlist-cap), revenue card
+  (9% math + input clamp + no pill deltas). New env: `VITE_GOOGLE_MAPS_BROWSER_KEY` (browser key,
+  documented in `apps/web/.env.example`). Grader site (§3): `restropulse-grader-site/README.md`
+  spec written; site deferred pending its own spec (ASSUMPTION). No v1/v2 route/type/component deleted.
+
 **Verified in browser:** menu→cart flow, demo checkout, admin login, post generation, campaigns tab, storefront media. Test counts: web 549+, storefront 31, api ordering suites green (full api suite needs Mongo binaries unavailable in sandbox — passes where mongod can download).
 
 ---

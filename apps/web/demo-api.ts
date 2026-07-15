@@ -55,9 +55,29 @@ import type {
     IntelligenceSelfMetrics,
     ScanStatus,
     RestaurantProfilePatch,
+    WatchlistEntry,
+    CompareRow,
+    DailySnapshot,
+    NearbyPlaceSighting,
+    RegisterRequest,
 } from '@restropulse/shared';
-import { RESTAURANT_PROFILE_FIELDS } from '@restropulse/shared';
-import type { ContentDraftResponse, GeneratePostTone, MenuCsvImportReport, MenuItemUpsertInput, OrderingAnalyticsSummary } from './api';
+import type { OrderingSettingsData, OrderingSettingsPatch } from './api';
+import { RESTAURANT_PROFILE_FIELDS, WATCHLIST_MAX } from '@restropulse/shared';
+import type {
+    ContentDraftResponse,
+    GeneratePostTone,
+    MenuCsvImportReport,
+    MenuItemUpsertInput,
+    OrderingAnalyticsSummary,
+    SnapshotSeriesResponse,
+    SnapshotQuery,
+    WatchlistResponse,
+    WatchlistInput,
+    CompareQuery,
+    ZomatoManualInput,
+    FeedbackDay,
+    NewOpening,
+} from './api';
 import { notifyDemoBackendAction } from './lib/demo';
 import {
     DEMO_ACCOUNT_MANAGERS,
@@ -136,9 +156,16 @@ export const authAPI = {
         return startDemoSession();
     },
 
-    login: async (_credentials: LoginRequest): Promise<AuthResponse> => {
+    login: async (_credentials: LoginRequest): Promise<AuthResponse & { refreshToken?: string }> => {
         await delay();
         return startDemoSession();
+    },
+
+    register: async (_payload: RegisterRequest): Promise<AuthResponse & { refreshToken?: string; restaurant?: { id: string; slug: string } }> => {
+        await delay();
+        notifyDemoBackendAction();
+        const session = startDemoSession();
+        return { ...session, restaurant: { id: state.restaurant.id, slug: state.restaurant.slug ?? 'demo' } };
     },
 
     // Demo login form funnels through here: any email/password works.
@@ -793,6 +820,50 @@ export const orderingAdminAPI = {
         return open;
     },
 
+    // ----- Ordering settings (feature toggles) -----
+    getSettings: async (): Promise<OrderingSettingsData> => {
+        await delay();
+        return {
+            storeOpen: state.restaurant.storeOpen === true,
+            slug: state.restaurant.slug ?? 'demo',
+            ordering: clone(state.restaurant.ordering ?? {}),
+        };
+    },
+
+    updateSettings: async (patch: OrderingSettingsPatch): Promise<OrderingSettingsData> => {
+        await delay();
+        notifyDemoBackendAction();
+        const current = state.restaurant.ordering ?? {};
+        state.restaurant.ordering = {
+            ...current,
+            ...(patch.taxRatePercent !== undefined ? { taxRatePercent: patch.taxRatePercent } : {}),
+            ...(patch.currency !== undefined ? { currency: patch.currency } : {}),
+            ...(patch.delivery !== undefined
+                ? { delivery: { enabled: true, flatFee: 0, minOrder: 0, ...current.delivery, ...patch.delivery } }
+                : {}),
+            ...(patch.pickup !== undefined
+                ? { pickup: { enabled: patch.pickup.enabled ?? current.pickup?.enabled ?? true } }
+                : {}),
+            ...(patch.dineIn !== undefined
+                ? { dineIn: { enabled: patch.dineIn.enabled ?? current.dineIn?.enabled ?? true } }
+                : {}),
+        };
+        if (patch.storeOpen !== undefined) state.restaurant.storeOpen = patch.storeOpen;
+        return {
+            storeOpen: state.restaurant.storeOpen === true,
+            slug: state.restaurant.slug ?? 'demo',
+            ordering: clone(state.restaurant.ordering),
+        };
+    },
+
+    uploadMenuImage: async (file: File): Promise<{ assetId: string; url: string }> => {
+        await delay();
+        notifyDemoBackendAction();
+        // Demo mode: serve the image straight from memory as an object URL.
+        const url = URL.createObjectURL(file);
+        return { assetId: `demo-asset-${Date.now()}`, url };
+    },
+
     // Reservations
     getReservations: async (filters?: { status?: ReservationStatus; date?: string }): Promise<Reservation[]> => {
         await delay();
@@ -883,7 +954,7 @@ const intelScanPolls = new Map<string, number>();
 const intelFixtures = () => import('./lib/demo-fixtures-intelligence');
 
 export const intelligenceAPI = {
-    startScan: async (_body: { name?: string; city?: string; force?: boolean }): Promise<{ scanId: string }> => {
+    startScan: async (_body: { name?: string; city?: string; force?: boolean; placeId?: string }): Promise<{ scanId: string }> => {
         await delay();
         notifyDemoBackendAction();
         const scanId = `demo-scan-${randomSuffix()}`;
@@ -932,5 +1003,135 @@ export const intelligenceAPI = {
         const { DEMO_INTELLIGENCE_SELF_METRICS } = await intelFixtures();
         return clone(DEMO_INTELLIGENCE_SELF_METRICS);
     },
+
+    // ----- v2: two-bucket dashboard (fixtures-backed, in-memory mutations) -----
+
+    getWatchlist: async (): Promise<WatchlistResponse> => {
+        await delay();
+        const { state } = await intelV2State();
+        return { entries: clone(state.watchlist), max: WATCHLIST_MAX };
+    },
+
+    putWatchlist: async (entries: WatchlistInput[]): Promise<WatchlistResponse> => {
+        await delay();
+        const { state } = await intelV2State();
+        // Enforce the cap locally, surfacing the server's 422 message shape.
+        if (entries.length > WATCHLIST_MAX) {
+            throw new Error(`Watchlist exceeds the maximum of ${WATCHLIST_MAX} competitors.`);
+        }
+        const seen = new Set<string>();
+        for (const e of entries) {
+            if (!e.placeId) throw new Error('each entry needs a placeId');
+            if (seen.has(e.placeId)) throw new Error('watchlist contains duplicate placeIds');
+            seen.add(e.placeId);
+        }
+        const byPlace = new Map(state.watchlist.map((w) => [w.placeId, w.addedAt]));
+        state.watchlist = entries.map((e) => ({
+            placeId: e.placeId,
+            name: e.name?.trim() || e.placeId,
+            addedAt: byPlace.get(e.placeId) ?? new Date(),
+            ...(e.zomatoUrl?.trim() ? { zomatoUrl: e.zomatoUrl.trim() } : {}),
+        }));
+        notifyDemoBackendAction();
+        return { entries: clone(state.watchlist), max: WATCHLIST_MAX };
+    },
+
+    getSnapshots: async (query: SnapshotQuery): Promise<SnapshotSeriesResponse> => {
+        await delay();
+        const { m, state } = await intelV2State();
+        const target = query.target ?? 'self';
+        const targetPlaceId = target === 'self' ? m.DEMO_V2_SELF_PLACE_ID : target;
+        const source = query.source ?? 'both';
+        const points = m.deriveSeries(state.snapshots, {
+            targetPlaceId,
+            source,
+            from: query.from,
+            to: query.to,
+            granularity: query.granularity,
+        });
+        return { target, source, granularity: query.granularity, points: clone(points) };
+    },
+
+    getFeedbackChanges: async (query: { from?: string; to?: string } = {}): Promise<{ days: FeedbackDay[] }> => {
+        await delay();
+        const { m, state } = await intelV2State();
+        const to = query.to ?? state.anchor;
+        const from = query.from ?? new Date(Date.parse(`${to}T00:00:00Z`) - 30 * 86400000).toISOString().slice(0, 10);
+        return clone(m.deriveFeedbackDays(state.snapshots, from, to));
+    },
+
+    getCompare: async (query: CompareQuery): Promise<CompareRow[]> => {
+        await delay();
+        const { m, state } = await intelV2State();
+        const value = query.granularity === 'month' ? (query.month ?? state.anchor.slice(0, 7)) : (query.date ?? state.anchor);
+        return clone(m.deriveCompareRows(state.snapshots, state.watchlist, DEMO_RESTAURANT.name, query.granularity, value));
+    },
+
+    getNewOpenings: async (query: { sinceDays?: 30 | 60 | 90; radiusKm?: number } = {}): Promise<NewOpening[]> => {
+        await delay();
+        const { m, state } = await intelV2State();
+        const now = Date.parse(`${state.anchor}T00:00:00.000Z`);
+        return clone(m.deriveNewOpenings(state.sightings, query.radiusKm ?? 5, query.sinceDays ?? 30, now));
+    },
+
+    postZomatoManual: async (body: ZomatoManualInput): Promise<{ snapshotWritten: boolean }> => {
+        await delay();
+        const { m, state } = await intelV2State();
+        const targetPlaceId = !body.target || body.target === 'self' ? m.DEMO_V2_SELF_PLACE_ID : body.target;
+        const date = state.anchor;
+        // Replace today's zomato snapshot for the target so the series appears live.
+        state.snapshots = state.snapshots.filter(
+            (s) => !(s.targetPlaceId === targetPlaceId && s.source === 'zomato' && s.date === date),
+        );
+        const snap: DailySnapshot = {
+            _id: `snapv2-${targetPlaceId}-zomato-${date}`,
+            restaurantId: DEMO_RESTAURANT.id,
+            targetPlaceId,
+            isSelf: targetPlaceId === m.DEMO_V2_SELF_PLACE_ID,
+            source: 'zomato',
+            date,
+            rating: body.rating,
+            reviewCount: body.reviewCount,
+            photoCount: body.photoCount,
+            newReviews: [],
+            capturedAt: new Date(),
+        };
+        state.snapshots.push(snap);
+        notifyDemoBackendAction();
+        return { snapshotWritten: true };
+    },
+
+    captureNow: async (): Promise<{ captured: number }> => {
+        // Intentional 1.5s "fresh capture" delay (Brief 09 §4).
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const { state } = await intelV2State();
+        notifyDemoBackendAction();
+        // self google + zomato + one per watchlist source that exists.
+        return { captured: 2 + state.watchlist.length };
+    },
 };
+
+// ----- In-memory v2 intelligence state (lazy; built once per session) -----
+type IntelV2Module = typeof import('./lib/demo-fixtures-intelligence-v2');
+interface IntelV2State {
+    anchor: string;
+    snapshots: DailySnapshot[];
+    watchlist: WatchlistEntry[];
+    sightings: NearbyPlaceSighting[];
+}
+let intelV2: IntelV2State | null = null;
+
+async function intelV2State(): Promise<{ m: IntelV2Module; state: IntelV2State }> {
+    const m = (await import('./lib/demo-fixtures-intelligence-v2')) as IntelV2Module;
+    if (!intelV2) {
+        const anchor = m.todayStr();
+        intelV2 = {
+            anchor,
+            snapshots: m.buildSnapshots(anchor),
+            watchlist: m.buildWatchlist(anchor),
+            sightings: m.buildSightings(anchor),
+        };
+    }
+    return { m, state: intelV2 };
+}
 

@@ -9,9 +9,14 @@ interface LoginProps {
     onLogin: (firebaseIdToken: string) => Promise<void>;
     // Fallback for when Firebase is not configured
     onFallbackLogin?: (phone: string, otp: string) => Promise<void>;
+    // Email/phone + password login (primary for production)
+    onPasswordLogin?: (identifier: { email?: string; phone?: string }, password: string) => Promise<void>;
+    // Restaurant self-signup
+    onRegister?: (payload: { name: string; restaurantName: string; email: string; phone: string; password: string }) => Promise<void>;
 }
 
 type Step = 'phone' | 'otp';
+type Mode = 'password' | 'register' | 'otp';
 
 // Check if Firebase is configured
 const isFirebaseConfigured = () => {
@@ -22,8 +27,18 @@ const isFirebaseConfigured = () => {
 // Check if development mode (allows fallback OTP)
 const isDevelopment = () => import.meta.env.DEV;
 
-const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin, onPasswordLogin, onRegister }) => {
+    // Default to email/phone + password when the handler is wired; OTP stays as
+    // a secondary option (Firebase or backend fallback).
+    const [mode, setMode] = useState<Mode>(onPasswordLogin ? 'password' : 'otp');
     const [step, setStep] = useState<Step>('phone');
+    const [identifier, setIdentifier] = useState('');
+    const [password, setPassword] = useState('');
+    const [regName, setRegName] = useState('');
+    const [regRestaurant, setRegRestaurant] = useState('');
+    const [regEmail, setRegEmail] = useState('');
+    const [regPhone, setRegPhone] = useState('');
+    const [regPassword, setRegPassword] = useState('');
     const [phone, setPhone] = useState('');
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +71,54 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
         }
     };
 
+    const handlePasswordLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onPasswordLogin) return;
+        const trimmed = identifier.trim();
+        if (!trimmed || !password) {
+            setError('Enter your email or phone, and your password');
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        try {
+            const id = trimmed.includes('@') ? { email: trimmed } : { phone: trimmed };
+            await onPasswordLogin(id, password);
+        } catch (err: any) {
+            setError(err?.message || 'Sign-in failed. Check your credentials and try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onRegister) return;
+        if (!regName.trim() || !regRestaurant.trim() || !regEmail.trim() || !regPhone.trim() || !regPassword) {
+            setError('All fields are required');
+            return;
+        }
+        if (regPassword.length < 8) {
+            setError('Password must be at least 8 characters');
+            return;
+        }
+        setIsLoading(true);
+        setError(null);
+        try {
+            await onRegister({
+                name: regName.trim(),
+                restaurantName: regRestaurant.trim(),
+                email: regEmail.trim(),
+                phone: regPhone.trim(),
+                password: regPassword,
+            });
+        } catch (err: any) {
+            setError(err?.message || 'Registration failed. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Countdown timer for resend
     useEffect(() => {
         if (countdown > 0) {
@@ -66,7 +129,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
 
     // Initialize reCAPTCHA when component mounts (Firebase mode)
     useEffect(() => {
-        if (!demoMode && useFirebase && step === 'phone') {
+        if (!demoMode && mode === 'otp' && useFirebase && step === 'phone') {
             // Small delay to ensure button is rendered
             const timer = setTimeout(() => {
                 try {
@@ -372,6 +435,106 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
                             Static preview with sample data — no real account is created.
                         </p>
                     </form>
+                ) : mode === 'password' ? (
+                    /* Email/phone + password login */
+                    <form onSubmit={handlePasswordLogin} className="space-y-5">
+                        <div>
+                            <label htmlFor="login-identifier" className="block text-slate-400 text-sm mb-2">Email or phone number</label>
+                            <input
+                                id="login-identifier"
+                                type="text"
+                                value={identifier}
+                                onChange={(e) => { setIdentifier(e.target.value); setError(null); }}
+                                placeholder="owner@restaurant.com or +919876543210"
+                                autoFocus
+                                autoComplete="username"
+                                className="w-full bg-slate-800 text-white px-4 py-3.5 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="login-password" className="block text-slate-400 text-sm mb-2">Password</label>
+                            <input
+                                id="login-password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                                placeholder="Your password"
+                                autoComplete="current-password"
+                                className="w-full bg-slate-800 text-white px-4 py-3.5 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500"
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? <span className="animate-pulse">Signing in...</span> : (<><span>Sign in</span><ArrowRight size={18} /></>)}
+                        </button>
+                        <div className="flex items-center justify-between text-sm">
+                            <button type="button" onClick={() => { setMode('otp'); setError(null); }} className="text-orange-500 hover:underline">
+                                Login with OTP instead
+                            </button>
+                            {onRegister && (
+                                <button type="button" onClick={() => { setMode('register'); setError(null); }} className="text-orange-500 hover:underline">
+                                    Create account
+                                </button>
+                            )}
+                        </div>
+                    </form>
+                ) : mode === 'register' ? (
+                    /* Restaurant self-signup */
+                    <form onSubmit={handleRegister} className="space-y-4">
+                        <div>
+                            <label htmlFor="reg-restaurant" className="block text-slate-400 text-sm mb-2">Restaurant name</label>
+                            <input id="reg-restaurant" type="text" value={regRestaurant} autoFocus
+                                onChange={(e) => { setRegRestaurant(e.target.value); setError(null); }}
+                                placeholder="Spice Garden"
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="reg-name" className="block text-slate-400 text-sm mb-2">Your name</label>
+                            <input id="reg-name" type="text" value={regName}
+                                onChange={(e) => { setRegName(e.target.value); setError(null); }}
+                                placeholder="Owner name"
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="reg-email" className="block text-slate-400 text-sm mb-2">Email</label>
+                            <input id="reg-email" type="email" value={regEmail}
+                                onChange={(e) => { setRegEmail(e.target.value); setError(null); }}
+                                placeholder="owner@restaurant.com"
+                                autoComplete="email"
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="reg-phone" className="block text-slate-400 text-sm mb-2">Phone number</label>
+                            <input id="reg-phone" type="tel" value={regPhone}
+                                onChange={(e) => { setRegPhone(e.target.value); setError(null); }}
+                                placeholder="+919876543210"
+                                autoComplete="tel"
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="reg-password" className="block text-slate-400 text-sm mb-2">Password (min 8 characters)</label>
+                            <input id="reg-password" type="password" value={regPassword}
+                                onChange={(e) => { setRegPassword(e.target.value); setError(null); }}
+                                placeholder="Choose a strong password"
+                                autoComplete="new-password"
+                                className="w-full bg-slate-800 text-white px-4 py-3 rounded-xl border border-slate-700 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 placeholder:text-slate-500" />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? <span className="animate-pulse">Creating your restaurant...</span> : (<><span>Create account</span><ArrowRight size={18} /></>)}
+                        </button>
+                        <p className="text-center text-sm">
+                            <button type="button" onClick={() => { setMode('password'); setError(null); }} className="text-orange-500 hover:underline">
+                                Already have an account? Sign in
+                            </button>
+                        </p>
+                    </form>
                 ) : step === 'phone' ? (
                     /* Phone Input Step */
                     <div className="space-y-6">
@@ -416,6 +579,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
                         <p className="text-center text-xs text-slate-500">
                             We'll send a 6-digit verification code to your phone
                         </p>
+
+                        {onPasswordLogin && (
+                            <p className="text-center text-sm">
+                                <button type="button" onClick={() => { setMode('password'); setError(null); }} className="text-orange-500 hover:underline">
+                                    Sign in with password instead
+                                </button>
+                            </p>
+                        )}
                     </div>
                 ) : (
                     /* OTP Verification Step */

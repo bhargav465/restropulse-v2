@@ -75,6 +75,17 @@ if (process.env.SECRETS_BACKEND) {
     );
 }
 
+// Vercel serverless: sensible defaults so a fresh deploy only needs
+// MONGODB_URI + JWT_SECRET (+ Razorpay keys) as project env vars.
+if (process.env.VERCEL) {
+    const selfUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    if (selfUrl) {
+        process.env.BACKEND_URL ||= `https://${selfUrl}`;
+        process.env.FRONTEND_URL ||= `https://${selfUrl}`;
+    }
+    process.env.NODE_ENV ||= 'production';
+}
+
 const env = loadAndValidateEnv({
     serviceName: 'api',
     envPath: path.resolve(process.cwd(), '.env'),
@@ -124,9 +135,14 @@ initializeFirebaseAdmin();
 // Serve static content from public directory
 app.use('/content', express.static(path.join(__dirname, '../public')));
 
-// Middleware - Allow both ports 3000 and 3001 for development
+// Middleware - CORS_ORIGIN supports a comma-separated list of origins.
+// On Vercel with no explicit CORS_ORIGIN, reflect the request origin (auth is
+// via Bearer tokens, not cookies, so this is safe and keeps setup simple).
+const corsOrigins = CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
-    origin: [CORS_ORIGIN, 'http://localhost:3001'],
+    origin: process.env.VERCEL && !process.env.CORS_ORIGIN
+        ? true
+        : [...corsOrigins, 'http://localhost:3001'],
     credentials: true
 }));
 // Razorpay webhook needs raw body for signature verification
@@ -258,6 +274,26 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
-startServer();
+// Serverless (Vercel): do NOT listen. The handler in vercel.ts awaits
+// ensureServerReady() per invocation (memoized) before delegating to app.
+let readyPromise: Promise<void> | null = null;
+export function ensureServerReady(): Promise<void> {
+    if (!readyPromise) {
+        readyPromise = (async () => {
+            await connectDB();
+            await ensureOrderingIndexes();
+            await ensureIntelligenceIndexes();
+            await ensureAssetIndexes();
+        })().catch((err) => {
+            readyPromise = null; // allow retry on next invocation
+            throw err;
+        });
+    }
+    return readyPromise;
+}
+
+if (!process.env.VERCEL) {
+    startServer();
+}
 
 export default app;

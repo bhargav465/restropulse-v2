@@ -5,6 +5,7 @@
 // -------------------------------------------------------
 
 import type { RestaurantOrderingSettings } from './ordering.js';
+import type { WatchlistEntry } from './intelligence.js';
 
 // ----- Enums / Literal Unions -----
 
@@ -131,6 +132,8 @@ export interface User {
   emailVerified?: boolean;
   restaurantId: string;
   razorpayCustomerId?: string;
+  /** bcrypt hash for email/phone + password login. Never returned to clients. */
+  passwordHash?: string;
 }
 
 export interface MenuItem {
@@ -199,6 +202,12 @@ export interface Restaurant {
   menu?: MenuItem[];
   /** City this record was sourced from. Set by the acquire-restaurants script. */
   sourceCity?: string;
+  /**
+   * Confirmed Google Places placeId for this restaurant (Brief 10). Set when the
+   * owner picks their restaurant via the Google place picker; lets the scan
+   * pipeline skip text-search disambiguation. Owner-editable (whitelisted).
+   */
+  googlePlaceId?: string;
   /** Source of the data: acquisition script writes this; manual entries leave it absent. */
   dataSource?: 'kaggle-zomato' | 'osm' | 'merged' | 'manual';
   /**
@@ -230,6 +239,12 @@ export interface Restaurant {
   storeOpen?: boolean;
   /** Ordering configuration: tax rate, delivery fee/min order, enabled order types. */
   ordering?: RestaurantOrderingSettings;
+  // ----- Intelligence v2 (Brief 06, additive — optional; existing docs stay valid) -----
+  /** Intelligence v2 settings: competitor watchlist (server-enforced ≤ WATCHLIST_MAX) + self Zomato URL. */
+  intelligence?: {
+    watchlist: WatchlistEntry[];        // server-enforced ≤ WATCHLIST_MAX
+    selfZomatoUrl?: string;
+  };
 }
 
 /**
@@ -242,6 +257,7 @@ export const RESTAURANT_PROFILE_FIELDS = [
   'name', 'legalName', 'cuisine', 'cuisineTags', 'description', 'phone', 'email', 'website',
   'priceRange', 'address', 'location', 'operatingHours', 'serviceOptions',
   'activeOffers', 'chefSpecials', 'gstin', 'fssaiLicense', 'logoUrl', 'coverImageUrl',
+  'googlePlaceId', // Brief 10: confirmed Google Places id from the place picker.
 ] as const;
 
 export type RestaurantProfileField = (typeof RESTAURANT_PROFILE_FIELDS)[number];
@@ -519,8 +535,20 @@ export interface ArchivedAccount {
 // ----- API Types (request/response) -----
 
 export interface LoginRequest {
-  email: string;
+  /** Email or phone — at least one must be provided. */
+  email?: string;
+  phone?: string;
   password: string;
+}
+
+/** Restaurant self-signup: creates the OWNER user + the restaurant in one step. */
+export interface RegisterRequest {
+  name: string;
+  restaurantName: string;
+  email: string;
+  phone: string;
+  password: string;
+  cuisine?: string;
 }
 
 export interface OtpRequest {

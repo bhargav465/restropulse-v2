@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { IntelligenceReport, IntelligenceScan, ScanStatus } from '@restropulse/shared';
 import { ActionCard } from '../primitives';
 import { ScanStepper } from './primitives';
+import PlacePickerHost from './PlacePickerHost';
+import type { PlacePickerSelection } from './place-picker-engine';
 
 /**
  * ScanFlow (DESIGN §2) — the empty state ("Run your first scan" form + teaser
@@ -15,7 +17,7 @@ import { ScanStepper } from './primitives';
 export const SCAN_POLL_MS = 3000;
 
 export interface ScanApi {
-    startScan: (body: { name?: string; city?: string; force?: boolean }) => Promise<{ scanId: string }>;
+    startScan: (body: { name?: string; city?: string; force?: boolean; placeId?: string }) => Promise<{ scanId: string }>;
     getScan: (scanId: string) => Promise<IntelligenceScan>;
     getReport: (reportId: string) => Promise<IntelligenceReport>;
 }
@@ -28,6 +30,8 @@ interface ScanFlowProps {
     variant: 'first-run' | 'rescan';
     onCancel?: () => void;
     force?: boolean;
+    /** Persist the confirmed Google placeId to the restaurant profile (Brief 10). */
+    onPlaceConfirmed?: (selection: PlacePickerSelection) => void;
 }
 
 const TEASERS: Array<{ emoji: string; title: string; description: string }> = [
@@ -37,21 +41,28 @@ const TEASERS: Array<{ emoji: string; title: string; description: string }> = [
     { emoji: '🎯', title: 'One-click actions', description: 'Turn each finding into a post, a campaign or a profile fix — without leaving RestroPulse.' },
 ];
 
-const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, onCancel, force }) => {
+const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, onCancel, force, onPlaceConfirmed }) => {
     const [name, setName] = useState(defaults.name);
     const [city, setCity] = useState(defaults.city);
+    const [placeId, setPlaceId] = useState<string | undefined>();
     const [scanId, setScanId] = useState<string | null>(null);
     const [status, setStatus] = useState<ScanStatus>('QUEUED');
     const [error, setError] = useState<string | undefined>();
     const [starting, setStarting] = useState(false);
+    const [manualEntry, setManualEntry] = useState(false);
     const startedRef = useRef(false);
 
-    const start = async () => {
+    const start = async (overrides?: { name?: string; city?: string; placeId?: string }) => {
         setError(undefined);
         setStatus('QUEUED');
         setStarting(true);
         try {
-            const { scanId: id } = await api.startScan({ name, city, force });
+            const { scanId: id } = await api.startScan({
+                name: overrides?.name ?? name,
+                city: overrides?.city ?? city,
+                force,
+                placeId: overrides?.placeId ?? placeId,
+            });
             setScanId(id);
         } catch (e) {
             setStatus('FAILED');
@@ -59,6 +70,16 @@ const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, o
         } finally {
             setStarting(false);
         }
+    };
+
+    // Owner confirmed their restaurant in the Google picker: persist the placeId,
+    // pre-fill name/city, and kick off the scan straight to Place Details.
+    const handlePlaceConfirmed = (sel: PlacePickerSelection) => {
+        setName(sel.name);
+        setCity(sel.city);
+        setPlaceId(sel.placeId);
+        onPlaceConfirmed?.(sel);
+        void start({ name: sel.name, city: sel.city, placeId: sel.placeId });
     };
 
     // Auto-start a re-scan on mount (once).
@@ -130,35 +151,46 @@ const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, o
                 <p className="text-sidebar-ink text-sm mt-2 max-w-xl leading-relaxed">
                     We’ll find you on Google, scan nearby competitors, and build a RestroScore with a prioritized action plan — in under a minute.
                 </p>
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        void start();
-                    }}
-                    className="mt-5 flex flex-col sm:flex-row gap-3 max-w-xl"
-                >
-                    <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Restaurant name"
-                        aria-label="Restaurant name"
-                        className="flex-1 rounded-lg px-3 py-2 text-sm text-ink bg-white/95 placeholder:text-muted focus:outline-none"
-                    />
-                    <input
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        placeholder="City"
-                        aria-label="City"
-                        className="sm:w-40 rounded-lg px-3 py-2 text-sm text-ink bg-white/95 placeholder:text-muted focus:outline-none"
-                    />
-                    <button
-                        type="submit"
-                        disabled={starting || !name.trim()}
-                        className="rounded-lg bg-primary-strong text-white px-5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+
+                {manualEntry ? (
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            setPlaceId(undefined);
+                            void start();
+                        }}
+                        className="mt-5 flex flex-col sm:flex-row gap-3 max-w-xl"
                     >
-                        {starting ? 'Starting…' : 'Run scan'}
-                    </button>
-                </form>
+                        <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Restaurant name"
+                            aria-label="Restaurant name"
+                            className="flex-1 rounded-lg px-3 py-2 text-sm text-ink bg-white/95 placeholder:text-muted focus:outline-none"
+                        />
+                        <input
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                            placeholder="City"
+                            aria-label="City"
+                            className="sm:w-40 rounded-lg px-3 py-2 text-sm text-ink bg-white/95 placeholder:text-muted focus:outline-none"
+                        />
+                        <button
+                            type="submit"
+                            disabled={starting || !name.trim()}
+                            className="rounded-lg bg-primary-strong text-white px-5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+                        >
+                            {starting ? 'Starting…' : 'Run scan'}
+                        </button>
+                    </form>
+                ) : (
+                    <div className="mt-5 max-w-xl rounded-xl bg-white/95 p-4">
+                        <PlacePickerHost
+                            onConfirm={handlePlaceConfirmed}
+                            onCancel={() => setManualEntry(true)}
+                        />
+                    </div>
+                )}
             </div>
 
             {error && <p className="text-sm text-danger">{error}</p>}

@@ -220,7 +220,29 @@ export interface IntelligenceReport {
   keywords: KeywordCluster; // ai-inferred
   narrative: ReportNarrative; // ai-inferred (Sonnet)
   deltas?: ReportDeltas; // vs previous report (worker fills)
+  /**
+   * Competition buckets (Brief 10, additive + optional). Reports generated before
+   * Brief 10 have no `buckets`; the UI guards for `undefined` and renders fine.
+   */
+  buckets?: CompetitionBuckets;
   generatedAt: Date;
+}
+
+/**
+ * Competition buckets on the report (Brief 10, additive). Built by
+ * `report-builder.ts` from already-measured/computed data — no new Places or
+ * Sonnet calls. The standalone grader site mirrors the same thresholds
+ * (`buckets.ts`). Provenance: `directTop10`/`overallTop10` are computed
+ * (threat-sorted slices of the measured competitor set); `aovBand` is measured
+ * (Places priceLevel) mapped to a computed display band.
+ */
+export interface CompetitionBuckets {
+  /** Top ≤10 within 5 km matching base cuisine family AND AOV band (priceLevel ±1), by threat desc. */
+  directTop10: CompetitorProfile[];
+  /** Top ≤10 overall within 5 km by threat desc, any cuisine/price. */
+  overallTop10: CompetitorProfile[];
+  /** Base AOV proxy: Places price_level (0–4; null when Google has none) + display band label. */
+  aovBand: { base: number | null; label: string };
 }
 
 /**
@@ -253,4 +275,86 @@ export interface IntelligenceSelfMetrics {
   peakHours: number[][];
   /** Growth cohorts (drop-off carts, non-transacted, lapsed) from the cohort service. */
   cohorts: Array<{ id: string; name: string; count: number }>;
+}
+
+// ----- v2: daily snapshots & two-bucket dashboard (Brief 06, additive) -----
+
+export type SnapshotSource = 'google' | 'zomato';
+
+/** Fixed review-theme taxonomy ("hashtags"). Never let the model invent new ones. */
+export const REVIEW_THEMES = [
+  'food-quality', 'service', 'delivery-time', 'pricing',
+  'ambience', 'hygiene', 'portion-size', 'staff',
+] as const;
+export type ReviewTheme = (typeof REVIEW_THEMES)[number];
+
+/** A review captured in a daily diff. */
+export interface SnapshotReview {
+  rating: number;
+  text: string;
+  author?: string;
+  time: string;                       // relative or ISO, as provided by source
+  themes?: ReviewTheme[];             // Sonnet/Haiku tagged — ai-inferred
+}
+
+/** One row per target × source × day. Time-series backbone of both buckets. */
+export interface DailySnapshot {
+  _id: string;
+  restaurantId: string;               // tenant
+  targetPlaceId: string;              // self OR watchlisted competitor placeId
+  isSelf: boolean;
+  source: SnapshotSource;
+  date: string;                       // 'YYYY-MM-DD' in the restaurant's TZ
+  rating: number;
+  reviewCount: number;
+  photoCount: number;
+  seoScore?: number;                  // 0–100; self+google only
+  newReviews: SnapshotReview[];       // diff vs previous snapshot for this target/source
+  responseRate?: number;              // % recent reviews with an owner reply
+  backfilled?: boolean;               // true when written by the ≤7-day catch-up
+  capturedAt: Date;
+}
+
+export const WATCHLIST_MAX = 5;
+
+export interface WatchlistEntry {
+  placeId: string;
+  name: string;
+  addedAt: Date;
+  zomatoUrl?: string;                 // presence enables the Zomato adapter
+}
+
+/** First-seen registry powering the New Openings radar. */
+export interface NearbyPlaceSighting {
+  _id: string;
+  restaurantId: string;
+  placeId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+  cuisine?: string;                   // ai-inferred
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  ratingAtFirstSeen: number;
+  reviewsAtFirstSeen: number;
+}
+
+/** One deterministic metric gap for "Where They Beat You" (computed). */
+export interface MetricGap {
+  metric: 'rating' | 'reviewVelocity' | 'responseRate' | 'photoCount';
+  source: SnapshotSource;
+  yours: number;
+  theirs: number;
+  gap: number;                        // theirs - yours (positive = they lead)
+}
+
+/** GET /compare row. */
+export interface CompareRow {
+  placeId: string;
+  name: string;
+  isSelf: boolean;
+  google?: { rating: number; reviewCount: number; newReviews: number; photoCount: number };
+  zomato?: { rating: number; reviewCount: number; newReviews: number; photoCount: number };
+  beatsYou: MetricGap[];              // empty for the self row
 }

@@ -1,0 +1,159 @@
+name: Deploy to Vercel (production)
+
+# Deploys three Vercel projects from this monorepo:
+#   restropulse-api        — Express API bundled as a serverless function
+#   restropulse-admin      — merchant dashboard (Vite SPA, v2 shell)
+#   restropulse-storefront — customer ordering site (Vite SPA)
+#
+# Required GitHub repo secrets:
+#   VERCEL_TOKEN          — Vercel personal token (Account Settings → Tokens)
+#   MONGODB_URI           — MongoDB Atlas connection string
+#   JWT_SECRET            — any long random string (keep stable across deploys)
+#   RAZORPAY_KEY_ID       — Razorpay test/live key id (optional; payments stub without it)
+#   RAZORPAY_KEY_SECRET   — Razorpay key secret (optional)
+#   RAZORPAY_WEBHOOK_SECRET — Razorpay webhook secret (optional)
+
+on:
+  push:
+    branches: [feat/vercel-deploy]
+  workflow_dispatch:
+
+env:
+  VERCEL_SCOPE: bhargavs-projects-2af70bcc
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    outputs:
+      api_url: ${{ steps.deploy.outputs.api_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+      - name: Build workspace packages
+        run: |
+          for p in shared telemetry secrets db publishing; do
+            (cd packages/$p && npx tsc)
+          done
+      - name: Bundle API for Vercel
+        run: node scripts/build-vercel-api.mjs
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+      - name: Configure project env vars
+        working-directory: dist-vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          mkdir -p /tmp/deploy/restropulse-api
+          cp -r . /tmp/deploy/restropulse-api/
+          cd /tmp/deploy/restropulse-api
+          # Create/link the project non-interactively
+          vercel link --yes --project restropulse-api --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" \
+            || vercel deploy --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" > /dev/null
+          vercel link --yes --project restropulse-api --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          set_env () {
+            KEY="$1"; VAL="$2"
+            [ -z "$VAL" ] && { echo "skip $KEY (no value)"; return 0; }
+            vercel env rm "$KEY" production --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>/dev/null || true
+            printf '%s' "$VAL" | vercel env add "$KEY" production --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          }
+          set_env MONGODB_URI            "${{ secrets.MONGODB_URI }}"
+          set_env MONGODB_DB_NAME        "${{ secrets.MONGODB_DB_NAME || 'restropulse-dev' }}"
+          set_env JWT_SECRET             "${{ secrets.JWT_SECRET }}"
+          set_env RAZORPAY_KEY_ID        "${{ secrets.RAZORPAY_KEY_ID }}"
+          set_env RAZORPAY_KEY_SECRET    "${{ secrets.RAZORPAY_KEY_SECRET }}"
+          set_env RAZORPAY_WEBHOOK_SECRET "${{ secrets.RAZORPAY_WEBHOOK_SECRET }}"
+          set_env NODE_ENV               "production"
+      - name: Deploy API (production)
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          cd /tmp/deploy/restropulse-api
+          URL=$(vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN")
+          echo "Deployment URL: $URL"
+          # Prefer the stable project alias if one exists
+          ALIAS=$(vercel inspect "$URL" --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>&1 | grep -oE 'https://restropulse-api[a-z0-9.-]*\.vercel\.app' | head -1 || true)
+          FINAL="${ALIAS:-$URL}"
+          echo "api_url=$FINAL" >> "$GITHUB_OUTPUT"
+          echo "API live at: $FINAL"
+
+  deploy-admin:
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+      - name: Build workspace packages
+        run: |
+          for p in shared telemetry secrets db publishing; do
+            (cd packages/$p && npx tsc)
+          done
+      - name: Build admin dashboard
+        working-directory: apps/web
+        env:
+          VITE_API_URL: ${{ needs.deploy-api.outputs.api_url }}/api
+          VITE_ADMIN_SHELL: v2
+          VITE_STOREFRONT_URL: https://restropulse-storefront.vercel.app
+        run: npx vite build
+      - name: Deploy admin (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npm i -g vercel@latest
+          mkdir -p /tmp/deploy/restropulse-admin
+          cp -r apps/web/dist/* /tmp/deploy/restropulse-admin/
+          cat > /tmp/deploy/restropulse-admin/vercel.json <<'JSON'
+          {
+            "$schema": "https://openapi.vercel.sh/vercel.json",
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+          }
+          JSON
+          cd /tmp/deploy/restropulse-admin
+          vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+
+  deploy-storefront:
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+      - name: Build workspace packages
+        run: |
+          for p in shared telemetry secrets db publishing; do
+            (cd packages/$p && npx tsc)
+          done
+      - name: Build storefront
+        working-directory: apps/storefront
+        env:
+          VITE_API_URL: ${{ needs.deploy-api.outputs.api_url }}/api
+        run: npx vite build
+      - name: Deploy storefront (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npm i -g vercel@latest
+          mkdir -p /tmp/deploy/restropulse-storefront
+          cp -r apps/storefront/dist/* /tmp/deploy/restropulse-storefront/
+          cat > /tmp/deploy/restropulse-storefront/vercel.json <<'JSON'
+          {
+            "$schema": "https://openapi.vercel.sh/vercel.json",
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+          }
+          JSON
+          cd /tmp/deploy/restropulse-storefront
+          vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"

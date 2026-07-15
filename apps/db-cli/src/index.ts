@@ -11,6 +11,7 @@ import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
 import { seedOrderingCommand } from './commands/seed-ordering.js';
 import { seedIntelligenceCommand } from './commands/seed-intelligence.js';
+import { seedIntelligenceSnapshotsCommand } from './commands/seed-intelligence-snapshots.js';
 import { dedupeMenuItemsCommand } from './commands/dedupe-menu-items.js';
 
 const program = new Command();
@@ -70,6 +71,11 @@ program
     .command('seed-intelligence')
     .description('Seed the demo Restaurant Intelligence report ([SAMPLE], restaurant "demo-r1", restroScore 68)')
     .action(seedIntelligenceCommand);
+
+program
+    .command('seed-intelligence-snapshots')
+    .description('Seed Intelligence v2 demo data ([SAMPLE], restaurant "demo-r1"): 60-day daily snapshots, nearby sightings, and the competitor watchlist')
+    .action(seedIntelligenceSnapshotsCommand);
 
 program
     .command('dedupe-menu-items')

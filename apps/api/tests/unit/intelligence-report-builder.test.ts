@@ -21,6 +21,7 @@ const base: BaseRestaurant = {
     location: { lat: 12.9719, lng: 77.6412 },
     zone: 'Indiranagar',
     formattedAddress: 'Indiranagar, Bengaluru',
+    priceLevel: 2,
 };
 
 const competitors: PlaceRow[] = [

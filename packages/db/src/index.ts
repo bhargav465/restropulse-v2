@@ -71,3 +71,4 @@ export * from './intelligence.js';
 export * from './assets.js';
 export * from './seeds/ordering-demo.js';
 export * from './seeds/intelligence-demo.js';
+export * from './seeds/intelligence-snapshots-demo.js';

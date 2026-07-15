@@ -23,7 +23,7 @@ export function getAssetsBucket(): GridFSBucket {
 
 export interface AssetUploadMetadata {
   restaurantId: string;
-  kind: 'logo' | 'cover';
+  kind: 'logo' | 'cover' | 'menu-item';
 }
 
 /**

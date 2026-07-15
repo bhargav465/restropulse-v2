@@ -48,6 +48,7 @@ import { STOREFRONT_VERSION_HISTORY_LIMIT } from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
+import { assetStore, isValidImageUpload, MAX_ASSET_BYTES, IMAGE_REJECT_MESSAGE } from '../services/assets.js';
 import { isOrderStatus, canTransitionOrderStatus, ORDER_STATUS_TRANSITIONS } from '../services/ordering/status.js';
 import { parseMenuCsv } from '../services/ordering/menu-csv.js';
 import { emitOrderingEvent } from '../services/ordering/events.js';
@@ -526,6 +527,138 @@ router.patch('/store', handle(async (req: Request, res: Response<ApiResponse>) =
     emitOrderingEvent({ name: 'store_toggled', restaurantId: restaurantId(req), payload: { open } });
     res.json({ success: true, data: { storeOpen: restaurant.storeOpen === true } });
 }));
+
+// ============================================
+// Ordering settings (feature toggles: delivery / pickup / dine-in, tax, fees)
+// ============================================
+
+router.get('/settings', handle(async (req: Request, res: Response<ApiResponse>) => {
+    const restaurant = await findRestaurantById(restaurantId(req));
+    if (!restaurant) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+    res.json({
+        success: true,
+        data: {
+            storeOpen: restaurant.storeOpen === true,
+            slug: restaurant.slug ?? null,
+            ordering: restaurant.ordering ?? {},
+        },
+    });
+}));
+
+router.patch('/settings', handle(async (req: Request, res: Response<ApiResponse>) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const restaurant = await findRestaurantById(restaurantId(req));
+    if (!restaurant) {
+        return res.status(404).json({ success: false, error: 'Restaurant not found' });
+    }
+
+    const current = restaurant.ordering ?? {};
+    const next = { ...current } as NonNullable<typeof restaurant.ordering>;
+
+    const asBool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined);
+    const asMoney = (v: unknown): number | undefined =>
+        typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
+
+    if (body.taxRatePercent !== undefined) {
+        const t = Number(body.taxRatePercent);
+        if (!Number.isFinite(t) || t < 0 || t > 100) {
+            return res.status(400).json({ success: false, error: 'taxRatePercent must be between 0 and 100' });
+        }
+        next.taxRatePercent = t;
+    }
+    if (body.currency !== undefined) {
+        if (typeof body.currency !== 'string' || !/^[A-Z]{3}$/.test(body.currency)) {
+            return res.status(400).json({ success: false, error: 'currency must be a 3-letter code, e.g. INR' });
+        }
+        next.currency = body.currency;
+    }
+    if (body.delivery !== undefined && typeof body.delivery === 'object' && body.delivery !== null) {
+        const d = body.delivery as Record<string, unknown>;
+        const prev = current.delivery ?? { enabled: true, flatFee: 0, minOrder: 0 };
+        next.delivery = {
+            ...prev,
+            enabled: asBool(d.enabled) ?? prev.enabled,
+            flatFee: asMoney(d.flatFee) ?? prev.flatFee,
+            minOrder: asMoney(d.minOrder) ?? prev.minOrder,
+        };
+    }
+    if (body.pickup !== undefined && typeof body.pickup === 'object' && body.pickup !== null) {
+        const p = body.pickup as Record<string, unknown>;
+        next.pickup = { enabled: asBool(p.enabled) ?? current.pickup?.enabled ?? true };
+    }
+    if (body.dineIn !== undefined && typeof body.dineIn === 'object' && body.dineIn !== null) {
+        const d = body.dineIn as Record<string, unknown>;
+        next.dineIn = { enabled: asBool(d.enabled) ?? current.dineIn?.enabled ?? true };
+    }
+
+    const updates: Record<string, unknown> = { ordering: next };
+    if (body.storeOpen !== undefined) {
+        if (typeof body.storeOpen !== 'boolean') {
+            return res.status(400).json({ success: false, error: 'storeOpen must be a boolean' });
+        }
+        updates.storeOpen = body.storeOpen;
+    }
+
+    const updated = await updateRestaurant(restaurantId(req), updates as never);
+    emitOrderingEvent({ name: 'ordering_settings_updated', restaurantId: restaurantId(req), payload: {} });
+    res.json({
+        success: true,
+        data: {
+            storeOpen: updated?.storeOpen === true,
+            slug: updated?.slug ?? null,
+            ordering: updated?.ordering ?? {},
+        },
+    });
+}));
+
+// ============================================
+// Menu item image upload → GridFS (mirrors POST /api/restaurant/assets)
+// ============================================
+
+const menuImageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ASSET_BYTES } });
+
+router.post(
+    '/menu/assets',
+    (req: Request, res: Response, next) => {
+        menuImageUpload.single('file')(req, res, (err: unknown) => {
+            if (err) {
+                if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(413).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+                }
+                return res.status(400).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+            }
+            next();
+        });
+    },
+    handle(async (req: Request, res: Response<ApiResponse>) => {
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'Image file is required (multipart field "file")' });
+        }
+        if (!isValidImageUpload(req.file.originalname, req.file.mimetype)) {
+            return res.status(400).json({ success: false, error: IMAGE_REJECT_MESSAGE });
+        }
+
+        const assetId = await assetStore.put(req.file.buffer, {
+            filename: req.file.originalname,
+            contentType: req.file.mimetype,
+            metadata: { restaurantId: restaurantId(req), kind: 'menu-item' },
+        });
+
+        // Absolute URL so the image works from the admin AND storefront origins.
+        const base = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+        res.status(201).json({
+            success: true,
+            data: {
+                assetId,
+                url: `${base}/api/assets/${assetId}`,
+                contentType: req.file.mimetype,
+                size: req.file.size,
+            },
+        });
+    }),
+);
 
 // ============================================
 // Reservations (list, confirm/decline)
