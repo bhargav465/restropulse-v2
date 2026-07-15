@@ -1,0 +1,1 @@
+# Vendored from bhargav465/Restropulse-landingpage (branch feat/mongodb-pages-vercel) so the super-admin dashboard and CI can manage it alongside the platform. Content (plans/settings/assets/pages) lives in MongoDB db 'restropulse_landing' — edited from the super-admin dashboard, no redeploy needed.

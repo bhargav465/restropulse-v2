@@ -18,6 +18,21 @@ function generateOtp(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+/**
+ * Platform owner auto-promotion: accounts whose email matches
+ * SUPER_ADMIN_EMAIL get the ADMIN role at login. ADMIN unlocks /api/super
+ * (the super-admin dashboard).
+ */
+async function promoteSuperAdmin(user: User): Promise<User> {
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    if (user.email?.toLowerCase() === superEmail && user.role !== 'ADMIN') {
+        const updated = await updateUser(user.id, { role: 'ADMIN' });
+        log.info({ userId: user.id }, 'Promoted super admin');
+        return updated ?? { ...user, role: 'ADMIN' };
+    }
+    return user;
+}
+
 /** Never leak the bcrypt hash to clients. */
 function sanitizeUser<T extends Partial<User> | null | undefined>(user: T): T {
     if (!user) return user;
@@ -313,7 +328,7 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
     });
 
     const passwordHash = await hashPassword(password);
-    const user = await createUser({
+    let user = await createUser({
         name,
         email: email.toLowerCase(),
         phone: normalizedPhone,
@@ -322,6 +337,7 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
         passwordHash,
         emailVerified: false,
     } as Omit<User, 'id'>);
+    user = await promoteSuperAdmin(user);
 
     const tokens = generateTokens(user.id, normalizedPhone, restaurant.id, user.role);
     log.info({ userId: user.id, restaurantId: restaurant.id, slug }, 'Restaurant registered');
@@ -363,6 +379,8 @@ router.post('/login', handle(async (req: Request<{}, {}, LoginRequest>, res: Res
                 : 'This account has no password set. Log in with OTP, or register a new account.'
         });
     }
+
+    user = await promoteSuperAdmin(user);
 
     const tokens = generateTokens(user.id, user.phone, user.restaurantId, user.role);
     res.json({

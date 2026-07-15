@@ -27,6 +27,7 @@ import {
     toApiFormatArray,
     toObjectId,
 } from '@restropulse/db';
+import { getPlatformFlags } from '../services/platform-flags.js';
 import type {
     ApiResponse,
     Restaurant,
@@ -88,7 +89,7 @@ function restaurantMiddleware(req: Request, res: Response, next: NextFunction): 
     }
     findRestaurantBySlug(slug)
         .then((restaurant) => {
-            if (!restaurant) {
+            if (!restaurant || restaurant.suspended === true) {
                 res.status(404).json({ success: false, error: 'Storefront not found' });
                 return;
             }
@@ -119,7 +120,18 @@ const customerAuth = [requireCustomerAuth, requireSameStorefront];
 // GET /api/storefront/:slug/config — published content + open state
 router.get('/config', handle(async (_req: Request, res: Response<ApiResponse>) => {
     const restaurant = res.locals.restaurant as Restaurant;
-    const contentDoc = await findStorefrontContent(restaurant.id);
+    const [contentDoc, platformFlags] = await Promise.all([
+        findStorefrontContent(restaurant.id),
+        getPlatformFlags(),
+    ]);
+
+    // Platform kill switches: when ordering is disabled platform-wide, the
+    // storefront behaves exactly as if the store were closed.
+    const effectiveStoreOpen = restaurant.storeOpen === true && platformFlags.ordering;
+    const ordering = restaurant.ordering ? { ...restaurant.ordering } : null;
+    if (ordering && !platformFlags.dineIn) {
+        ordering.dineIn = { enabled: false };
+    }
 
     res.json({
         success: true,
@@ -129,11 +141,16 @@ router.get('/config', handle(async (_req: Request, res: Response<ApiResponse>) =
                 name: restaurant.name,
                 slug: restaurant.slug,
                 cuisine: restaurant.cuisine,
-                storeOpen: restaurant.storeOpen === true,
-                ordering: restaurant.ordering ?? null,
+                storeOpen: effectiveStoreOpen,
+                ordering,
             },
             content: contentDoc?.published ?? null,
-            storeOpen: restaurant.storeOpen === true,
+            storeOpen: effectiveStoreOpen,
+            platform: {
+                ordering: platformFlags.ordering,
+                reservations: platformFlags.reservations,
+                dineIn: platformFlags.dineIn,
+            },
         },
     });
 }));
@@ -372,6 +389,11 @@ router.post('/orders', ...customerAuth, handle(async (req: Request, res: Respons
 
     if (restaurant.storeOpen !== true) {
         return res.status(409).json({ success: false, error: 'The store is currently closed' });
+    }
+
+    // Platform kill switch (super admin): ordering disabled across all storefronts.
+    if (!(await getPlatformFlags()).ordering) {
+        return res.status(409).json({ success: false, error: 'Ordering is temporarily unavailable' });
     }
 
     const { items, orderType, address, notes } = req.body ?? {};
@@ -761,6 +783,12 @@ router.post(
     simpleRateLimit({ windowMs: 60_000, max: 10, name: 'storefront-reservations' }),
     handle(async (req: Request, res: Response<ApiResponse>) => {
         const restaurant = res.locals.restaurant as Restaurant;
+
+        // Platform kill switch (super admin): reservations disabled platform-wide.
+        if (!(await getPlatformFlags()).reservations) {
+            return res.status(409).json({ success: false, error: 'Reservations are temporarily unavailable' });
+        }
+
         const { date, time, partySize, name, phone, email, notes } = req.body ?? {};
 
         const errors: string[] = [];

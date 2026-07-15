@@ -237,6 +237,8 @@ export interface Restaurant {
   slug?: string;
   /** Whether the storefront is currently accepting orders. */
   storeOpen?: boolean;
+  /** Platform-level kill switch (super admin). Suspended restaurants have no public storefront. */
+  suspended?: boolean;
   /** Ordering configuration: tax rate, delivery fee/min order, enabled order types. */
   ordering?: RestaurantOrderingSettings;
   // ----- Intelligence v2 (Brief 06, additive — optional; existing docs stay valid) -----
@@ -540,6 +542,24 @@ export interface LoginRequest {
   phone?: string;
   password: string;
 }
+
+/**
+ * Platform-wide feature switches, controlled from the super-admin dashboard.
+ * All default to true when absent. Enforced server-side on storefront routes
+ * and surfaced through /api/storefront/:slug/config for UI gating.
+ */
+export interface PlatformFlags {
+  ordering: boolean;
+  reservations: boolean;
+  dineIn: boolean;
+  campaigns: boolean;
+  contentEngine: boolean;
+  intelligence: boolean;
+}
+
+export const PLATFORM_FLAG_KEYS = [
+  'ordering', 'reservations', 'dineIn', 'campaigns', 'contentEngine', 'intelligence',
+] as const;
 
 /** Restaurant self-signup: creates the OWNER user + the restaurant in one step. */
 export interface RegisterRequest {

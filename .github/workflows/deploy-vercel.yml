@@ -149,6 +149,92 @@ jobs:
           vercel link --yes --project restropulse-admin --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
           vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
 
+  deploy-superadmin:
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Load secrets
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in ''|\#*) continue;; esac
+            case "$line" in VERCEL_TOKEN=*) emit VERCEL_TOKEN "${line#*=}";; esac
+          done <<< "$BLOB"
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+      - name: Build superadmin
+        working-directory: apps/superadmin
+        env:
+          VITE_API_URL: ${{ needs.deploy-api.outputs.api_url }}/api
+          VITE_STOREFRONT_URL: https://restropulse-storefront.vercel.app
+          VITE_ADMIN_URL: https://restropulse-admin.vercel.app
+          VITE_LANDING_URL: https://restropulse-landingpage.vercel.app
+        run: npx vite build
+      - name: Deploy superadmin (production)
+        run: |
+          npm i -g vercel@latest
+          mkdir -p /tmp/deploy/restropulse-superadmin
+          cp -r apps/superadmin/dist/. /tmp/deploy/restropulse-superadmin/
+          cat > /tmp/deploy/restropulse-superadmin/vercel.json <<'JSON'
+          {
+            "$schema": "https://openapi.vercel.sh/vercel.json",
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+          }
+          JSON
+          cd /tmp/deploy/restropulse-superadmin
+          vercel link --yes --project restropulse-superadmin --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+
+  deploy-landing:
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Load secrets
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          S_MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          emit MONGODB_URI "$S_MONGODB_URI"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in ''|\#*) continue;; esac
+            case "$line" in *=*) ;; *) continue;; esac
+            key="${line%%=*}"; val="${line#*=}"
+            key="$(printf '%s' "$key" | tr -d '[:space:]')"
+            emit "$key" "$val"
+          done <<< "$BLOB"
+      - name: Deploy landing page (production)
+        run: |
+          npm i -g vercel@latest
+          cd landing
+          vercel link --yes --project restropulse-landingpage --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          set_env () {
+            KEY="$1"; VAL="$2"
+            [ -z "$VAL" ] && { echo "skip $KEY (no value)"; return 0; }
+            vercel env rm "$KEY" production --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" 2>/dev/null || true
+            printf '%s' "$VAL" | vercel env add "$KEY" production --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          }
+          set_env MONGODB_URI "$MONGODB_URI"
+          set_env DB_NAME "restropulse_landing"
+          vercel deploy --prod --yes --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+
   deploy-storefront:
     runs-on: ubuntu-latest
     needs: deploy-api
