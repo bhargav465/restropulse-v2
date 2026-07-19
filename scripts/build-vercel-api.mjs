@@ -72,8 +72,11 @@ writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({
 writeFileSync(path.join(outDir, 'vercel.json'), JSON.stringify({
     $schema: 'https://openapi.vercel.sh/vercel.json',
     version: 2,
-    functions: { 'api/index.mjs': { maxDuration: 30, memory: 1024 } },
+    functions: { 'api/index.mjs': { maxDuration: 60, memory: 1024 } },
     rewrites: [{ source: '/(.*)', destination: '/api/index' }],
+    // Daily 03:30 UTC (09:00 IST): capture rating/review snapshots for every
+    // restaurant so month-to-date and yearly intelligence trends accumulate.
+    crons: [{ path: '/api/cron/daily-snapshots', schedule: '30 3 * * *' }],
 }, null, 2));
 
 console.log('✓ dist-vercel ready');

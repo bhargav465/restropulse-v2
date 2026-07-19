@@ -208,17 +208,18 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         [restaurantData.name, restaurantData.sourceCity],
     );
 
+    // Plain-language tabs — restaurant owners, not analysts.
     const mineTabs: Array<SubNavTab<MineTab>> = [
-        { id: 'OVERVIEW', label: 'Overview' },
-        { id: 'TRENDS', label: 'Daily Trends' },
-        { id: 'FEEDBACK', label: 'Feedback Changes' },
-        { id: 'SEARCH', label: 'Search & SEO' },
+        { id: 'OVERVIEW', label: 'Summary' },
+        { id: 'TRENDS', label: 'Ratings & Reviews' },
+        { id: 'FEEDBACK', label: 'New Reviews' },
+        { id: 'SEARCH', label: 'Google Visibility' },
     ];
     const compTabs: Array<SubNavTab<CompTab>> = [
-        { id: 'THREATS', label: 'Top Threats' },
-        { id: 'WATCHLIST', label: 'Watchlist' },
+        { id: 'THREATS', label: 'Competitors' },
+        { id: 'WATCHLIST', label: 'Tracked Rivals' },
         { id: 'COMPARE', label: 'Compare' },
-        { id: 'BEAT', label: 'Where They Beat You' },
+        { id: 'BEAT', label: 'Gaps to Fix' },
         { id: 'OPENINGS', label: 'New Openings' },
     ];
 
@@ -282,6 +283,14 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                     <PeriodFilter bucket="COMPETITION" selection={compSel} onChange={setCompSel} />
                 )}
             </div>
+
+            {/* Plain-language explainer: what's tracked and where the history lives. */}
+            <p className="text-xs text-muted leading-relaxed">
+                Your Google rating, review count and new comments are saved automatically every day.
+                Use the period switch above — <span className="font-semibold">Month to date</span> for
+                this month, <span className="font-semibold">Overall</span> for all time — and open{' '}
+                <span className="font-semibold">Ratings &amp; Reviews</span> to see the trend.
+            </p>
 
             {bucket === 'MINE' ? (
                 <>
