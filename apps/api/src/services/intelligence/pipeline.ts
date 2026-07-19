@@ -16,8 +16,11 @@ import { randomUUID } from 'node:crypto';
 import {
     getIntelligenceReportsCollection,
     getIntelligenceScansCollection,
+    findRestaurantById,
+    updateRestaurant,
 } from '@restropulse/db';
 import type { IntelligenceReport, ScanStatus } from '@restropulse/shared';
+import { WATCHLIST_MAX } from '@restropulse/shared';
 import { createLogger } from '@restropulse/telemetry/server';
 import { StageError, STAGE_LABELS } from './errors.js';
 import { getBaseRestaurantDetails, getNearbyRestaurants } from './places.js';
@@ -134,6 +137,33 @@ export async function runScanPipeline(
         await getIntelligenceReportsCollection().insertOne(report as unknown as Record<string, unknown>);
         await setStatus(scanId, 'COMPLETED', { reportId });
         log.info({ scanId, reportId, restaurantId: report.restaurantId }, 'Intelligence scan completed');
+
+        // Auto-track the top-5 threats: fill EMPTY watchlist slots with the
+        // report's topCompetitors so daily snapshots start accumulating for
+        // them. Never removes or overwrites the merchant's own picks, and the
+        // organic nearby-competitor list in the report is untouched.
+        try {
+            const restaurant = await findRestaurantById(report.restaurantId);
+            const current = restaurant?.intelligence?.watchlist ?? [];
+            if (current.length < WATCHLIST_MAX) {
+                const have = new Set(current.map((w) => w.placeId));
+                const additions = (report.topCompetitors ?? [])
+                    .filter((c) => c.placeId && !have.has(c.placeId))
+                    .slice(0, WATCHLIST_MAX - current.length)
+                    .map((c) => ({ placeId: c.placeId, name: c.name, addedAt: new Date() }));
+                if (additions.length > 0) {
+                    await updateRestaurant(report.restaurantId, {
+                        intelligence: {
+                            ...(restaurant?.intelligence ?? {}),
+                            watchlist: [...current, ...additions],
+                        },
+                    } as never);
+                    log.info({ restaurantId: report.restaurantId, added: additions.length }, 'Watchlist auto-filled with top competitors');
+                }
+            }
+        } catch (autoErr) {
+            log.warn({ err: autoErr }, 'Watchlist autofill failed (non-fatal)');
+        }
     } catch (err) {
         const stage = err instanceof StageError ? err.stage : undefined;
         const label = stage ? STAGE_LABELS[stage] : 'Scan';

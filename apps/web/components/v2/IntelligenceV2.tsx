@@ -21,6 +21,7 @@ import {
 import MyOverview from './intelligence/my-restaurant/Overview';
 import DailyTrends from './intelligence/my-restaurant/DailyTrends';
 import FeedbackChanges from './intelligence/my-restaurant/FeedbackChanges';
+import ReviewHighlights from './intelligence/my-restaurant/ReviewHighlights';
 import SearchSEO from './intelligence/my-restaurant/SearchSEO';
 // Competition bucket (Competitors + Reviews re-homed/rebuilt here).
 import TopThreats from './intelligence/competition/TopThreats';
@@ -37,7 +38,7 @@ import NewOpenings from './intelligence/competition/NewOpenings';
  * [SAMPLE] fixtures in demo mode with zero backend (intelligenceAPI → demo twin).
  */
 
-type MineTab = 'OVERVIEW' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
+type MineTab = 'OVERVIEW' | 'COMMENTS' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
 type CompTab = 'THREATS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
 
 function initialBucket(): BucketId {
@@ -211,6 +212,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
     // Plain-language tabs — restaurant owners, not analysts.
     const mineTabs: Array<SubNavTab<MineTab>> = [
         { id: 'OVERVIEW', label: 'Summary' },
+        { id: 'COMMENTS', label: 'Top Comments' },
         { id: 'TRENDS', label: 'Ratings & Reviews' },
         { id: 'FEEDBACK', label: 'New Reviews' },
         { id: 'SEARCH', label: 'Google Visibility' },
@@ -296,6 +298,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 <>
                     <SubNav tabs={mineTabs} active={mineTab} onChange={setMineTab} label="My Restaurant sections" />
                     {mineTab === 'OVERVIEW' && <MyOverview report={report} metrics={selfMetrics} onNavigate={nav} />}
+                    {mineTab === 'COMMENTS' && <ReviewHighlights report={report} />}
                     {mineTab === 'TRENDS' && <DailyTrends query={minePeriod} />}
                     {mineTab === 'FEEDBACK' && <FeedbackChanges query={minePeriod} onNavigate={nav} />}
                     {mineTab === 'SEARCH' && <SearchSEO report={report} onNavigate={nav} />}
