@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Restaurant, FeatureFlags } from '@restropulse/shared';
+import { Restaurant, FeatureFlags, PlatformFlags } from '@restropulse/shared';
 import { isDemoMode } from '../../lib/demo';
-import { orderingAdminAPI } from '../../api';
+import { orderingAdminAPI, configAPI } from '../../api';
 import DemoNotice from '../DemoNotice';
 import DashboardV2 from './DashboardV2';
 import GetStartedV2 from './GetStartedV2';
@@ -103,6 +103,28 @@ const ShellV2: React.FC<ShellV2Props> = ({
     refreshKey,
 }) => {
     const [bucket, setBucket] = useState<BucketV2>('DASHBOARD');
+
+    // Platform switches from the super (master) dashboard — buckets whose
+    // feature is disabled platform-wide disappear from the nav. Re-checked on
+    // every mount and refreshKey change so master-dashboard edits show up on
+    // the next dashboard load without a deploy.
+    const [platformFlags, setPlatformFlags] = useState<PlatformFlags | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        configAPI.getPlatformFlags().then((f) => { if (!cancelled) setPlatformFlags(f); }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [refreshKey]);
+    const bucketEnabled = (id: BucketV2): boolean => {
+        if (!platformFlags) return true;
+        if (id === 'CONTENT') return platformFlags.contentEngine;
+        if (id === 'INTELLIGENCE') return platformFlags.intelligence;
+        return true;
+    };
+    // If the active bucket gets disabled from the master dashboard, fall back home.
+    useEffect(() => {
+        if (platformFlags && !bucketEnabled(bucket)) setBucket('DASHBOARD');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [platformFlags]);
     // Ordering sub-tab to open — driven by Intelligence "Act on this" deep links
     // (e.g. a win-back action opens the Campaigns tab). Reset on normal nav.
     const [orderingInitialTab, setOrderingInitialTab] = useState<OrderingSubTab>('OVERVIEW');
@@ -245,7 +267,7 @@ const ShellV2: React.FC<ShellV2Props> = ({
                             </span>
                         </button>
                     )}
-                    {NAV.map((item) => {
+                    {NAV.filter((n) => bucketEnabled(n.id)).map((item) => {
                         const isActive = bucket === item.id;
                         // Primary buckets live on the mobile bottom bar, so the
                         // drawer hides them below md and only shows secondary items.
@@ -400,7 +422,7 @@ const ShellV2: React.FC<ShellV2Props> = ({
                 style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom))' }}
                 aria-label="Primary"
             >
-                {NAV.filter((n) => n.primary).map((item) => {
+                {NAV.filter((n) => n.primary && bucketEnabled(n.id)).map((item) => {
                     const isActive = bucket === item.id;
                     return (
                         <button

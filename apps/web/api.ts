@@ -10,7 +10,7 @@
 import { User, Restaurant, Post, ContentStrategy, StrategyCycle, LoginRequest, AuthResponse, ApiResponse, InstagramConnectionStatus, InstagramAccount, InstagramConnectionError, AccountManager, City, SubscriptionPlan, Subscription, PlanUsage, CreditPack, BillingCycle, Invoice, FeatureFlags, Platform, RestaurantProfilePatch } from '@restropulse/shared';
 import type { MenuCategory, OrderingMenuItem, MenuItemAvailability, Order, OrderStatus, Reservation, ReservationStatus, StorefrontContent, CustomerCohort, CampaignSendRequest, CampaignQueuedResponse } from '@restropulse/shared';
 import type { IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics } from '@restropulse/shared';
-import type { WatchlistEntry, CompareRow, SnapshotSource, SnapshotReview, ReviewTheme, RegisterRequest, RestaurantOrderingSettings } from '@restropulse/shared';
+import type { WatchlistEntry, CompareRow, SnapshotSource, SnapshotReview, ReviewTheme, RegisterRequest, RestaurantOrderingSettings, PlatformFlags } from '@restropulse/shared';
 
 /** Shape returned by GET/PATCH /admin/ordering/settings. */
 export interface OrderingSettingsData {
@@ -652,7 +652,20 @@ const realInvoiceAPI = {
 };
 
 // Config API
+const ALL_PLATFORM_FLAGS_ON: PlatformFlags = { ordering: true, reservations: true, dineIn: true, campaigns: true, contentEngine: true, intelligence: true };
+
 const realConfigAPI = {
+    // Platform-wide switches from the super-admin dashboard. Fail-open (all
+    // true) so a config hiccup never hides working features.
+    getPlatformFlags: async (): Promise<PlatformFlags> => {
+        try {
+            const res = await fetchAPI<ApiResponse<PlatformFlags>>('/config/platform');
+            return { ...ALL_PLATFORM_FLAGS_ON, ...(res.data ?? {}) };
+        } catch {
+            return ALL_PLATFORM_FLAGS_ON;
+        }
+    },
+
     getFeatures: async (): Promise<FeatureFlags> => {
         const res = await fetchAPI<ApiResponse<FeatureFlags>>('/config/features');
         // Fallback: if the endpoint returns no data, default every flag to false.

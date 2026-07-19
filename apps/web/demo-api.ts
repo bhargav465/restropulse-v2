@@ -60,6 +60,7 @@ import type {
     DailySnapshot,
     NearbyPlaceSighting,
     RegisterRequest,
+    PlatformFlags,
 } from '@restropulse/shared';
 import type { OrderingSettingsData, OrderingSettingsPatch } from './api';
 import { RESTAURANT_PROFILE_FIELDS, WATCHLIST_MAX } from '@restropulse/shared';
@@ -644,6 +645,11 @@ export const invoiceAPI = {
 };
 
 export const configAPI = {
+    getPlatformFlags: async (): Promise<PlatformFlags> => {
+        await delay();
+        return { ordering: true, reservations: true, dineIn: true, campaigns: true, contentEngine: true, intelligence: true };
+    },
+
     getFeatures: async (): Promise<FeatureFlags> => {
         await delay();
         return clone(DEMO_FEATURE_FLAGS);
