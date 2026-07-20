@@ -225,8 +225,18 @@ export async function getBaseRestaurantDetails(
         resolvedPlaceId = found.id;
     }
 
-    // Cache hit skips the detail call.
-    let d = (await getPlaceCache(resolvedPlaceId)) as PlaceApi | null;
+    // Cache hit skips the detail call — but ONLY when the cached payload came
+    // from the full detail mask. Competitor mapping caches slim search rows
+    // (rating/count only, no reviews/hours/website) under the same placeId;
+    // trusting those left base reports with zero reviews/photos. A payload
+    // without any detail-only field is treated as a miss and refetched.
+    const cached = (await getPlaceCache(resolvedPlaceId)) as PlaceApi | null;
+    const isFullDetail = !!cached && (
+        'reviews' in (cached as Record<string, unknown>) ||
+        'regularOpeningHours' in (cached as Record<string, unknown>) ||
+        'websiteUri' in (cached as Record<string, unknown>)
+    );
+    let d: PlaceApi | null = isFullDetail ? cached : null;
     if (!d) {
         const detailRes = await fetch(`${PLACES_BASE}/places/${resolvedPlaceId}`, {
             headers: {
