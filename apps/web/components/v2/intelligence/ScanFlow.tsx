@@ -187,7 +187,7 @@ const ScanFlow: React.FC<ScanFlowProps> = ({ defaults, api, onReport, variant, o
                         />
                         <button
                             type="submit"
-                            disabled={starting || !name.trim()}
+                            disabled={starting || !name.trim() || !city.trim()}
                             className="rounded-lg bg-primary-strong text-white px-5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
                         >
                             {starting ? 'Starting…' : 'Run scan'}

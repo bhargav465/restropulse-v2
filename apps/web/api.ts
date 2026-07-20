@@ -1013,6 +1013,11 @@ export interface SnapshotSeriesResponse {
     points: SnapshotSeriesPoint[];
 }
 
+export interface RivalFeedbackResponse {
+    rival: { placeId: string; name: string };
+    days: Array<{ date: string; source: string; rating: number; reviewCount: number; newReviews: Array<{ rating: number; text: string; author?: string; time: string }> }>;
+}
+
 export interface WatchlistResponse {
     entries: WatchlistEntry[];
     max: number;
@@ -1083,6 +1088,12 @@ const realIntelligenceAPI = {
     },
 
     // ----- v2: two-bucket dashboard (BRIEF-07 §3) -----
+
+    getRivalFeedback: async (placeId: string, days = 30): Promise<RivalFeedbackResponse> => {
+        const params = new URLSearchParams({ placeId, days: String(days) });
+        const res = await fetchAPI<ApiResponse<RivalFeedbackResponse>>(`/admin/intelligence/rival-feedback?${params}`);
+        return res.data!;
+    },
 
     getWatchlist: async (): Promise<WatchlistResponse> => {
         const res = await fetchAPI<ApiResponse<WatchlistResponse>>('/admin/intelligence/watchlist');

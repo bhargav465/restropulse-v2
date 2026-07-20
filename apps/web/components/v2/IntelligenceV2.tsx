@@ -29,6 +29,7 @@ import Watchlist from './intelligence/competition/Watchlist';
 import Compare from './intelligence/competition/Compare';
 import WhereTheyBeatYou from './intelligence/competition/WhereTheyBeatYou';
 import NewOpenings from './intelligence/competition/NewOpenings';
+import RivalComments from './intelligence/competition/RivalComments';
 
 /**
  * Restaurant Intelligence bucket — two-bucket dashboard (Brief 09). RestroScore
@@ -39,7 +40,7 @@ import NewOpenings from './intelligence/competition/NewOpenings';
  */
 
 type MineTab = 'OVERVIEW' | 'COMMENTS' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
-type CompTab = 'THREATS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
+type CompTab = 'THREATS' | 'RIVALCOMMENTS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
 
 function initialBucket(): BucketId {
     if (typeof window !== 'undefined') {
@@ -117,7 +118,7 @@ const HeaderBand: React.FC<{
                         title="Search Google for your restaurant and scan it"
                         className="text-xs font-semibold text-primary-strong hover:underline"
                     >
-                        Scan a different restaurant
+                        Change restaurant
                     </button>
                 </div>
             </div>
@@ -229,6 +230,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
     ];
     const compTabs: Array<SubNavTab<CompTab>> = [
         { id: 'THREATS', label: 'Competitors' },
+        { id: 'RIVALCOMMENTS', label: 'Rival Comments' },
         { id: 'WATCHLIST', label: 'Tracked Rivals' },
         { id: 'COMPARE', label: 'Compare' },
         { id: 'BEAT', label: 'Gaps to Fix' },
@@ -338,6 +340,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 <>
                     <SubNav tabs={compTabs} active={compTab} onChange={setCompTab} label="Competition sections" />
                     {compTab === 'THREATS' && <TopThreats buckets={report.buckets} />}
+                    {compTab === 'RIVALCOMMENTS' && <RivalComments />}
                     {compTab === 'WATCHLIST' && <Watchlist />}
                     {compTab === 'COMPARE' && <Compare query={compPeriod} />}
                     {compTab === 'BEAT' && <WhereTheyBeatYou query={compPeriod} report={report} onNavigate={nav} />}

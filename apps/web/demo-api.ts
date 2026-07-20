@@ -62,7 +62,7 @@ import type {
     RegisterRequest,
     PlatformFlags,
 } from '@restropulse/shared';
-import type { OrderingSettingsData, OrderingSettingsPatch } from './api';
+import type { OrderingSettingsData, OrderingSettingsPatch, RivalFeedbackResponse } from './api';
 import { RESTAURANT_PROFILE_FIELDS, WATCHLIST_MAX } from '@restropulse/shared';
 import type {
     ContentDraftResponse,
@@ -1011,6 +1011,19 @@ export const intelligenceAPI = {
     },
 
     // ----- v2: two-bucket dashboard (fixtures-backed, in-memory mutations) -----
+
+    getRivalFeedback: async (placeId: string, _days = 30): Promise<RivalFeedbackResponse> => {
+        await delay();
+        return {
+            rival: { placeId, name: '[SAMPLE] Rival Kitchen' },
+            days: [
+                { date: new Date().toISOString().slice(0, 10), source: 'google', rating: 4.3, reviewCount: 1204, newReviews: [
+                    { rating: 5, text: '[SAMPLE] Great biryani, quick service.', author: 'Demo Guest', time: 'a day ago' },
+                    { rating: 2, text: '[SAMPLE] Long wait on Friday night.', author: 'Demo Guest 2', time: '2 days ago' },
+                ] },
+            ],
+        };
+    },
 
     getWatchlist: async (): Promise<WatchlistResponse> => {
         await delay();
