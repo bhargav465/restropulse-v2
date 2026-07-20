@@ -18,6 +18,21 @@ function generateOtp(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+/**
+ * Platform owner auto-promotion: accounts whose email matches
+ * SUPER_ADMIN_EMAIL get the ADMIN role at login. ADMIN unlocks /api/super
+ * (the super-admin dashboard).
+ */
+async function promoteSuperAdmin(user: User): Promise<User> {
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    if (user.email?.toLowerCase() === superEmail && user.role !== 'ADMIN') {
+        const updated = await updateUser(user.id, { role: 'ADMIN' });
+        log.info({ userId: user.id }, 'Promoted super admin');
+        return updated ?? { ...user, role: 'ADMIN' };
+    }
+    return user;
+}
+
 /** Never leak the bcrypt hash to clients. */
 function sanitizeUser<T extends Partial<User> | null | undefined>(user: T): T {
     if (!user) return user;
@@ -291,6 +306,52 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
         findUserByEmail(email.toLowerCase()),
         findUserByPhone(normalizedPhone),
     ]);
+
+    // Platform-owner bootstrap: if a pre-existing account with the super-admin
+    // email has NO password yet (e.g. legacy OTP-era user doc), registering
+    // with that email claims it — sets the password and promotes to ADMIN.
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    if (byEmail && byEmail.email?.toLowerCase() === superEmail && !byEmail.passwordHash) {
+        const passwordHash = await hashPassword(password);
+        let user = await updateUser(byEmail.id, { passwordHash, name }) ?? { ...byEmail, passwordHash, name };
+        let restaurantIdForToken = user.restaurantId;
+        let claimedSlug: string | null = null;
+        if (!restaurantIdForToken) {
+            const slug2 = await uniqueSlug(restaurantName);
+            const r = await createRestaurant({
+                name: restaurantName,
+                cuisine: cuisine || 'Multi-cuisine',
+                location: { address: '', lat: 0, lng: 0, mapUrl: '' },
+                accountManager: { name: 'RestroPulse Team', phone: '', email: 'support@restropulse.app', avatar: '' },
+                integrations: { instagram: false },
+                slug: slug2,
+                storeOpen: true,
+                ordering: {
+                    taxRatePercent: 5,
+                    currency: 'INR',
+                    delivery: { enabled: true, flatFee: 0, minOrder: 0 },
+                    pickup: { enabled: true },
+                    dineIn: { enabled: true },
+                },
+            });
+            restaurantIdForToken = r.id;
+            claimedSlug = slug2;
+            user = await updateUser(user.id, { restaurantId: r.id }) ?? { ...user, restaurantId: r.id };
+        }
+        user = await promoteSuperAdmin(user);
+        const tokens2 = generateTokens(user.id, user.phone, restaurantIdForToken, user.role);
+        log.info({ userId: user.id }, 'Super-admin account claimed via register');
+        return res.status(200).json({
+            success: true,
+            user: sanitizeUser(user),
+            restaurant: { id: restaurantIdForToken, slug: claimedSlug },
+            token: tokens2.accessToken,
+            refreshToken: tokens2.refreshToken,
+            restaurantId: restaurantIdForToken,
+            message: 'Super-admin account claimed — password set',
+        });
+    }
+
     if (byEmail) return res.status(409).json({ success: false, message: 'An account with this email already exists' });
     if (byPhone) return res.status(409).json({ success: false, message: 'An account with this phone number already exists' });
 
@@ -313,7 +374,7 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
     });
 
     const passwordHash = await hashPassword(password);
-    const user = await createUser({
+    let user = await createUser({
         name,
         email: email.toLowerCase(),
         phone: normalizedPhone,
@@ -322,6 +383,7 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
         passwordHash,
         emailVerified: false,
     } as Omit<User, 'id'>);
+    user = await promoteSuperAdmin(user);
 
     const tokens = generateTokens(user.id, normalizedPhone, restaurant.id, user.role);
     log.info({ userId: user.id, restaurantId: restaurant.id, slug }, 'Restaurant registered');
@@ -335,6 +397,35 @@ router.post('/register', handle(async (req: Request<{}, {}, RegisterRequest>, re
         restaurantId: restaurant.id,
         message: 'Registration successful',
     });
+}));
+
+/**
+ * Super-admin password reset, guarded by SUPER_RESET_KEY (project env var,
+ * set via the DEPLOYMENT repo secret). Only resets the SUPER_ADMIN_EMAIL
+ * account. Disabled entirely when SUPER_RESET_KEY is unset.
+ */
+router.post('/reset-super-password', handle(async (req: Request, res: Response) => {
+    const { setupKey, newPassword } = req.body ?? {};
+    const expected = process.env.SUPER_RESET_KEY;
+    if (!expected) {
+        return res.status(404).json({ success: false, message: 'Not available' });
+    }
+    if (typeof setupKey !== 'string' || setupKey !== expected) {
+        return res.status(403).json({ success: false, message: 'Invalid setup key' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: 'newPassword must be at least 8 characters' });
+    }
+    const superEmail = (process.env.SUPER_ADMIN_EMAIL || 'bhargav.tinku@gmail.com').toLowerCase();
+    const user = await findUserByEmail(superEmail);
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'Super-admin account not found' });
+    }
+    const passwordHash = await hashPassword(newPassword);
+    let updated = await updateUser(user.id, { passwordHash }) ?? user;
+    updated = await promoteSuperAdmin(updated);
+    log.warn({ userId: user.id }, 'Super-admin password reset via SUPER_RESET_KEY');
+    res.json({ success: true, message: 'Super-admin password reset', user: sanitizeUser(updated) });
 }));
 
 // Email or phone + password login
@@ -363,6 +454,8 @@ router.post('/login', handle(async (req: Request<{}, {}, LoginRequest>, res: Res
                 : 'This account has no password set. Log in with OTP, or register a new account.'
         });
     }
+
+    user = await promoteSuperAdmin(user);
 
     const tokens = generateTokens(user.id, user.phone, user.restaurantId, user.role);
     res.json({

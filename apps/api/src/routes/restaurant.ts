@@ -294,7 +294,7 @@ router.get('/account-managers', requireAuth, handle(async (req: Request, res: Re
 // ============================================================
 
 // Get own restaurant profile (business facts + read-only ordering context)
-router.get('/profile', requireAuth, requireRole('OWNER'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
+router.get('/profile', requireAuth, requireRole('OWNER', 'ADMIN'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
     const rid = req.user!.restaurantId;
     if (!rid) {
         return res.status(404).json({ success: false, error: 'Restaurant not found' });
@@ -307,7 +307,7 @@ router.get('/profile', requireAuth, requireRole('OWNER'), handle(async (req: Req
 }));
 
 // Update own restaurant profile (partial; whitelist + field validation)
-router.patch('/profile', requireAuth, requireRole('OWNER'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
+router.patch('/profile', requireAuth, requireRole('OWNER', 'ADMIN'), handle(async (req: Request, res: Response<ApiResponse<Restaurant>>) => {
     const rid = req.user!.restaurantId;
     if (!rid) {
         return res.status(404).json({ success: false, error: 'Restaurant not found' });
@@ -335,7 +335,7 @@ router.patch('/profile', requireAuth, requireRole('OWNER'), handle(async (req: R
 router.post(
     '/assets',
     requireAuth,
-    requireRole('OWNER'),
+    requireRole('OWNER', 'ADMIN'),
     (req: Request, res: Response, next) => {
         assetUpload.single('file')(req, res, (err: unknown) => {
             if (err) {

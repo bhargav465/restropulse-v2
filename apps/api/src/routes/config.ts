@@ -1,7 +1,18 @@
 import express, { Request, Response } from 'express';
-import type { ApiResponse, FeatureFlags, Platform } from '@restropulse/shared';
+import type { ApiResponse, FeatureFlags, Platform, PlatformFlags } from '@restropulse/shared';
+import { getPlatformFlags } from '../services/platform-flags.js';
+import { handle } from '../middleware/async-handler.js';
 
 const router = express.Router();
+
+/**
+ * Platform-wide feature switches (super-admin controlled). Public read — the
+ * merchant dashboard uses this to hide buckets whose features are disabled
+ * platform-wide, so master-dashboard changes reflect in every dashboard.
+ */
+router.get('/platform', handle(async (_req: Request, res: Response<ApiResponse<PlatformFlags>>) => {
+  res.json({ success: true, data: await getPlatformFlags() });
+}));
 
 router.get('/features', (_req: Request, res: Response<ApiResponse<FeatureFlags>>) => {
   res.json({

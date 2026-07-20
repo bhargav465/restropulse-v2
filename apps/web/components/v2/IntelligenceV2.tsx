@@ -21,6 +21,7 @@ import {
 import MyOverview from './intelligence/my-restaurant/Overview';
 import DailyTrends from './intelligence/my-restaurant/DailyTrends';
 import FeedbackChanges from './intelligence/my-restaurant/FeedbackChanges';
+import ReviewHighlights from './intelligence/my-restaurant/ReviewHighlights';
 import SearchSEO from './intelligence/my-restaurant/SearchSEO';
 // Competition bucket (Competitors + Reviews re-homed/rebuilt here).
 import TopThreats from './intelligence/competition/TopThreats';
@@ -28,6 +29,7 @@ import Watchlist from './intelligence/competition/Watchlist';
 import Compare from './intelligence/competition/Compare';
 import WhereTheyBeatYou from './intelligence/competition/WhereTheyBeatYou';
 import NewOpenings from './intelligence/competition/NewOpenings';
+import RivalComments from './intelligence/competition/RivalComments';
 
 /**
  * Restaurant Intelligence bucket — two-bucket dashboard (Brief 09). RestroScore
@@ -37,8 +39,8 @@ import NewOpenings from './intelligence/competition/NewOpenings';
  * [SAMPLE] fixtures in demo mode with zero backend (intelligenceAPI → demo twin).
  */
 
-type MineTab = 'OVERVIEW' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
-type CompTab = 'THREATS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
+type MineTab = 'OVERVIEW' | 'COMMENTS' | 'TRENDS' | 'FEEDBACK' | 'SEARCH';
+type CompTab = 'THREATS' | 'RIVALCOMMENTS' | 'WATCHLIST' | 'COMPARE' | 'BEAT' | 'OPENINGS';
 
 function initialBucket(): BucketId {
     if (typeof window !== 'undefined') {
@@ -73,8 +75,9 @@ const HeaderBand: React.FC<{
     selectedPillar: PillarScore['key'] | null;
     onSelectPillar: (key: PillarScore['key']) => void;
     onRescan: () => void;
+    onPickRestaurant: () => void;
     onNavigate: (t: DeepLinkTarget) => void;
-}> = ({ report, selectedPillar, onSelectPillar, onRescan, onNavigate }) => {
+}> = ({ report, selectedPillar, onSelectPillar, onRescan, onPickRestaurant, onNavigate }) => {
     const grade: Grade = restroGrade(report.restroScore);
     const scannedAt = new Date(report.generatedAt);
     const withinWindow = Date.now() - scannedAt.getTime() < DAY_MS;
@@ -108,6 +111,14 @@ const HeaderBand: React.FC<{
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-line text-primary-strong hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:hover:bg-surface"
                     >
                         Re-scan
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onPickRestaurant}
+                        title="Search Google for your restaurant and scan it"
+                        className="text-xs font-semibold text-primary-strong hover:underline"
+                    >
+                        Change restaurant
                     </button>
                 </div>
             </div>
@@ -169,6 +180,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
     const [selfMetrics, setSelfMetrics] = useState<IntelligenceSelfMetrics | null>(null);
     const [selectedPillar, setSelectedPillar] = useState<PillarScore['key'] | null>(null);
     const [rescanning, setRescanning] = useState(false);
+    const [picking, setPicking] = useState(false);
 
     // Two-bucket state (persisted per session + ?bucket= param).
     const [bucket, setBucket] = useState<BucketId>(initialBucket);
@@ -208,17 +220,20 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         [restaurantData.name, restaurantData.sourceCity],
     );
 
+    // Plain-language tabs — restaurant owners, not analysts.
     const mineTabs: Array<SubNavTab<MineTab>> = [
-        { id: 'OVERVIEW', label: 'Overview' },
-        { id: 'TRENDS', label: 'Daily Trends' },
-        { id: 'FEEDBACK', label: 'Feedback Changes' },
-        { id: 'SEARCH', label: 'Search & SEO' },
+        { id: 'OVERVIEW', label: 'Summary' },
+        { id: 'COMMENTS', label: 'Top Comments' },
+        { id: 'TRENDS', label: 'Ratings & Reviews' },
+        { id: 'FEEDBACK', label: 'New Reviews' },
+        { id: 'SEARCH', label: 'Google Visibility' },
     ];
     const compTabs: Array<SubNavTab<CompTab>> = [
-        { id: 'THREATS', label: 'Top Threats' },
-        { id: 'WATCHLIST', label: 'Watchlist' },
+        { id: 'THREATS', label: 'Competitors' },
+        { id: 'RIVALCOMMENTS', label: 'Rival Comments' },
+        { id: 'WATCHLIST', label: 'Tracked Rivals' },
         { id: 'COMPARE', label: 'Compare' },
-        { id: 'BEAT', label: 'Where They Beat You' },
+        { id: 'BEAT', label: 'Gaps to Fix' },
         { id: 'OPENINGS', label: 'New Openings' },
     ];
 
@@ -263,6 +278,26 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
         );
     }
 
+    // Add / change restaurant via the Google picker (reachable even once a
+    // report exists — otherwise the picker is stranded behind the empty state).
+    if (picking) {
+        return (
+            <ScanFlow
+                variant="first-run"
+                defaults={scanDefaults}
+                api={intelligenceAPI}
+                onReport={(r) => {
+                    setReport(r);
+                    setPicking(false);
+                }}
+                onCancel={() => setPicking(false)}
+                onPlaceConfirmed={(sel) => {
+                    void restaurantAPI.updateProfile({ googlePlaceId: sel.placeId }).catch(() => {});
+                }}
+            />
+        );
+    }
+
     return (
         <div className="space-y-6">
             <HeaderBand
@@ -270,6 +305,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 selectedPillar={selectedPillar}
                 onSelectPillar={(k) => setSelectedPillar((cur) => (cur === k ? null : k))}
                 onRescan={() => setRescanning(true)}
+                onPickRestaurant={() => setPicking(true)}
                 onNavigate={nav}
             />
 
@@ -283,10 +319,19 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 )}
             </div>
 
+            {/* Plain-language explainer: what's tracked and where the history lives. */}
+            <p className="text-xs text-muted leading-relaxed">
+                Your Google rating, review count and new comments are saved automatically every day.
+                Use the period switch above — <span className="font-semibold">Month to date</span> for
+                this month, <span className="font-semibold">Overall</span> for all time — and open{' '}
+                <span className="font-semibold">Ratings &amp; Reviews</span> to see the trend.
+            </p>
+
             {bucket === 'MINE' ? (
                 <>
                     <SubNav tabs={mineTabs} active={mineTab} onChange={setMineTab} label="My Restaurant sections" />
                     {mineTab === 'OVERVIEW' && <MyOverview report={report} metrics={selfMetrics} onNavigate={nav} />}
+                    {mineTab === 'COMMENTS' && <ReviewHighlights report={report} />}
                     {mineTab === 'TRENDS' && <DailyTrends query={minePeriod} />}
                     {mineTab === 'FEEDBACK' && <FeedbackChanges query={minePeriod} onNavigate={nav} />}
                     {mineTab === 'SEARCH' && <SearchSEO report={report} onNavigate={nav} />}
@@ -295,6 +340,7 @@ const IntelligenceV2: React.FC<IntelligenceV2Props> = ({ restaurantData, onNavig
                 <>
                     <SubNav tabs={compTabs} active={compTab} onChange={setCompTab} label="Competition sections" />
                     {compTab === 'THREATS' && <TopThreats buckets={report.buckets} />}
+                    {compTab === 'RIVALCOMMENTS' && <RivalComments />}
                     {compTab === 'WATCHLIST' && <Watchlist />}
                     {compTab === 'COMPARE' && <Compare query={compPeriod} />}
                     {compTab === 'BEAT' && <WhereTheyBeatYou query={compPeriod} report={report} onNavigate={nav} />}

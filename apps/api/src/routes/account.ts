@@ -13,7 +13,7 @@ const router = express.Router();
 router.delete(
   '/',
   requireAuth,
-  requireRole('OWNER'),
+  requireRole('OWNER', 'ADMIN'),
   handle(async (req: Request, res: Response<ApiResponse>) => {
     if (process.env.FEATURE_DELETE_ACCOUNT !== 'true') {
       return res.status(403).json({

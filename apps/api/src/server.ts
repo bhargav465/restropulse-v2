@@ -27,6 +27,8 @@ import adminOrderingRoutes from './routes/admin-ordering.js';
 import adminIntelligenceRoutes from './routes/admin/intelligence.js';
 import paymentsWebhookRoutes from './routes/payments-webhook.js';
 import assetsRoutes from './routes/assets.js';
+import superRoutes from './routes/super.js';
+import cronRoutes from './routes/cron.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -181,6 +183,10 @@ app.use('/api/payments', paymentsWebhookRoutes);
 // Restaurant assets (logos/covers) — public read, served from GridFS. JSON-side
 // mount (NOT near the raw-body webhook mounts above).
 app.use('/api/assets', assetsRoutes);
+// Super admin (platform owner): all restaurants, platform flags, landing content.
+app.use('/api/super', superRoutes);
+// Vercel Cron: scheduled jobs (daily intelligence snapshots).
+app.use('/api/cron', cronRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).
 // Allows the single ngrok tunnel to serve both API routes and placeholder media

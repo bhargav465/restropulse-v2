@@ -49,22 +49,35 @@ describe('IntelligenceV2 two-bucket dashboard', () => {
         expect(screen.getByRole('tab', { name: 'Competition' })).toBeInTheDocument();
     });
 
+    test('"Change restaurant" opens the Google picker flow and returns to the report', async () => {
+        render(<IntelligenceV2 restaurantData={DEMO_RESTAURANT} />);
+        await waitFor(() => expect(screen.getByText('68')).toBeInTheDocument());
+
+        // The picker is reachable from the report view (not stranded behind the empty state).
+        fireEvent.click(screen.getByRole('button', { name: /Change restaurant/i }));
+        expect(screen.getByText('Run your first scan')).toBeInTheDocument();
+
+        // And it can back out to the existing report.
+        fireEvent.click(screen.getByRole('button', { name: /Back to your report/i }));
+        await waitFor(() => expect(screen.getByText(/Rank #4/)).toBeInTheDocument());
+    });
+
     test('switching to the Competition bucket lands on Top Threats, then Watchlist is reachable', async () => {
         render(<IntelligenceV2 restaurantData={DEMO_RESTAURANT} />);
         await waitFor(() => expect(screen.getByText('68')).toBeInTheDocument());
         fireEvent.click(screen.getByRole('tab', { name: 'Competition' }));
         // Top Threats is the first sub-tab (Brief 10).
-        await waitFor(() => expect(screen.getByRole('tab', { name: 'Top Threats' })).toHaveAttribute('aria-selected', 'true'));
-        fireEvent.click(screen.getByRole('tab', { name: 'Watchlist' }));
+        await waitFor(() => expect(screen.getByRole('tab', { name: 'Competitors' })).toHaveAttribute('aria-selected', 'true'));
+        fireEvent.click(screen.getByRole('tab', { name: 'Tracked Rivals' }));
         await waitFor(() => expect(screen.getByText('Your watchlist')).toBeInTheDocument());
     });
 
     test('My Restaurant → Daily Trends renders from the snapshot client', async () => {
         render(<IntelligenceV2 restaurantData={DEMO_RESTAURANT} />);
         await waitFor(() => expect(screen.getByText('Your action plan')).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('tab', { name: 'Daily Trends' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'Ratings & Reviews' }));
         // Empty snapshot fixture → still mounts the trends view (no crash).
-        await waitFor(() => expect(screen.getByRole('tab', { name: 'Daily Trends' })).toHaveAttribute('aria-selected', 'true'));
+        await waitFor(() => expect(screen.getByRole('tab', { name: 'Ratings & Reviews' })).toHaveAttribute('aria-selected', 'true'));
     });
 
     test('action-plan deep link calls onNavigate into another bucket', async () => {

@@ -67,7 +67,7 @@ const log = createLogger('admin-intelligence');
 const router = express.Router();
 
 // Merchant auth for everything below (OWNER only).
-router.use(requireAuth, requireRole('OWNER'));
+router.use(requireAuth, requireRole('OWNER', 'ADMIN'));
 
 function restaurantId(req: Request): string {
     return req.user!.restaurantId;
@@ -94,17 +94,19 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
     const scanCity =
         typeof city === 'string' && city.trim()
             ? city.trim()
-            : (restaurant?.sourceCity ?? restaurant?.location?.address);
+            : (restaurant?.sourceCity || restaurant?.address?.city || restaurant?.location?.address || undefined);
     // Brief 10: confirmed placeId from the picker (request) → else the saved profile id.
     const scanPlaceId =
         typeof placeId === 'string' && placeId.trim()
             ? placeId.trim()
             : restaurant?.googlePlaceId;
 
-    if (!scanName || !scanCity) {
+    // With a confirmed placeId the restaurant is already exactly identified —
+    // city is only needed for the name+city text-search path.
+    if (!scanName || (!scanCity && !scanPlaceId)) {
         return res.status(400).json({
             success: false,
-            error: 'name and city are required (and could not be defaulted from your restaurant profile).',
+            error: 'Pick your restaurant with the search above (recommended), or enter both restaurant name and city.',
         });
     }
 
@@ -129,7 +131,7 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
     const scan: IntelligenceScan = {
         _id: scanId,
         restaurantId: rid,
-        query: { name: scanName, city: scanCity, ...(scanPlaceId ? { placeId: scanPlaceId } : {}) },
+        query: { name: scanName, city: scanCity ?? '', ...(scanPlaceId ? { placeId: scanPlaceId } : {}) },
         status: 'QUEUED',
         requestedBy: req.user!.userId,
         createdAt: now,
@@ -139,7 +141,7 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ sca
 
     // Fire-and-forget: the pipeline writes status to the scan doc; the response
     // does not wait on it. runScanPipeline never throws (writes FAILED itself).
-    void runScanPipeline(scanId, { name: scanName, city: scanCity, ...(scanPlaceId ? { placeId: scanPlaceId } : {}) });
+    void runScanPipeline(scanId, { name: scanName, city: scanCity ?? '', ...(scanPlaceId ? { placeId: scanPlaceId } : {}) });
 
     log.info({ scanId, restaurantId: rid }, 'Intelligence scan queued');
     res.status(202).json({ success: true, data: { scanId } });
@@ -426,6 +428,43 @@ router.get('/snapshots', handle(async (req: Request, res: Response<ApiResponse<{
         granularity,
     });
     res.json({ success: true, data: { target, source, granularity, points } });
+}));
+
+// ---- GET /rival-feedback — a tracked rival's new review comments by day ----
+router.get('/rival-feedback', handle(async (req: Request, res: Response<ApiResponse>) => {
+    const rid = restaurantId(req);
+    const placeIdQ = typeof req.query.placeId === 'string' ? req.query.placeId : '';
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+    if (!placeIdQ) {
+        return res.status(400).json({ success: false, error: 'placeId is required' });
+    }
+
+    const restaurant = await findRestaurantById(rid);
+    const entry = (restaurant?.intelligence?.watchlist ?? []).find((w) => w.placeId === placeIdQ);
+    if (!entry) {
+        return res.status(422).json({ success: false, error: 'That restaurant is not in your Tracked Rivals list' });
+    }
+
+    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const docs = await getIntelligenceSnapshotsCollection()
+        .find({ restaurantId: rid, targetPlaceId: placeIdQ, date: { $gte: from } })
+        .sort({ date: -1 })
+        .limit(120)
+        .toArray();
+
+    res.json({
+        success: true,
+        data: {
+            rival: { placeId: entry.placeId, name: entry.name },
+            days: (docs as unknown as Array<{ date: string; source: string; rating: number; reviewCount: number; newReviews?: unknown[] }>).map((d) => ({
+                date: d.date,
+                source: d.source,
+                rating: d.rating,
+                reviewCount: d.reviewCount,
+                newReviews: d.newReviews ?? [],
+            })),
+        },
+    });
 }));
 
 // ---- GET /feedback-changes (self only) ----
