@@ -1,17 +1,16 @@
 name: Deploy Demo (GitHub Pages)
 
-# Publishes the static demo preview (VITE_DEMO_MODE=true, no backend):
-#   - storefront at https://<user>.github.io/restropulse-v2/
-#   - merchant dashboard (admin) at https://<user>.github.io/restropulse-v2/admin/
-#   - merchant dashboard v2 shell at https://<user>.github.io/restropulse-v2/admin-v2/
+# The GitHub Pages demo is RETIRED — every old demo URL now redirects to the
+# live production apps on Vercel, so there is exactly one functional product:
+#   /            -> https://restropulse-landingpage.vercel.app
+#   /demo        -> https://restropulse-storefront.vercel.app/bawarchi
+#   /admin       -> https://restropulse-admin.vercel.app
+#   /admin-v2    -> https://restropulse-admin.vercel.app
 
 on:
   push:
-    branches: [feat/monorepo-import, main]
+    branches: [feat/monorepo-import, feat/vercel-deploy, main]
     paths:
-      - "apps/storefront/**"
-      - "apps/web/**"
-      - "packages/**"
       - ".github/workflows/deploy-demo-pages.yml"
   workflow_dispatch:
 
@@ -26,49 +25,24 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Build workspace packages (shared, telemetry)
-        run: npx turbo build --filter=@restropulse/shared --filter=@restropulse/telemetry
-      - name: Build demo storefront (site root)
-        run: npx vite build --base=/restropulse-v2/
-        working-directory: apps/storefront
-        env:
-          VITE_DEMO_MODE: "true"
-          VITE_API_URL: /api
-      - name: Build demo admin dashboard (under /admin/)
-        run: npx vite build --base=/restropulse-v2/admin/ --outDir dist-demo
-        working-directory: apps/web
-        env:
-          VITE_DEMO_MODE: "true"
-          VITE_API_URL: /api
-      - name: Build demo admin dashboard v2 shell (under /admin-v2/)
-        run: npx vite build --base=/restropulse-v2/admin-v2/ --outDir dist-demo-v2
-        working-directory: apps/web
-        env:
-          VITE_DEMO_MODE: "true"
-          VITE_ADMIN_SHELL: "v2"
-          VITE_API_URL: /api
-      - name: Assemble site (storefront at root, admin under /admin, v2 under /admin-v2) + SPA fallbacks + nojekyll
+      - name: Build redirect pages
         run: |
-          mkdir -p apps/storefront/dist/admin
-          cp -R apps/web/dist-demo/. apps/storefront/dist/admin/
-          mkdir -p apps/storefront/dist/admin-v2
-          cp -R apps/web/dist-demo-v2/. apps/storefront/dist/admin-v2/
-          cp apps/storefront/dist/index.html apps/storefront/dist/404.html
-          cp apps/storefront/dist/admin/index.html apps/storefront/dist/admin/404.html
-          cp apps/storefront/dist/admin-v2/index.html apps/storefront/dist/admin-v2/404.html
-          touch apps/storefront/dist/.nojekyll
+          mkdir -p site/demo site/admin site/admin-v2
+          redirect () {
+            printf '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta http-equiv="refresh" content="0; url=%s">\n<meta name="robots" content="noindex">\n<title>RestroPulse has moved</title>\n<script>location.replace("%s");</script>\n</head>\n<body style="font-family:system-ui;padding:3rem;text-align:center">\n<p>RestroPulse has moved. If you are not redirected, <a href="%s">continue to the live app</a>.</p>\n</body>\n</html>\n' "$2" "$2" "$2" > "$1"
+          }
+          redirect site/index.html          "https://restropulse-landingpage.vercel.app"
+          redirect site/demo/index.html     "https://restropulse-storefront.vercel.app/bawarchi"
+          redirect site/admin/index.html    "https://restropulse-admin.vercel.app"
+          redirect site/admin-v2/index.html "https://restropulse-admin.vercel.app"
+          redirect site/404.html            "https://restropulse-landingpage.vercel.app"
+          touch site/.nojekyll
       - name: Push to gh-pages
         run: |
-          cd apps/storefront/dist
+          cd site
           git init -q -b gh-pages
-          git config user.email "actions@github.com"
           git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add -A
-          git commit -qm "deploy: storefront + admin + admin-v2 demo ($GITHUB_SHA)"
+          git commit -q -m "Redirect retired GitHub Pages demo to production"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
