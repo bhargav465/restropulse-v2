@@ -36,6 +36,17 @@ jobs:
           redirect site/admin/index.html    "https://restropulse-admin.vercel.app"
           redirect site/admin-v2/index.html "https://restropulse-admin.vercel.app"
           redirect site/404.html            "https://restropulse-landingpage.vercel.app"
+          # Kill-switch service worker: the retired demo was a PWA, so browsers
+          # that visited it keep serving the cached old app. This sw.js clears
+          # caches, unregisters itself, and reloads the page into the redirect.
+          killsw () {
+            printf 'self.addEventListener("install",()=>self.skipWaiting());self.addEventListener("activate",e=>{e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));await self.registration.unregister();const cs=await self.clients.matchAll({type:"window"});cs.forEach(c=>c.navigate(c.url));})())});' > "$1"
+          }
+          killsw site/admin-v2/sw.js
+          killsw site/admin/sw.js
+          killsw site/demo/sw.js
+          killsw site/sw.js
+          printf '' > site/admin-v2/registerSW.js
           touch site/.nojekyll
       - name: Push to gh-pages
         run: |
