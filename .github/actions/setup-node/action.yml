@@ -1,0 +1,23 @@
+name: Setup Node
+description: Set up Node.js 22, install monorepo dependencies, and configure the Turbo cache.
+
+inputs:
+  npm-flags:
+    description: Extra flags passed to npm ci
+    default: '--ignore-scripts'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '22'
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci ${{ inputs.npm-flags }}
+
+    - name: Turbo cache
+      uses: rharkor/caching-for-turbo@v2.3.11

@@ -1,0 +1,117 @@
+[
+  {
+    "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+    "slotSetting": true,
+    "value": "false"
+  },
+  {
+    "name": "BACKEND_URL",
+    "slotSetting": true,
+    "value": "https://restropulse-prod-api.azurewebsites.net"
+  },
+  {
+    "name": "FRONTEND_URL",
+    "slotSetting": true,
+    "value": "https://restropulse.net"
+  },
+  {
+    "name": "WEBSITE_RUN_FROM_PACKAGE",
+    "slotSetting": true,
+    "value": "1"
+  },
+  {
+    "name": "ASSET_SERVER_BASE_URL",
+    "slotSetting": true,
+    "value": "https://restropulse-prod-api.azurewebsites.net/content/mockdata"
+  },
+  {
+    "name": "NODE_ENV",
+    "slotSetting": true,
+    "value": "production"
+  },
+  {
+    "name": "PORT",
+    "slotSetting": true,
+    "value": "8080"
+  },
+  {
+    "name": "WEBSITE_NODE_DEFAULT_VERSION",
+    "slotSetting": true,
+    "value": "~22"
+  },
+  {
+    "name": "LOG_LEVEL",
+    "slotSetting": true,
+    "value": "info"
+  },
+  {
+    "name": "CORS_ORIGIN",
+    "slotSetting": true,
+    "value": "https://restropulse.net"
+  },
+  {
+    "name": "OTEL_TRACES_SAMPLER_ARG",
+    "slotSetting": true,
+    "value": "0.1"
+  },
+  {
+    "name": "RAZORPAY_WEBHOOK_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-RAZORPAY-WEBHOOK-SECRET)"
+  },
+  {
+    "name": "RAZORPAY_KEY_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-RAZORPAY-KEY-SECRET)"
+  },
+  {
+    "name": "FIREBASE_SERVICE_ACCOUNT_KEY",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-FIREBASE-SERVICE-ACCOUNT-KEY)"
+  },
+  {
+    "name": "MONGODB_DB_NAME",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-MONGODB-DB-NAME)"
+  },
+  {
+    "name": "ENCRYPTION_KEY",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-ENCRYPTION-KEY)"
+  },
+  {
+    "name": "INSTAGRAM_APP_ID",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-INSTAGRAM-APP-ID)"
+  },
+  {
+    "name": "INSTAGRAM_REDIRECT_URI",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-INSTAGRAM-REDIRECT-URI)"
+  },
+  {
+    "name": "JWT_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-JWT-SECRET)"
+  },
+  {
+    "name": "MONGODB_URI",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-MONGODB-URI)"
+  },
+  {
+    "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(SecretUri=https://restropulse-prod-kv.vault.azure.net/secrets/PROD-APPLICATIONINSIGHTS-CONNECTION-STRING)"
+  },
+  {
+    "name": "INSTAGRAM_APP_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-INSTAGRAM-APP-SECRET)"
+  },
+  {
+    "name": "RAZORPAY_KEY_ID",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=PROD-RAZORPAY-KEY-ID)"
+  }
+]

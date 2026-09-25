@@ -1,0 +1,301 @@
+[
+  {
+    "_id": "pg-r1",
+    "id": "pg-r1",
+    "name": "Hotel Shadab",
+    "cuisine": "Hyderabadi — Haleem, Biryani, Nihari",
+    "location": {
+      "address": "Ghansi Bazaar, High Court Road, Old City, Hyderabad, Telangana 500002",
+      "lat": 17.3592,
+      "lng": 78.4839,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r1"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": false },
+    "chefSpecials": [
+      "Haleem",
+      "Mutton Dum Biryani",
+      "Nihari with Sheermal",
+      "Marag"
+    ],
+    "menu": [
+      { "id": "r1-m1", "category": "Haleem", "name": "Haleem", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r1-m2", "category": "Biryani", "name": "Mutton Dum Biryani", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r1-m3", "category": "Biryani", "name": "Chicken Biryani", "isVeg": false, "isAvailable": true },
+      { "id": "r1-m4", "category": "Nihari", "name": "Nihari with Sheermal", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r1-m5", "category": "Soup", "name": "Marag", "isVeg": false, "isAvailable": true },
+      { "id": "r1-m6", "category": "Bread", "name": "Sheermal", "isVeg": false, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r2",
+    "id": "pg-r2",
+    "name": "Chutneys",
+    "cuisine": "South Indian — Telugu breakfast and thali",
+    "location": {
+      "address": "Banjara Hills Road No. 12, Hyderabad, Telangana 500034",
+      "lat": 17.4139,
+      "lng": 78.4479,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r2"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Pesarattu with Upma",
+      "Punugulu",
+      "Andhra Thali",
+      "Filter Coffee"
+    ],
+    "menu": [
+      { "id": "r2-m1", "category": "Breakfast", "name": "Pesarattu with Upma", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r2-m2", "category": "Snacks", "name": "Punugulu", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r2-m3", "category": "Thali", "name": "Andhra Thali", "isVeg": true, "isAvailable": true },
+      { "id": "r2-m4", "category": "Breakfast", "name": "Idli Vada Sambar", "isVeg": true, "isAvailable": true },
+      { "id": "r2-m5", "category": "Breakfast", "name": "Masala Dosa", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r2-m6", "category": "Beverages", "name": "Filter Coffee", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r3",
+    "id": "pg-r3",
+    "name": "Bawarchi Restaurant",
+    "cuisine": "Hyderabadi Biryani, Mughlai",
+    "location": {
+      "address": "RTC X Roads, Hyderabad, Telangana 500020",
+      "lat": 17.3900,
+      "lng": 78.4920,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r3"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": false },
+    "chefSpecials": [
+      "Chicken Biryani",
+      "Mutton Biryani",
+      "Chicken 65",
+      "Seekh Kebab"
+    ],
+    "menu": [
+      { "id": "r3-m1", "category": "Biryani", "name": "Chicken Biryani", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r3-m2", "category": "Biryani", "name": "Mutton Biryani", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r3-m3", "category": "Starter", "name": "Chicken 65", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r3-m4", "category": "Kebab", "name": "Seekh Kebab", "isVeg": false, "isAvailable": true },
+      { "id": "r3-m5", "category": "Biryani", "name": "Veg Biryani", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r4",
+    "id": "pg-r4",
+    "name": "Nanking Restaurant",
+    "cuisine": "Chinese — Cantonese, Indo-Chinese",
+    "location": {
+      "address": "SD Road, Secunderabad, Hyderabad, Telangana 500003",
+      "lat": 17.4399,
+      "lng": 78.4983,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r4"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Chilli Chicken",
+      "Chicken Fried Rice",
+      "Hakka Noodles",
+      "Chicken Manchurian"
+    ],
+    "menu": [
+      { "id": "r4-m1", "category": "Starter", "name": "Chilli Chicken", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r4-m2", "category": "Rice", "name": "Chicken Fried Rice", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r4-m3", "category": "Noodles", "name": "Hakka Noodles", "isVeg": false, "isAvailable": true },
+      { "id": "r4-m4", "category": "Gravy", "name": "Chicken Manchurian", "isVeg": false, "isAvailable": true },
+      { "id": "r4-m5", "category": "Starter", "name": "Chilli Paneer", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r4-m6", "category": "Rice", "name": "Veg Fried Rice", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r5",
+    "id": "pg-r5",
+    "name": "AB's - Absolute Barbecues",
+    "cuisine": "BBQ, Live Grill, Multi-cuisine",
+    "location": {
+      "address": "Jubilee Hills, Hyderabad, Telangana 500033",
+      "lat": 17.4229,
+      "lng": 78.4106,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r5"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Live Grill Chicken",
+      "Mutton Seekh Kebab",
+      "Chicken Wings",
+      "Prawns on the Grill"
+    ],
+    "menu": [
+      { "id": "r5-m1", "category": "Grill", "name": "Live Grill Chicken", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r5-m2", "category": "Kebab", "name": "Mutton Seekh Kebab", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r5-m3", "category": "Starter", "name": "Chicken Wings", "isVeg": false, "isAvailable": true },
+      { "id": "r5-m4", "category": "Grill", "name": "Prawns on the Grill", "isVeg": false, "isAvailable": true },
+      { "id": "r5-m5", "category": "Grill", "name": "Paneer Tikka", "isVeg": true, "isBestSeller": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r6",
+    "id": "pg-r6",
+    "name": "Nimrah Cafe & Bakery",
+    "cuisine": "Irani Cafe — Chai, Baked Goods",
+    "location": {
+      "address": "Near Charminar, Old City, Hyderabad, Telangana 500002",
+      "lat": 17.3604,
+      "lng": 78.4736,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r6"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Irani Chai",
+      "Osmania Biscuits",
+      "Bun Maska",
+      "Bakar Khani"
+    ],
+    "menu": [
+      { "id": "r6-m1", "category": "Beverages", "name": "Irani Chai", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r6-m2", "category": "Baked Goods", "name": "Osmania Biscuits", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r6-m3", "category": "Bread", "name": "Bun Maska", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r6-m4", "category": "Bread", "name": "Bakar Khani", "isVeg": true, "isAvailable": true },
+      { "id": "r6-m5", "category": "Meals", "name": "Keema Pav", "isVeg": false, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r7",
+    "id": "pg-r7",
+    "name": "Farzi Cafe",
+    "cuisine": "Modern Indian Fusion",
+    "location": {
+      "address": "HITEC City, Madhapur, Hyderabad, Telangana 500081",
+      "lat": 17.4474,
+      "lng": 78.3762,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r7"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Biryani Gol Gappa",
+      "Dal Makhni Fondant",
+      "Chicken Tikka Taco",
+      "Farzi Chai"
+    ],
+    "menu": [
+      { "id": "r7-m1", "category": "Signature", "name": "Biryani Gol Gappa", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r7-m2", "category": "Signature", "name": "Dal Makhni Fondant", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r7-m3", "category": "Main Course", "name": "Chicken Tikka Taco", "isVeg": false, "isAvailable": true },
+      { "id": "r7-m4", "category": "Beverages", "name": "Farzi Chai", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r8",
+    "id": "pg-r8",
+    "name": "Rayalaseema Ruchulu",
+    "cuisine": "Andhra cuisine — Rayalaseema style",
+    "location": {
+      "address": "Madhapur, Hyderabad, Telangana 500081",
+      "lat": 17.4500,
+      "lng": 78.3800,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r8"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": false },
+    "chefSpecials": [
+      "Natukodi Pulusu",
+      "Gongura Mutton",
+      "Chicken Iguru",
+      "Rayalaseema Ragi Sangati"
+    ],
+    "menu": [
+      { "id": "r8-m1", "category": "Curry", "name": "Natukodi Pulusu", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r8-m2", "category": "Curry", "name": "Gongura Mutton", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r8-m3", "category": "Curry", "name": "Chicken Iguru", "isVeg": false, "isAvailable": true },
+      { "id": "r8-m4", "category": "Meals", "name": "Rayalaseema Ragi Sangati", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r8-m5", "category": "Meals", "name": "Andhra Meals", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  },
+  {
+    "_id": "pg-r9",
+    "id": "pg-r9",
+    "name": "Ohri's Cuisine of India",
+    "cuisine": "Multi-cuisine — Mughlai, North Indian, Continental",
+    "location": {
+      "address": "Banjara Hills, Hyderabad, Telangana 500034",
+      "lat": 17.4092,
+      "lng": 78.4392,
+      "mapUrl": "https://www.google.com/maps/embed?pb=PLACEHOLDER_pg-r9"
+    },
+    "accountManager": {
+      "name": "RestroPulse Hyderabad",
+      "phone": "+91 00000 00003",
+      "email": "hyderabad@restropulse.ai",
+      "avatar": "https://picsum.photos/seed/am-hyd/100/100"
+    },
+    "integrations": { "instagram": true },
+    "chefSpecials": [
+      "Murgh Makhani",
+      "Raan-e-Ohri",
+      "Dal Bukhara",
+      "Gulab Jamun"
+    ],
+    "menu": [
+      { "id": "r9-m1", "category": "Main Course", "name": "Murgh Makhani", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r9-m2", "category": "Signature", "name": "Raan-e-Ohri", "isVeg": false, "isBestSeller": true, "isAvailable": true },
+      { "id": "r9-m3", "category": "Dal", "name": "Dal Bukhara", "isVeg": true, "isBestSeller": true, "isAvailable": true },
+      { "id": "r9-m4", "category": "Tandoor", "name": "Tandoori Platter", "isVeg": false, "isAvailable": true },
+      { "id": "r9-m5", "category": "Dessert", "name": "Gulab Jamun", "isVeg": true, "isAvailable": true }
+    ],
+    "menuLastUpdated": "2026-06-01"
+  }
+]

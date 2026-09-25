@@ -1,0 +1,2562 @@
+{
+  "generatedAt": "2026-08-09T07:52:03.752Z",
+  "root": "D:\\Work\\restropulse",
+  "summary": {
+    "totalKeys": 87,
+    "declaredKeys": 46,
+    "requiredKeys": 12,
+    "staleDeclaredKeys": 0,
+    "orphanUsedKeys": 31,
+    "workflowOnlyKeys": 10,
+    "staleKeys": [],
+    "orphanKeys": [
+      "APP_ARTIFACT_SHA256",
+      "APP_DEPLOYED_AT",
+      "APP_DEPLOY_RUN_ID",
+      "APP_GIT_SHA",
+      "AZURE_KEY_VAULT_KEY_PREFIX",
+      "AZURE_KEY_VAULT_URL",
+      "CRON_CURRENT_AFFAIRS_REFRESH",
+      "CRON_CYCLE_SYNC",
+      "CRON_DEADLINES",
+      "CRON_MEDIA_JOB_POLLER",
+      "CRON_PENDING_CYCLES",
+      "CRON_PENDING_POSTS",
+      "CRON_PUBLISHER",
+      "CRON_REVISIONS",
+      "CRON_ROLLING_WINDOW",
+      "CURRENT_AFFAIRS_V1_ENABLED",
+      "CURRENT_AFFAIRS_V2_ENABLED",
+      "CYCLE_APPROVAL_BUFFER_MINS",
+      "ENABLED_PLATFORMS",
+      "FEATURE_TOPUP_CREDITS",
+      "FEATURE_UPDATES_SECTION",
+      "FIREBASE_PROJECT_ID",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "INTELLIGENCE_DAILY_ENABLED",
+      "MIN_SCHEDULE_AHEAD_MINS",
+      "POST_APPROVAL_BUFFER_MINS",
+      "ROLLING_WINDOW_MINS",
+      "SECRETS_BACKEND",
+      "VITE_DEMO_MODE",
+      "VITE_RAZORPAY_KEY_ID",
+      "ZOMATO_ADAPTER"
+    ],
+    "workflowKeys": [
+      "AZURE_CLIENT_ID",
+      "AZURE_RESOURCE_GROUP",
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_SWA_NAME",
+      "AZURE_TENANT_ID",
+      "AZURE_WEBAPP_NAME_PROD",
+      "PRODUCTION_API_URL",
+      "PRODUCTION_WEB_URL",
+      "STAGING_API_URL",
+      "STAGING_WEB_URL"
+    ]
+  },
+  "filesTagged": [
+    ".env",
+    ".env.example",
+    "apps/api/.env",
+    "apps/api/.env.example",
+    "apps/content-engine/.env",
+    "apps/content-engine/.env.example",
+    "apps/db-cli/.env",
+    "apps/db-cli/.env.example",
+    "apps/db-cli/.env.production.example",
+    "apps/db-cli/.env.staging.example",
+    "apps/intelligence-worker/.env",
+    "apps/intelligence-worker/.env.example",
+    "apps/publisher/.env",
+    "apps/publisher/.env.example",
+    "apps/web/.env",
+    "apps/web/.env.example",
+    "tests/integration/.env.integration.example"
+  ],
+  "inventory": [
+    {
+      "key": "ANTHROPIC_API_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/content-engine/.env",
+        "apps/intelligence-worker/.env",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/services/intelligence/analysis.ts",
+        "apps/api/src/services/intelligence/themes.ts",
+        "apps/content-engine/scripts/playground/commands/feedback.ts",
+        "apps/content-engine/scripts/playground/commands/post.ts",
+        "apps/content-engine/scripts/playground/commands/strategy.ts",
+        "apps/content-engine/src/services/content-generator/backends/ai/llm/anthropic-provider.ts",
+        "apps/content-engine/src/services/content-generator/factory.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "intelligence-worker"
+      ],
+      "manifestApps": [
+        "content-engine",
+        "api"
+      ]
+    },
+    {
+      "key": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/publisher/.env"
+      ],
+      "usedInFiles": [
+        "apps/api/src/instrument.ts",
+        "apps/content-engine/src/instrument.ts",
+        "apps/intelligence-worker/src/instrument.ts",
+        "apps/publisher/src/instrument.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine",
+        "intelligence-worker",
+        "publisher"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher",
+        "content-engine",
+        "intelligence-worker"
+      ]
+    },
+    {
+      "key": "APP_ARTIFACT_SHA256",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/server.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "APP_DEPLOYED_AT",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/server.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "APP_DEPLOY_RUN_ID",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/server.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "APP_GIT_SHA",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/server.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "ASSET_SERVER_BASE_URL",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/content-engine/.env.example",
+        "apps/publisher/.env"
+      ],
+      "usedInFiles": [
+        "apps/content-engine/tests/integration/adhoc-processor.test.ts",
+        "apps/content-engine/tests/integration/lifecycle.test.ts",
+        "apps/content-engine/tests/integration/strategy-processor.test.ts",
+        "apps/content-engine/tests/unit/content-generator/backends/ai/media/placeholder-media-generator.test.ts",
+        "apps/content-engine/tests/unit/content-generator/backends/placeholder.test.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts",
+        "packages/publishing/src/publishing-service.ts"
+      ],
+      "usedInComponents": [
+        "content-engine",
+        "package:publishing"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine",
+        "publisher"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "ASSET_SERVER_PORT",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/server.ts",
+        "apps/content-engine/src/services/asset-manager.ts",
+        "apps/content-engine/tests/unit/asset-manager-env.test.ts",
+        "apps/content-engine/tests/unit/content-generator/backends/ai/media/placeholder-media-generator.test.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_CLIENT_ID",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_KEY_VAULT_KEY_PREFIX",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "packages/secrets/src/factory.ts"
+      ],
+      "usedInComponents": [
+        "package:secrets"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine",
+        "publisher"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher",
+        "content-engine",
+        "intelligence-worker"
+      ]
+    },
+    {
+      "key": "AZURE_KEY_VAULT_URL",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "packages/secrets/src/factory.ts",
+        "packages/secrets/tests/factory.test.ts",
+        "scripts/secrets-pull.mjs",
+        "scripts/test-integration.mjs"
+      ],
+      "usedInComponents": [
+        "package:secrets",
+        "scripts"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine",
+        "publisher"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher",
+        "content-engine",
+        "intelligence-worker"
+      ]
+    },
+    {
+      "key": "AZURE_RESOURCE_GROUP",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_SUBSCRIPTION_ID",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_SWA_NAME",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_TENANT_ID",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "AZURE_WEBAPP_NAME_PROD",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml",
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "BACKEND_URL",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/routes/integrations.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [
+        "api"
+      ],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "CONTENT_BASE_URL",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "db-cli",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example"
+      ],
+      "usedInFiles": [
+        "apps/db-cli/src/data/seedData.ts"
+      ],
+      "usedInComponents": [
+        "db-cli"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "CONTENT_GENERATOR_BACKEND",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env"
+      ],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CORS_ORIGIN",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/tests/setup.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_CURRENT_AFFAIRS_REFRESH",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_CYCLE_SYNC",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_DEADLINES",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_INTELLIGENCE",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "intelligence-worker",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/intelligence-worker/.env",
+        "apps/intelligence-worker/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/intelligence-worker/src/refresh.ts"
+      ],
+      "usedInComponents": [
+        "intelligence-worker"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "intelligence-worker"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_INTELLIGENCE_DAILY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "intelligence-worker",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/intelligence-worker/.env",
+        "apps/intelligence-worker/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/intelligence-worker/src/daily-cron.ts"
+      ],
+      "usedInComponents": [
+        "intelligence-worker"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "intelligence-worker"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_MEDIA_JOB_POLLER",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_PENDING_CYCLES",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_PENDING_POSTS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_PUBLISHER",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "packages/publishing/src/publishing-cron.ts"
+      ],
+      "usedInComponents": [
+        "package:publishing"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "publisher"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_REVISIONS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CRON_ROLLING_WINDOW",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CURRENT_AFFAIRS_V1_ENABLED",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CURRENT_AFFAIRS_V2_ENABLED",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "CYCLE_APPROVAL_BUFFER_MINS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts",
+        "apps/api/src/routes/strategy.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "ENABLED_PLATFORMS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts",
+        "apps/api/src/routes/posts.ts",
+        "apps/content-engine/src/services/processors/rolling-window/slots.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "ENCRYPTION_KEY",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/tests/setup.ts",
+        "apps/api/tests/unit/encryption.test.ts",
+        "apps/publisher/tests/setup.ts",
+        "apps/publisher/tests/unit/encryption.test.ts",
+        "packages/publishing/src/encryption.ts",
+        "tests/integration/suites/auth/encryption.test.ts",
+        "tests/integration/suites/publishing/token-encryption.test.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "package:publishing",
+        "publisher",
+        "tests",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [
+        "publisher"
+      ],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher"
+      ]
+    },
+    {
+      "key": "FEATURE_DELETE_ACCOUNT",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/routes/account.ts",
+        "apps/api/src/routes/config.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "FEATURE_TOPUP_CREDITS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "FEATURE_UPDATES_SECTION",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "FEATURE_WEB_THEME",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env"
+      ],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "FIREBASE_PROJECT_ID",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "api",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/services/firebase-admin.ts",
+        "apps/api/tests/unit/firebase-admin.test.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api"
+      ]
+    },
+    {
+      "key": "FIREBASE_SERVICE_ACCOUNT_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/services/firebase-admin.ts",
+        "apps/api/tests/unit/firebase-admin.test.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api"
+      ]
+    },
+    {
+      "key": "FRONTEND_URL",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/routes/integrations.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [
+        "api"
+      ],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "GOOGLE_APPLICATION_CREDENTIALS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/services/firebase-admin.ts",
+        "apps/api/tests/unit/firebase-admin.test.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "GOOGLE_CALENDAR_API_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/content-engine/scripts/playground/commands/post.ts",
+        "apps/content-engine/src/services/content-generator/factory.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": [
+        "content-engine"
+      ]
+    },
+    {
+      "key": "GOOGLE_MAPS_API_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/intelligence-worker/.env"
+      ],
+      "usedInFiles": [
+        "apps/api/src/services/intelligence/places.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "intelligence-worker"
+      ],
+      "manifestApps": [
+        "api"
+      ]
+    },
+    {
+      "key": "INSTAGRAM_APP_ID",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/routes/integrations.ts",
+        "apps/api/tests/unit/integrations.test.ts",
+        "apps/api/tests/unit/meta-api.test.ts",
+        "apps/publisher/tests/unit/meta-api.test.ts",
+        "packages/publishing/src/meta-api.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "package:publishing",
+        "publisher",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [
+        "publisher"
+      ],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher"
+      ]
+    },
+    {
+      "key": "INSTAGRAM_APP_SECRET",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/routes/integrations.ts",
+        "apps/api/tests/setup.ts",
+        "apps/api/tests/unit/integrations.test.ts",
+        "apps/api/tests/unit/meta-api.test.ts",
+        "apps/publisher/tests/setup.ts",
+        "apps/publisher/tests/unit/meta-api.test.ts",
+        "packages/publishing/src/meta-api.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "package:publishing",
+        "publisher",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [
+        "publisher"
+      ],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher"
+      ]
+    },
+    {
+      "key": "INSTAGRAM_REDIRECT_URI",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/tests/unit/meta-api.test.ts",
+        "apps/publisher/tests/unit/meta-api.test.ts",
+        "packages/publishing/src/meta-api.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "package:publishing",
+        "publisher"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "publisher"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher"
+      ]
+    },
+    {
+      "key": "INSTAGRAM_TEST_ACCESS_TOKEN",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "tests",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "INTELLIGENCE_DAILY_ENABLED",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/intelligence-worker/src/daily.ts",
+        "apps/intelligence-worker/tests/unit/backfill.test.ts",
+        "apps/intelligence-worker/tests/unit/daily.test.ts"
+      ],
+      "usedInComponents": [
+        "intelligence-worker"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "intelligence-worker"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "JWT_SECRET",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/services/jwt.ts",
+        "tests/integration/suites/auth/jwt.test.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "tests",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api"
+      ]
+    },
+    {
+      "key": "LOG_LEVEL",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "shared",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/publisher/.env"
+      ],
+      "usedInFiles": [
+        "apps/api/src/instrument.ts",
+        "apps/content-engine/scripts/test-generate.ts",
+        "apps/content-engine/src/instrument.ts",
+        "apps/intelligence-worker/src/instrument.ts",
+        "apps/publisher/src/instrument.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine",
+        "intelligence-worker",
+        "publisher"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "MEDIA_BACKEND",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env"
+      ],
+      "usedInFiles": [
+        "apps/content-engine/src/services/content-generator/factory.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "MIN_SCHEDULE_AHEAD_MINS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts",
+        "apps/api/src/routes/posts.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "MONGODB_DB_NAME",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/content-engine/.env",
+        "apps/content-engine/.env.example",
+        "apps/db-cli/.env",
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example",
+        "apps/intelligence-worker/.env",
+        "apps/intelligence-worker/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/routes/account.ts",
+        "apps/api/tests/setup.ts",
+        "apps/db-cli/src/config/database.ts",
+        "apps/db-cli/src/index.ts",
+        "apps/db-cli/src/lib/env.ts",
+        "apps/intelligence-worker/tests/setup.ts",
+        "apps/publisher/tests/setup.ts",
+        "packages/db/src/connection.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "db-cli",
+        "intelligence-worker",
+        "package:db",
+        "publisher",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine",
+        "intelligence-worker",
+        "publisher"
+      ],
+      "manifestApps": [
+        "api",
+        "publisher",
+        "content-engine",
+        "db-cli",
+        "intelligence-worker"
+      ]
+    },
+    {
+      "key": "MONGODB_URI",
+      "state": "active",
+      "required": true,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/content-engine/.env",
+        "apps/content-engine/.env.example",
+        "apps/db-cli/.env",
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example",
+        "apps/intelligence-worker/.env",
+        "apps/intelligence-worker/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/tests/setup.ts",
+        "apps/api/tests/unit/db-connection.test.ts",
+        "apps/db-cli/src/config/database.ts",
+        "apps/db-cli/src/index.ts",
+        "apps/db-cli/src/lib/env.ts",
+        "apps/intelligence-worker/tests/setup.ts",
+        "apps/publisher/tests/setup.ts",
+        "packages/db/src/connection.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "db-cli",
+        "intelligence-worker",
+        "package:db",
+        "publisher",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [
+        "api",
+        "content-engine",
+        "intelligence-worker",
+        "publisher"
+      ],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "api",
+        "publisher",
+        "content-engine",
+        "db-cli",
+        "intelligence-worker"
+      ]
+    },
+    {
+      "key": "NGROK_AUTH_TOKEN",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "root",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        ".env",
+        ".env.example"
+      ],
+      "usedInFiles": [
+        "scripts/start-ngrok.mjs"
+      ],
+      "usedInComponents": [
+        "scripts"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "NGROK_DOMAIN",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "root",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        ".env",
+        ".env.example"
+      ],
+      "usedInFiles": [
+        "scripts/start-asset-tunnel.mjs",
+        "scripts/start-ngrok.mjs"
+      ],
+      "usedInComponents": [
+        "scripts"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "NODE_ENV",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "shared",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example",
+        "apps/content-engine/.env",
+        "apps/content-engine/.env.example",
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example",
+        "apps/intelligence-worker/.env",
+        "apps/intelligence-worker/.env.example",
+        "apps/publisher/.env",
+        "apps/publisher/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/src/instrument.ts",
+        "apps/api/src/routes/auth.ts",
+        "apps/api/src/routes/integrations.ts",
+        "apps/api/src/routes/posts.ts",
+        "apps/api/src/server.ts",
+        "apps/api/tests/setup.ts",
+        "apps/api/tests/unit/integrations.test.ts",
+        "apps/content-engine/src/instrument.ts",
+        "apps/content-engine/src/worker.ts",
+        "apps/db-cli/src/lib/env.ts",
+        "apps/intelligence-worker/src/daily.ts",
+        "apps/intelligence-worker/src/instrument.ts",
+        "apps/intelligence-worker/src/worker.ts",
+        "apps/intelligence-worker/tests/setup.ts",
+        "apps/publisher/src/instrument.ts",
+        "apps/publisher/src/worker.ts",
+        "apps/publisher/tests/setup.ts",
+        "apps/publisher/tests/unit/publishing-cron.test.ts",
+        "apps/publisher/tests/unit/token-refresh-cron.test.ts",
+        "docs/TELEMETRY-STRATEGY.md",
+        "packages/publishing/src/publishing-cron.ts",
+        "packages/publishing/src/token-refresh-cron.ts",
+        "packages/telemetry/src/server/middleware.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine",
+        "db-cli",
+        "intelligence-worker",
+        "package:publishing",
+        "package:telemetry",
+        "publisher",
+        "root"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine",
+        "intelligence-worker",
+        "publisher"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "PERPLEXITY_API_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/content-engine/scripts/playground/commands/post.ts",
+        "apps/content-engine/src/services/content-generator/factory.ts",
+        "apps/content-engine/src/services/restaurant-enricher/index.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": [
+        "content-engine"
+      ]
+    },
+    {
+      "key": "PORT",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/api/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/api/tests/setup.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "POST_APPROVAL_BUFFER_MINS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/routes/config.ts",
+        "apps/api/src/routes/posts.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "PRODUCTION_API_URL",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "PRODUCTION_WEB_URL",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-production.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "RAZORPAY_KEY_ID",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/db-cli/.env",
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/services/razorpay.ts",
+        "apps/api/tests/unit/razorpay.test.ts",
+        "apps/db-cli/src/commands/razorpay-setup.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "db-cli",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "db-cli"
+      ]
+    },
+    {
+      "key": "RAZORPAY_KEY_SECRET",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "shared",
+      "environments": [
+        "dev",
+        "prod",
+        "staging"
+      ],
+      "declaredIn": [
+        "apps/api/.env",
+        "apps/db-cli/.env",
+        "apps/db-cli/.env.example",
+        "apps/db-cli/.env.production.example",
+        "apps/db-cli/.env.staging.example",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/api/src/services/razorpay.ts",
+        "apps/api/tests/unit/razorpay.test.ts",
+        "apps/db-cli/src/commands/razorpay-setup.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "db-cli",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api",
+        "db-cli"
+      ]
+    },
+    {
+      "key": "RAZORPAY_WEBHOOK_SECRET",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "api",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/api/.env"
+      ],
+      "usedInFiles": [
+        "apps/api/src/services/razorpay.ts",
+        "apps/api/tests/unit/razorpay.test.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": [
+        "api"
+      ]
+    },
+    {
+      "key": "REPLICATE_API_TOKEN",
+      "state": "active",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "content-engine",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/content-engine/.env",
+        "tests/integration/.env.integration.example"
+      ],
+      "usedInFiles": [
+        ".github/workflows/test-integration.yml",
+        "apps/content-engine/src/services/content-generator/factory.ts",
+        "apps/content-engine/tests/unit/content-generator/factory.test.ts"
+      ],
+      "usedInComponents": [
+        "content-engine",
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": [
+        "content-engine"
+      ]
+    },
+    {
+      "key": "ROLLING_WINDOW_MINS",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [],
+      "usedInComponents": [],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "content-engine"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "SECRETS_BACKEND",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": true,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/server.ts",
+        "apps/content-engine/src/worker.ts",
+        "apps/db-cli/src/lib/env.ts",
+        "apps/publisher/src/worker.ts",
+        "docs/SECRETS.md",
+        "tests/integration/helpers/secrets.ts"
+      ],
+      "usedInComponents": [
+        "api",
+        "content-engine",
+        "db-cli",
+        "publisher",
+        "root",
+        "tests"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api",
+        "content-engine",
+        "publisher"
+      ],
+      "manifestApps": []
+    },
+    {
+      "key": "STAGING_API_URL",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "STAGING_WEB_URL",
+      "state": "workflow-only",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        ".github/workflows/deploy-staging.yml"
+      ],
+      "usedInComponents": [
+        "workflow"
+      ],
+      "usedInWorkflows": true,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "VITE_API_URL",
+      "state": "active",
+      "required": true,
+      "runtime": false,
+      "buildTime": true,
+      "secret": false,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts",
+        "docs/TELEMETRY-STRATEGY.md"
+      ],
+      "usedInComponents": [
+        "root",
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_APPINSIGHTS_CONNECTION_STRING",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts",
+        "docs/TELEMETRY-STRATEGY.md"
+      ],
+      "usedInComponents": [
+        "root",
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_APP_URL",
+      "state": "active",
+      "required": true,
+      "runtime": false,
+      "buildTime": true,
+      "secret": false,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_DEMO_MODE",
+      "state": "orphan",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/web/lib/demo.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "VITE_FIREBASE_API_KEY",
+      "state": "active",
+      "required": true,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts",
+        "apps/web/utils/env.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_FIREBASE_APP_ID",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_FIREBASE_AUTH_DOMAIN",
+      "state": "active",
+      "required": true,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_FIREBASE_MESSAGING_SENDER_ID",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_FIREBASE_PROJECT_ID",
+      "state": "active",
+      "required": true,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_FIREBASE_STORAGE_BUCKET",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env",
+        "apps/web/.env.example"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_GOOGLE_MAPS_API_KEY",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts",
+        "apps/web/utils/env.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_RAZORPAY_KEY_ID",
+      "state": "orphan",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": true,
+      "owner": "web",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts"
+      ],
+      "usedInComponents": [
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": [
+        "web"
+      ]
+    },
+    {
+      "key": "VITE_TELEMETRY_SAMPLE_RATE",
+      "state": "active",
+      "required": false,
+      "runtime": false,
+      "buildTime": true,
+      "secret": false,
+      "owner": "web",
+      "environments": [
+        "dev"
+      ],
+      "declaredIn": [
+        "apps/web/.env"
+      ],
+      "usedInFiles": [
+        "apps/web/utils/client-config.ts",
+        "docs/TELEMETRY-STRATEGY.md"
+      ],
+      "usedInComponents": [
+        "root",
+        "web"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [],
+      "manifestApps": []
+    },
+    {
+      "key": "ZOMATO_ADAPTER",
+      "state": "orphan",
+      "required": false,
+      "runtime": true,
+      "buildTime": false,
+      "secret": false,
+      "owner": "unknown",
+      "environments": [],
+      "declaredIn": [],
+      "usedInFiles": [
+        "apps/api/src/services/intelligence/zomato.ts"
+      ],
+      "usedInComponents": [
+        "api"
+      ],
+      "usedInWorkflows": false,
+      "schemaRequiredBy": [],
+      "schemaOptionalBy": [
+        "api"
+      ],
+      "manifestApps": []
+    }
+  ]
+}

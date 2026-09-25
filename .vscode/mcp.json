@@ -1,0 +1,114 @@
+{
+  "servers": {
+    // ---------------------------------------------------------------
+    // Layer 1 -- Semantic Search (codebase-rag)
+    // Role: High-level discovery across source and docs.
+    // Scope: apps/*/src, packages/*/src, docs/, READMEs only.
+    // ---------------------------------------------------------------
+    "semantic-search": {
+      "command": "${userHome}/.bun/bin/bun",
+      "args": [
+        "run",
+        "${userHome}/.mcp-servers/codebase-rag/src/server.ts"
+      ],
+      "env": {
+        // codebase-rag respects .gitignore by default;
+        // extra excludes keep coverage/html/assets out of the index.
+        "CODEBASE_RAG_EXCLUDE": "node_modules,dist,.turbo,coverage,html,public/mockdata,assets/videos,assets/images,*.lock,package-lock.json"
+      }
+    },
+    // ---------------------------------------------------------------
+    // Layer 2 -- Logic / Navigation (mcp-language-server)
+    // Role: Type-aware definitions, references, diagnostics via TSServer.
+    // One server per workspace boundary for fast, scoped resolution.
+    // Requires: npm i -g typescript typescript-language-server
+    //           go install github.com/isaacphi/mcp-language-server@latest
+    // ---------------------------------------------------------------
+    "lsp-web": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/apps/web",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    "lsp-api": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/apps/api",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    "lsp-publisher": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/apps/publisher",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    "lsp-content-engine": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/apps/content-engine",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    "lsp-shared": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/packages/shared",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    "lsp-db": {
+      "command": "mcp-language-server",
+      "args": [
+        "--workspace",
+        "${workspaceFolder}/packages/db",
+        "--lsp",
+        "typescript-language-server",
+        "--",
+        "--stdio"
+      ]
+    },
+    // ---------------------------------------------------------------
+    // Layer 3 -- Knowledge / Memory
+    // Role: Persist architectural decisions, conventions, preferences.
+    // NOT for code snippets (that is RAG's job) or type info (LSP's job).
+    // ---------------------------------------------------------------
+    "project-memory": {
+      "command": "mcp-server-memory"
+    },
+    // ---------------------------------------------------------------
+    // Layer 4 -- Browser Automation (Playwright)
+    // Role: Drive the running web app for E2E QA / bug repro.
+    // Use ONLY when exercising the live app; never to read source files.
+    // ---------------------------------------------------------------
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    }
+  }
+}

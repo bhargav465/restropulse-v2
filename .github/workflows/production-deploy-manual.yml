@@ -1,0 +1,475 @@
+name: Deploy Production (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to promote (staging tag or commit SHA)
+        required: true
+        type: string
+      services:
+        description: Services to deploy (comma-separated or "all")
+        required: false
+        default: all
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  resolve-ref:
+    name: Resolve Deploy Ref
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-git-sha: ${{ steps.resolve_sha.outputs.deploy_git_sha }}
+    steps:
+      - name: Checkout deploy ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 1
+
+      - name: Resolve deploy git SHA
+        id: resolve_sha
+        run: echo "deploy_git_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  build-and-deploy-web-production:
+    name: Build & Deploy Web (Production)
+    needs: resolve-ref
+    if: contains(inputs.services, 'web') || inputs.services == 'all'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build web
+        run: npx turbo build --filter=@restropulse/web
+        env:
+          NODE_ENV: production
+
+      - name: Generate config.json sidecar from Key Vault
+        run: |
+          get_secret() {
+            az keyvault secret show \
+              --vault-name restropulse-prod-kv \
+              --name "prod-$(echo "$1" | tr '[:upper:]' '[:lower:]')" \
+              --query "value" -o tsv
+          }
+
+          FIREBASE_API_KEY=$(get_secret FIREBASE-API-KEY)
+          echo "::add-mask::$FIREBASE_API_KEY"
+          FIREBASE_AUTH_DOMAIN=$(get_secret FIREBASE-AUTH-DOMAIN)
+          echo "::add-mask::$FIREBASE_AUTH_DOMAIN"
+          FIREBASE_PROJECT_ID=$(get_secret FIREBASE-PROJECT-ID)
+          echo "::add-mask::$FIREBASE_PROJECT_ID"
+          FIREBASE_STORAGE_BUCKET=$(get_secret FIREBASE-STORAGE-BUCKET)
+          echo "::add-mask::$FIREBASE_STORAGE_BUCKET"
+          FIREBASE_MESSAGING_SENDER_ID=$(get_secret FIREBASE-MESSAGING-SENDER-ID)
+          echo "::add-mask::$FIREBASE_MESSAGING_SENDER_ID"
+          FIREBASE_APP_ID=$(get_secret FIREBASE-APP-ID)
+          echo "::add-mask::$FIREBASE_APP_ID"
+          MAPS_KEY=$(get_secret WEB-GOOGLE-MAPS-API-KEY)
+          echo "::add-mask::$MAPS_KEY"
+          APPINSIGHTS=$(get_secret WEB-APPINSIGHTS-CONNECTION-STRING)
+          echo "::add-mask::$APPINSIGHTS"
+          RAZORPAY_KEY_ID=$(get_secret RAZORPAY-KEY-ID)
+          echo "::add-mask::$RAZORPAY_KEY_ID"
+          RECAPTCHA_SITE_KEY=$(get_secret RECAPTCHA-SITE-KEY)
+          echo "::add-mask::$RECAPTCHA_SITE_KEY"
+          DEPLOY_GIT_SHA="${{ needs.resolve-ref.outputs.deploy-git-sha }}"
+          DEPLOY_RUN_ID="${{ github.run_id }}"
+          DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          jq -n \
+            --arg apiUrl "${{ vars.PRODUCTION_API_URL }}/api" \
+            --arg appUrl "${{ vars.PRODUCTION_WEB_URL }}" \
+            --arg googleMapsApiKey "$MAPS_KEY" \
+            --arg razorpayKeyId "$RAZORPAY_KEY_ID" \
+            --arg appInsightsConnectionString "$APPINSIGHTS" \
+            --arg recaptchaSiteKey "$RECAPTCHA_SITE_KEY" \
+            --argjson telemetrySampleRate 100 \
+            --arg deployGitSha "$DEPLOY_GIT_SHA" \
+            --arg deployRunId "$DEPLOY_RUN_ID" \
+            --arg deployedAt "$DEPLOYED_AT" \
+            --arg firebaseApiKey "$FIREBASE_API_KEY" \
+            --arg firebaseAuthDomain "$FIREBASE_AUTH_DOMAIN" \
+            --arg firebaseProjectId "$FIREBASE_PROJECT_ID" \
+            --arg firebaseStorageBucket "$FIREBASE_STORAGE_BUCKET" \
+            --arg firebaseMessagingSenderId "$FIREBASE_MESSAGING_SENDER_ID" \
+            --arg firebaseAppId "$FIREBASE_APP_ID" \
+            '{
+              apiUrl: $apiUrl,
+              appUrl: $appUrl,
+              googleMapsApiKey: $googleMapsApiKey,
+              razorpayKeyId: $razorpayKeyId,
+              appInsightsConnectionString: $appInsightsConnectionString,
+              recaptchaSiteKey: $recaptchaSiteKey,
+              telemetrySampleRate: $telemetrySampleRate,
+              deployment: {
+                gitSha: $deployGitSha,
+                runId: $deployRunId,
+                deployedAt: $deployedAt
+              },
+              firebase: {
+                apiKey: $firebaseApiKey,
+                authDomain: $firebaseAuthDomain,
+                projectId: $firebaseProjectId,
+                storageBucket: $firebaseStorageBucket,
+                messagingSenderId: $firebaseMessagingSenderId,
+                appId: $firebaseAppId
+              }
+            }' > apps/web/dist/config.json
+
+      - name: Login to Azure (for deployment)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get SWA deployment token
+        id: swa_token
+        run: |
+          token=$(az staticwebapp secrets list \
+            --name ${{ vars.AZURE_SWA_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$token"
+          echo "token=$token" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Azure Static Web Apps (production)
+        uses: azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa_token.outputs.token }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          skip_app_build: true
+          app_location: apps/web/dist/
+
+  build-and-swap-api-production:
+    name: Build & Swap API + Workers (Production)
+    needs: [resolve-ref, build-and-deploy-web-production]
+    if: >-
+      always() &&
+      !failure() &&
+      !cancelled() &&
+      (contains(inputs.services, 'api') ||
+       contains(inputs.services, 'publisher') ||
+       contains(inputs.services, 'content-engine') ||
+       contains(inputs.services, 'intelligence-worker') ||
+       inputs.services == 'all')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build all
+        run: npx turbo build --filter=!@restropulse/db-cli
+        env:
+          NODE_ENV: production
+
+      - name: Prune for API deployment
+        run: >-
+          npx turbo prune
+          @restropulse/api
+          @restropulse/publisher
+          @restropulse/content-engine
+          @restropulse/intelligence-worker
+          --out-dir=pruned
+
+      - name: Install pruned dependencies
+        run: |
+          npm ci --prefix pruned --omit=dev --ignore-scripts
+          echo "pruned/node_modules package count: $(ls pruned/node_modules | wc -l)"
+
+      - name: Copy dist outputs into pruned tree
+        run: |
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            if [ -d "packages/$pkg_name/dist" ]; then
+              cp -r "packages/$pkg_name/dist/." "$pkg_dir/dist/"
+            fi
+          done
+          for app in api publisher content-engine intelligence-worker; do
+            cp -r "apps/$app/dist/." "pruned/apps/$app/dist/"
+          done
+
+      - name: Materialize workspace packages into node_modules
+        run: |
+          mkdir -p pruned/node_modules/@restropulse
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            target="pruned/node_modules/@restropulse/$pkg_name"
+            rm -rf "$target"
+            cp -r "$pkg_dir" "$target"
+          done
+
+      - name: Add Linux startup script for API + workers
+        run: |
+          cat > pruned/startup.sh << 'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+
+          mkdir -p /home/LogFiles
+
+          ROOT_DIR="/home/site/wwwroot"
+          if [ ! -d "$ROOT_DIR" ]; then
+            ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+          fi
+          cd "$ROOT_DIR"
+
+          pids=()
+
+          start_process() {
+            local name="$1"
+            local command="$2"
+            echo "[startup] launching ${name}: ${command}"
+            bash -c "$command" >>"/home/LogFiles/${name}.log" 2>&1 &
+            pids+=("$!")
+          }
+
+          shutdown() {
+            echo "[startup] received shutdown signal; terminating child processes"
+            for pid in "${pids[@]}"; do
+              kill -TERM "$pid" 2>/dev/null || true
+            done
+            wait || true
+            exit 143
+          }
+
+          trap shutdown SIGTERM SIGINT
+
+          start_process "publisher" "node ./apps/publisher/dist/worker.js"
+          start_process "content-engine" "node ./apps/content-engine/dist/worker.js"
+          start_process "intelligence-worker" "node ./apps/intelligence-worker/dist/worker.js"
+          start_process "api" "node ./apps/api/dist/server.js"
+
+          wait -n "${pids[@]}"
+          code=$?
+          echo "[startup] child process exited with code ${code}; stopping remaining processes"
+          for pid in "${pids[@]}"; do
+            kill -TERM "$pid" 2>/dev/null || true
+          done
+          wait || true
+          exit "$code"
+          SCRIPT
+          chmod +x pruned/startup.sh
+
+      - name: Deploy to staging slot (for swap)
+        run: |
+          rm -rf pruned/node_modules/@restropulse/api \
+                 pruned/node_modules/@restropulse/publisher \
+                 pruned/node_modules/@restropulse/content-engine \
+                 pruned/node_modules/@restropulse/intelligence-worker
+          cd pruned && zip -r ../api-deploy.zip . && cd ..
+          API_BUNDLE_SHA256=$(sha256sum api-deploy.zip | awk '{print $1}')
+          DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          CORS_BASE="${{ vars.STAGING_WEB_URL }}"
+          CORS_EASTASIA=$(echo "$CORS_BASE" | sed 's/\.6\./.eastasia.6./g')
+
+          az webapp config appsettings set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --slot-settings \
+              NODE_ENV=staging \
+              CORS_ORIGIN="$CORS_BASE,$CORS_EASTASIA" \
+              CONTENT_GENERATOR_BACKEND=ai \
+              ANTHROPIC_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-anthropic-api-key)" \
+              FIREBASE_PROJECT_ID="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-firebase-project-id)" \
+              GOOGLE_MAPS_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-google-maps-api-key)" \
+              REPLICATE_API_TOKEN="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-replicate-api-token)" \
+              GOOGLE_CALENDAR_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-google-calendar-api-key)" \
+              PERPLEXITY_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=staging-perplexity-api-key)" \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              WEBSITE_NODE_DEFAULT_VERSION="~22" \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              APP_GIT_SHA="${{ needs.resolve-ref.outputs.deploy-git-sha }}" \
+              APP_DEPLOY_RUN_ID="${{ github.run_id }}" \
+              APP_DEPLOYED_AT="$DEPLOYED_AT" \
+              APP_ARTIFACT_SHA256="$API_BUNDLE_SHA256"
+
+          az webapp deploy \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --src-path api-deploy.zip \
+            --type zip \
+            --clean true \
+            --async false
+
+          az webapp config set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --startup-file "bash startup.sh" \
+            --always-on true
+
+      - name: Configure production for swap
+        run: |
+          DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          CORS_BASE="${{ vars.PRODUCTION_WEB_URL }}"
+          CORS_EASTASIA=$(echo "$CORS_BASE" | sed 's/\.6\./.eastasia.6./g')
+
+          az webapp config appsettings set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot-settings \
+              NODE_ENV=production \
+              CORS_ORIGIN="$CORS_BASE,$CORS_EASTASIA" \
+              CONTENT_GENERATOR_BACKEND=ai \
+              ANTHROPIC_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-anthropic-api-key)" \
+              FIREBASE_PROJECT_ID="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-firebase-project-id)" \
+              GOOGLE_MAPS_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-google-maps-api-key)" \
+              REPLICATE_API_TOKEN="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-replicate-api-token)" \
+              GOOGLE_CALENDAR_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-google-calendar-api-key)" \
+              PERPLEXITY_API_KEY="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-perplexity-api-key)" \
+              MEDIA_STORAGE_CONNECTION_STRING="@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=prod-media-storage-connection-string)" \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              WEBSITE_NODE_DEFAULT_VERSION="~22" \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              APP_GIT_SHA="${{ needs.resolve-ref.outputs.deploy-git-sha }}" \
+              APP_DEPLOY_RUN_ID="${{ github.run_id }}" \
+              APP_DEPLOYED_AT="$DEPLOYED_AT"
+
+          az webapp config set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot production \
+            --startup-file "bash startup.sh" \
+            --always-on true
+
+      - name: Validate production Key Vault references resolve
+        run: |
+          settings_json=$(az webapp config appsettings list \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            -o json)
+
+          failures=0
+          while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            vault_name=""
+            secret_name=""
+            secret_uri=$(echo "$ref" | sed -n 's/.*SecretUri=\([^;)]*\).*/\1/p')
+            if [ -n "$secret_uri" ]; then
+              vault_name=$(echo "$secret_uri" | awk -F/ '{print $3}' | cut -d. -f1)
+              secret_name=$(echo "$secret_uri" | awk -F/ '{print $5}')
+            else
+              vault_name=$(echo "$ref" | sed -n 's/.*VaultName=\([^;)]*\).*/\1/p')
+              secret_name=$(echo "$ref" | sed -n 's/.*SecretName=\([^;)]*\).*/\1/p')
+            fi
+            if [ -z "$vault_name" ] || [ -z "$secret_name" ]; then
+              echo "Invalid Key Vault reference: $ref"
+              failures=1
+              continue
+            fi
+            if ! az keyvault secret show --vault-name "$vault_name" --name "$secret_name" --query id -o tsv >/dev/null; then
+              echo "Missing Key Vault secret: $vault_name/$secret_name"
+              failures=1
+            fi
+          done < <(echo "$settings_json" | jq -r '.[] | .value // "" | select(startswith("@Microsoft.KeyVault("))')
+
+          if [ "$failures" -ne 0 ]; then
+            echo "Key Vault reference validation failed for production."
+            exit 1
+          fi
+          echo "All production Key Vault references resolve."
+
+      - name: Swap staging slot to production
+        run: |
+          az webapp deployment slot swap \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --target-slot production
+
+  smoke-test-api:
+    name: Smoke Test API (Production)
+    needs: [resolve-ref, build-and-swap-api-production]
+    if: needs.build-and-swap-api-production.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          sparse-checkout: scripts/smoke-test.sh
+
+      - name: Smoke test API
+        run: bash scripts/smoke-test.sh api "${{ vars.PRODUCTION_API_URL }}"
+        env:
+          EXPECTED_GIT_SHA: ${{ needs.resolve-ref.outputs.deploy-git-sha }}
+
+  smoke-test-web:
+    name: Smoke Test Web (Production)
+    needs: [resolve-ref, build-and-deploy-web-production]
+    if: needs.build-and-deploy-web-production.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          sparse-checkout: scripts/smoke-test.sh
+
+      - name: Smoke test Web
+        run: bash scripts/smoke-test.sh web "${{ vars.PRODUCTION_WEB_URL }}"
+        env:
+          EXPECTED_GIT_SHA: ${{ needs.resolve-ref.outputs.deploy-git-sha }}
+
+  tag-production:
+    name: Tag Production
+    needs: [smoke-test-api, smoke-test-web]
+    if: always() && !failure() && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Create production tag
+        run: |
+          TAG="production/$(date -u +'%Y-%m-%d-%H%M%S')"
+          git tag "$TAG"
+          git push origin "$TAG"

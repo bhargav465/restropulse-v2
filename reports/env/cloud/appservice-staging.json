@@ -1,0 +1,142 @@
+[
+  {
+    "name": "APP_GIT_SHA",
+    "slotSetting": true,
+    "value": "a688524bec8e558b688d8933d603dcf7184b7939"
+  },
+  {
+    "name": "PORT",
+    "slotSetting": true,
+    "value": "8080"
+  },
+  {
+    "name": "LOG_LEVEL",
+    "slotSetting": true,
+    "value": "info"
+  },
+  {
+    "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+    "slotSetting": true,
+    "value": "false"
+  },
+  {
+    "name": "WEBSITE_RUN_FROM_PACKAGE",
+    "slotSetting": true,
+    "value": "1"
+  },
+  {
+    "name": "APP_ARTIFACT_SHA256",
+    "slotSetting": true,
+    "value": "cf59db4e52114f4e5e37a16cd5061bb0375627fb646ff3fa7bfe05697d5d462c"
+  },
+  {
+    "name": "ASSET_SERVER_BASE_URL",
+    "slotSetting": true,
+    "value": "https://restropulse-prod-api-staging.azurewebsites.net/content/mockdata"
+  },
+  {
+    "name": "APP_DEPLOYED_AT",
+    "slotSetting": true,
+    "value": "08/08/2026 20:24:03"
+  },
+  {
+    "name": "BACKEND_URL",
+    "slotSetting": true,
+    "value": "https://restropulse-prod-api-staging.azurewebsites.net"
+  },
+  {
+    "name": "CORS_ORIGIN",
+    "slotSetting": true,
+    "value": "https://victorious-plant-04bc9e400-staging.eastasia.6.azurestaticapps.net"
+  },
+  {
+    "name": "FEATURE_DELETE_ACCOUNT",
+    "slotSetting": true,
+    "value": "true"
+  },
+  {
+    "name": "NODE_ENV",
+    "slotSetting": true,
+    "value": "staging"
+  },
+  {
+    "name": "WEBSITE_NODE_DEFAULT_VERSION",
+    "slotSetting": true,
+    "value": "~22"
+  },
+  {
+    "name": "APP_DEPLOY_RUN_ID",
+    "slotSetting": true,
+    "value": "31276678012"
+  },
+  {
+    "name": "OTEL_TRACES_SAMPLER_ARG",
+    "slotSetting": true,
+    "value": "0.1"
+  },
+  {
+    "name": "FRONTEND_URL",
+    "slotSetting": true,
+    "value": "https://victorious-plant-04bc9e400-staging.eastasia.6.azurestaticapps.net"
+  },
+  {
+    "name": "INSTAGRAM_APP_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-INSTAGRAM-APP-SECRET)"
+  },
+  {
+    "name": "MONGODB_URI",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-MONGODB-URI)"
+  },
+  {
+    "name": "FIREBASE_SERVICE_ACCOUNT_KEY",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-FIREBASE-SERVICE-ACCOUNT-KEY)"
+  },
+  {
+    "name": "MONGODB_DB_NAME",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-MONGODB-DB-NAME)"
+  },
+  {
+    "name": "JWT_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-JWT-SECRET)"
+  },
+  {
+    "name": "INSTAGRAM_REDIRECT_URI",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-INSTAGRAM-REDIRECT-URI)"
+  },
+  {
+    "name": "INSTAGRAM_APP_ID",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-INSTAGRAM-APP-ID)"
+  },
+  {
+    "name": "RAZORPAY_KEY_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-RAZORPAY-KEY-SECRET)"
+  },
+  {
+    "name": "RAZORPAY_KEY_ID",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-RAZORPAY-KEY-ID)"
+  },
+  {
+    "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(SecretUri=https://restropulse-prod-kv.vault.azure.net/secrets/STAGING-APPLICATIONINSIGHTS-CONNECTION-STRING)"
+  },
+  {
+    "name": "RAZORPAY_WEBHOOK_SECRET",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-RAZORPAY-WEBHOOK-SECRET)"
+  },
+  {
+    "name": "ENCRYPTION_KEY",
+    "slotSetting": true,
+    "value": "@Microsoft.KeyVault(VaultName=restropulse-prod-kv;SecretName=STAGING-ENCRYPTION-KEY)"
+  }
+]

@@ -1,0 +1,44 @@
+{
+  "development": {
+    "plan-starter-v1": {
+      "monthly": "plan_TNG7Jg8CHAZxxm",
+      "annual": "plan_TNG7KBZ210C3oB"
+    },
+    "plan-growth-v1": {
+      "monthly": "plan_TNG7KkxccJqnbG",
+      "annual": "plan_TNG7LKKh1Q42Qi"
+    },
+    "plan-premium-v1": {
+      "monthly": "plan_TNG7LvpJvzwJp9",
+      "annual": "plan_TNG7MKHAExspuq"
+    }
+  },
+  "staging": {
+    "plan-starter-v1": {
+      "monthly": "plan_TNb5PeA5OvDodr",
+      "annual": "plan_TNb5Q9UDqMTKIa"
+    },
+    "plan-growth-v1": {
+      "monthly": "plan_TNb5QclePFbOJg",
+      "annual": "plan_TNb5R8LcaoWoz0"
+    },
+    "plan-premium-v1": {
+      "monthly": "plan_TNb5RgBe4YAdtU",
+      "annual": "plan_TNb5SJaU2CizRM"
+    }
+  },
+  "production": {
+    "plan-starter-v1": {
+      "monthly": "plan_TNdotXyjh4j8N5",
+      "annual": "plan_TNdotxxnCDCrQ1"
+    },
+    "plan-growth-v1": {
+      "monthly": "plan_TNdouQQTrjGftE",
+      "annual": "plan_TNdouqQS3PY8Un"
+    },
+    "plan-premium-v1": {
+      "monthly": "plan_TNdovCeyYH9HHi",
+      "annual": "plan_TNdovgZBWVhiYq"
+    }
+  }
+}

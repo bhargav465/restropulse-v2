@@ -1,0 +1,9 @@
+{
+  "id": "/subscriptions/c76e94e2-9199-492c-bc05-ee9c83e5f664/resourceGroups/restropulse-prod-rg/providers/Microsoft.Web/staticSites/restropulse-prod-web/config/appsettings",
+  "kind": null,
+  "location": "East Asia",
+  "name": "appsettings",
+  "properties": {},
+  "resourceGroup": "restropulse-prod-rg",
+  "type": "Microsoft.Web/staticSites/config"
+}

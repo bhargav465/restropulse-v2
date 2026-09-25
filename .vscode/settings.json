@@ -1,0 +1,60 @@
+{
+    // Editor settings
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.markdownlint": "explicit"
+    },
+    // Python settings
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic",
+    // Jupyter settings
+    "jupyter.askForKernelRestart": false,
+    "notebook.formatOnSave.enabled": true,
+    // Files settings
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.ipynb_checkpoints": true
+    },
+    "files.watcherExclude": {
+        "**/venv/**": true,
+        "**/.venv/**": true,
+        "**/node_modules/**": true,
+        "**/dist/**": true,
+        "**/.turbo/**": true,
+        "**/coverage/**": true
+    },
+    // Search excludes -- keep generated / vendor noise out of
+    // workspace search and AI indexing (RAG, LSP symbol cache).
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/.turbo": true,
+        "**/coverage": true,
+        "**/html": true,
+        "**/public/mockdata": true,
+        "**/assets/videos": true,
+        "**/assets/images": true,
+        "**/package-lock.json": true
+    },
+    // Markdown settings
+    "markdownlint.config": {
+        "MD032": true,
+        "MD031": true,
+        "MD022": true,
+        "MD040": true,
+        "MD034": true
+    },
+    // Git settings
+    "git.ignoreLimitWarning": true,
+    // Terminal settings
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "${workspaceFolder}/whatsappbusinessapi-bot"
+    },
+    "postman.settings.dotenv-detection-notification-visibility": false,
+    // Copilot agent hook -- rust token optimization via rtk
+    "chat.agent.preToolUseHook": {
+        "command": "rtk hook copilot"
+    }
+}

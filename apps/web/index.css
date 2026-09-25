@@ -1,0 +1,387 @@
+@import "tailwindcss";
+
+/*
+  Semantic color utilities (bg-primary, text-ink, border-line, bg-canvas,
+  text-muted, bg-surface, text-success, ...). `inline` makes the generated
+  utilities reference the --rp-* vars at use-time, so they follow the runtime
+  data-theme switch (legacy <-> orchid-admin) instead of baking a fixed value.
+  This is the bridge that lets the ported Restaurant Intelligence tree -- which
+  uses the dashboard's semantic tokens -- theme correctly in both themes with no edits.
+*/
+@theme inline {
+  --color-primary: var(--rp-primary);
+  --color-primary-strong: var(--rp-primary-strong);
+  --color-primary-soft: var(--rp-primary-soft);
+  --color-canvas: var(--rp-canvas);
+  --color-surface: var(--rp-surface);
+  --color-ink: var(--rp-text);
+  --color-muted: var(--rp-muted);
+  --color-line: var(--rp-line);
+  --color-sidebar: var(--rp-sidebar);
+  --color-sidebar-ink: var(--rp-sidebar-ink);
+  --color-banner: var(--rp-banner);
+  --color-success: var(--rp-success);
+  --color-warning: var(--rp-warning);
+  --color-danger: var(--rp-danger);
+  --color-info: var(--rp-info);
+  --color-orchid: var(--rp-accent);
+}
+
+:root,
+:root[data-theme='legacy'] {
+  --rp-canvas: #f8fafc;
+  --rp-surface: #ffffff;
+  --rp-text: #1e293b;
+  --rp-muted: #64748b;
+  --rp-line: #e2e8f0;
+
+  --rp-primary: #f97316;
+  --rp-primary-strong: #ea580c;
+  --rp-primary-soft: #ffedd5;
+  --rp-accent: #ef4444;
+
+  --rp-success: #22c55e;
+  --rp-warning: #f59e0b;
+  --rp-info: #3b82f6;
+  --rp-danger: #ef4444;
+
+  --rp-sidebar: #ffffff;
+  --rp-sidebar-ink: #64748b;
+  --rp-banner: #1e293b;
+}
+
+:root[data-theme='orchid-admin'] {
+  --rp-canvas: #faf8ff;
+  --rp-surface: #ffffff;
+  --rp-text: #241b35;
+  --rp-muted: #6e6588;
+  --rp-line: #eae4f2;
+
+  --rp-primary: #b57edc;
+  --rp-primary-strong: #9d4edd;
+  --rp-primary-soft: #ebdcfb;
+  --rp-accent: #d98bf0;
+
+  --rp-success: #2fb37f;
+  --rp-warning: #e9a23b;
+  --rp-info: #8b9cf7;
+  --rp-danger: #e05b72;
+
+  --rp-sidebar: #221833;
+  --rp-sidebar-ink: #cfc4e6;
+  --rp-banner: #2a1e3f;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--rp-canvas);
+  color: var(--rp-text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+html, body {
+  overflow: hidden;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+  overflow: auto;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/*
+  Theme remap for existing utility-first components under orchid-admin.
+  Keeps component markup stable (the `legacy` theme is untouched); this layer
+  only remaps raw Tailwind color utilities onto the orchid palette (--rp-*).
+
+  Guiding rule: preserve each shade's LIGHTNESS (light->light, dark->dark) so
+  text never inverts onto a same-lightness surface -- that is what prevents
+  "invisible" elements. Neutral (slate) -> orchid neutral ramp; brand (orange)
+  and gradient stops (from-/via-/to-) -> orchid primary/accent ramp; standalone
+  colored badges (amber/red/green/blue) -> the matching semantic var.
+
+  Uses CSS nesting (Tailwind v4 / Lightning CSS) so the theme scope is written
+  once. All rules are scoped to :root[data-theme='orchid-admin'].
+*/
+:root[data-theme='orchid-admin'] {
+  /* ---------- Surfaces & neutral backgrounds (slate) ---------- */
+  & .bg-white     { background-color: var(--rp-surface) !important; }
+  & .bg-slate-50  { background-color: var(--rp-canvas) !important; }
+  & .bg-slate-100 { background-color: color-mix(in srgb, var(--rp-primary-soft) 45%, white) !important; }
+  & .bg-slate-200 { background-color: color-mix(in srgb, var(--rp-primary-soft) 70%, white) !important; }
+  & .bg-slate-300 { background-color: color-mix(in srgb, var(--rp-primary-soft) 90%, white) !important; }
+  & .bg-slate-400 { background-color: color-mix(in srgb, var(--rp-muted) 55%, white) !important; }
+  & .bg-slate-500 { background-color: var(--rp-muted) !important; }
+  & .bg-slate-700 { background-color: color-mix(in srgb, var(--rp-text) 85%, var(--rp-sidebar)) !important; }
+  & .bg-slate-800 { background-color: var(--rp-text) !important; }
+  & .bg-slate-900 { background-color: var(--rp-sidebar) !important; }
+  /* neutral overlays / translucent tints (modal backdrops, etc.) */
+  & .bg-slate-50\/50  { background-color: color-mix(in srgb, var(--rp-canvas) 50%, transparent) !important; }
+  & .bg-slate-100\/50 { background-color: color-mix(in srgb, var(--rp-primary-soft) 20%, transparent) !important; }
+  & .bg-slate-200\/60 { background-color: color-mix(in srgb, var(--rp-primary-soft) 40%, transparent) !important; }
+  & .bg-slate-400\/30 { background-color: color-mix(in srgb, var(--rp-muted) 30%, transparent) !important; }
+  & .bg-slate-700\/90 { background-color: color-mix(in srgb, var(--rp-text) 90%, transparent) !important; }
+  & .bg-slate-900\/60 { background-color: color-mix(in srgb, var(--rp-sidebar) 60%, transparent) !important; }
+
+  /* ---------- Brand backgrounds (orange -> primary) ---------- */
+  & .bg-orange-50  { background-color: color-mix(in srgb, var(--rp-primary-soft) 85%, white) !important; }
+  & .bg-orange-100 { background-color: color-mix(in srgb, var(--rp-primary-soft) 70%, white) !important; }
+  & .bg-orange-300 { background-color: color-mix(in srgb, var(--rp-primary) 55%, white) !important; }
+  & .bg-orange-400 { background-color: color-mix(in srgb, var(--rp-primary) 80%, white) !important; }
+  & .bg-orange-500 { background-color: var(--rp-primary) !important; }
+  & .bg-orange-600 { background-color: var(--rp-primary-strong) !important; }
+  & .bg-orange-700 { background-color: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .bg-orange-50\/50  { background-color: color-mix(in srgb, var(--rp-primary-soft) 40%, transparent) !important; }
+  & .bg-orange-500\/10 { background-color: color-mix(in srgb, var(--rp-primary) 10%, transparent) !important; }
+  & .bg-orange-500\/20 { background-color: color-mix(in srgb, var(--rp-primary) 20%, transparent) !important; }
+  & .bg-orange-500\/90 { background-color: color-mix(in srgb, var(--rp-primary) 90%, transparent) !important; }
+
+  /* ---------- Semantic backgrounds ---------- */
+  /* danger (red) */
+  & .bg-red-50  { background-color: color-mix(in srgb, var(--rp-danger) 12%, white) !important; }
+  & .bg-red-100 { background-color: color-mix(in srgb, var(--rp-danger) 22%, white) !important; }
+  & .bg-red-500 { background-color: var(--rp-danger) !important; }
+  & .bg-red-600 { background-color: color-mix(in srgb, var(--rp-danger) 85%, black) !important; }
+  & .bg-red-500\/10 { background-color: color-mix(in srgb, var(--rp-danger) 12%, transparent) !important; }
+  & .bg-red-500\/30 { background-color: color-mix(in srgb, var(--rp-danger) 30%, transparent) !important; }
+  & .bg-red-500\/90 { background-color: color-mix(in srgb, var(--rp-danger) 90%, transparent) !important; }
+  /* success (green + emerald) */
+  & .bg-green-50,  & .bg-emerald-50  { background-color: color-mix(in srgb, var(--rp-success) 14%, white) !important; }
+  & .bg-green-100, & .bg-emerald-100 { background-color: color-mix(in srgb, var(--rp-success) 24%, white) !important; }
+  & .bg-green-500 { background-color: var(--rp-success) !important; }
+  & .bg-green-500\/20 { background-color: color-mix(in srgb, var(--rp-success) 20%, transparent) !important; }
+  & .bg-green-500\/50 { background-color: color-mix(in srgb, var(--rp-success) 50%, transparent) !important; }
+  & .bg-green-500\/90 { background-color: color-mix(in srgb, var(--rp-success) 90%, transparent) !important; }
+  /* info (blue) */
+  & .bg-blue-50  { background-color: color-mix(in srgb, var(--rp-info) 16%, white) !important; }
+  & .bg-blue-100 { background-color: color-mix(in srgb, var(--rp-info) 26%, white) !important; }
+  & .bg-blue-400 { background-color: color-mix(in srgb, var(--rp-info) 80%, white) !important; }
+  & .bg-blue-500 { background-color: var(--rp-info) !important; }
+  & .bg-blue-400\/30 { background-color: color-mix(in srgb, var(--rp-info) 30%, transparent) !important; }
+  /* warning (amber/yellow) -- standalone badges keep a warm hue */
+  & .bg-amber-50  { background-color: color-mix(in srgb, var(--rp-warning) 14%, white) !important; }
+  & .bg-amber-500 { background-color: var(--rp-warning) !important; }
+  & .bg-amber-600 { background-color: color-mix(in srgb, var(--rp-warning) 88%, black) !important; }
+  & .bg-amber-500\/30  { background-color: color-mix(in srgb, var(--rp-warning) 30%, transparent) !important; }
+  & .bg-yellow-500\/30 { background-color: color-mix(in srgb, var(--rp-warning) 30%, transparent) !important; }
+  /* purple / pink / violet / indigo -> primary / accent */
+  & .bg-purple-50  { background-color: color-mix(in srgb, var(--rp-primary-soft) 78%, white) !important; }
+  & .bg-purple-100 { background-color: color-mix(in srgb, var(--rp-primary-soft) 60%, white) !important; }
+  & .bg-purple-500 { background-color: var(--rp-primary-strong) !important; }
+  & .bg-pink-50  { background-color: color-mix(in srgb, var(--rp-accent) 16%, white) !important; }
+  & .bg-pink-100 { background-color: color-mix(in srgb, var(--rp-accent) 26%, white) !important; }
+  & .bg-pink-500 { background-color: var(--rp-accent) !important; }
+  & .bg-pink-600 { background-color: color-mix(in srgb, var(--rp-accent) 85%, black) !important; }
+  & .bg-violet-500\/90 { background-color: color-mix(in srgb, var(--rp-primary-strong) 90%, transparent) !important; }
+  & .bg-indigo-600 { background-color: var(--rp-primary-strong) !important; }
+
+  /* ---------- Text: neutral ---------- */
+  & .text-slate-200 { color: color-mix(in srgb, var(--rp-muted) 35%, white) !important; }
+  & .text-slate-300 { color: color-mix(in srgb, var(--rp-muted) 55%, white) !important; }
+  & .text-slate-400 { color: color-mix(in srgb, var(--rp-muted) 75%, white) !important; }
+  & .text-slate-500 { color: var(--rp-muted) !important; }
+  & .text-slate-600 { color: color-mix(in srgb, var(--rp-muted) 80%, var(--rp-text)) !important; }
+  & .text-slate-700 { color: color-mix(in srgb, var(--rp-muted) 45%, var(--rp-text)) !important; }
+  & .text-slate-800 { color: var(--rp-text) !important; }
+  & .text-slate-900 { color: var(--rp-text) !important; }
+
+  /* ---------- Text: brand ---------- */
+  & .text-orange-100 { color: color-mix(in srgb, var(--rp-primary-soft) 55%, white) !important; }
+  & .text-orange-300 { color: color-mix(in srgb, var(--rp-primary) 65%, white) !important; }
+  & .text-orange-400 { color: color-mix(in srgb, var(--rp-primary) 82%, white) !important; }
+  & .text-orange-500 { color: var(--rp-primary) !important; }
+  & .text-orange-600 { color: var(--rp-primary-strong) !important; }
+  & .text-orange-700, & .text-orange-800, & .text-orange-900 { color: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+
+  /* ---------- Text: semantic ---------- */
+  & .text-red-400 { color: color-mix(in srgb, var(--rp-danger) 78%, white) !important; }
+  & .text-red-500 { color: var(--rp-danger) !important; }
+  & .text-red-600, & .text-red-700, & .text-red-800, & .text-red-900 { color: color-mix(in srgb, var(--rp-danger) 85%, black) !important; }
+  & .text-green-400 { color: color-mix(in srgb, var(--rp-success) 75%, white) !important; }
+  & .text-green-600, & .text-emerald-600 { color: var(--rp-success) !important; }
+  & .text-green-700, & .text-green-800, & .text-green-900,
+  & .text-emerald-700, & .text-emerald-800 { color: color-mix(in srgb, var(--rp-success) 80%, black) !important; }
+  & .text-blue-200, & .text-blue-300 { color: color-mix(in srgb, var(--rp-info) 60%, white) !important; }
+  & .text-blue-500, & .text-blue-600 { color: var(--rp-info) !important; }
+  & .text-blue-700, & .text-blue-900 { color: color-mix(in srgb, var(--rp-info) 80%, black) !important; }
+  & .text-amber-400, & .text-amber-500 { color: var(--rp-warning) !important; }
+  & .text-amber-700, & .text-amber-800, & .text-amber-900 { color: color-mix(in srgb, var(--rp-warning) 82%, black) !important; }
+  & .text-yellow-400 { color: var(--rp-warning) !important; }
+  & .text-purple-500 { color: var(--rp-primary) !important; }
+  & .text-purple-600 { color: var(--rp-primary-strong) !important; }
+  & .text-pink-500 { color: var(--rp-accent) !important; }
+  & .text-pink-600, & .text-pink-700, & .text-pink-900 { color: color-mix(in srgb, var(--rp-accent) 85%, black) !important; }
+
+  /* ---------- Borders ---------- */
+  & .border-slate-50  { border-color: color-mix(in srgb, var(--rp-line) 45%, white) !important; }
+  & .border-slate-100 { border-color: color-mix(in srgb, var(--rp-line) 55%, white) !important; }
+  & .border-slate-200 { border-color: var(--rp-line) !important; }
+  & .border-slate-300 { border-color: color-mix(in srgb, var(--rp-line) 70%, var(--rp-muted)) !important; }
+  /* used only on dark surfaces (login phone/OTP inputs, onboarding dark input);
+     must stay lighter than the dark input bg (bg-slate-800 -> --rp-text) so the
+     input/OTP-box boundaries remain visible */
+  & .border-slate-700 { border-color: color-mix(in srgb, var(--rp-sidebar-ink) 35%, var(--rp-text)) !important; }
+  & .border-slate-800 { border-color: var(--rp-text) !important; }
+  & .border-white { border-color: var(--rp-surface) !important; }
+  & .border-orange-100 { border-color: color-mix(in srgb, var(--rp-primary) 18%, white) !important; }
+  & .border-orange-200 { border-color: color-mix(in srgb, var(--rp-primary) 25%, white) !important; }
+  & .border-orange-500 { border-color: var(--rp-primary) !important; }
+  & .border-red-100 { border-color: color-mix(in srgb, var(--rp-danger) 22%, white) !important; }
+  & .border-red-200 { border-color: color-mix(in srgb, var(--rp-danger) 32%, white) !important; }
+  & .border-red-500\/50 { border-color: color-mix(in srgb, var(--rp-danger) 50%, transparent) !important; }
+  & .border-green-100 { border-color: color-mix(in srgb, var(--rp-success) 22%, white) !important; }
+  & .border-green-200, & .border-emerald-100 { border-color: color-mix(in srgb, var(--rp-success) 32%, white) !important; }
+  & .border-green-500\/50 { border-color: color-mix(in srgb, var(--rp-success) 50%, transparent) !important; }
+  & .border-blue-100 { border-color: color-mix(in srgb, var(--rp-info) 22%, white) !important; }
+  & .border-blue-200, & .border-blue-300 { border-color: color-mix(in srgb, var(--rp-info) 34%, white) !important; }
+  & .border-amber-200 { border-color: color-mix(in srgb, var(--rp-warning) 30%, white) !important; }
+  & .border-amber-300, & .border-amber-400 { border-color: color-mix(in srgb, var(--rp-warning) 45%, white) !important; }
+  & .border-pink-200 { border-color: color-mix(in srgb, var(--rp-accent) 30%, white) !important; }
+
+  /* ---------- Dividers ---------- */
+  & .divide-slate-50 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--rp-line) 45%, white) !important; }
+
+  /* ---------- Focus rings & focus borders ---------- */
+  & .ring-orange-500,
+  & .focus\:ring-orange-500:focus,
+  & .focus-within\:ring-orange-500:focus-within { --tw-ring-color: var(--rp-primary) !important; }
+  & .ring-orange-500\/20 { --tw-ring-color: color-mix(in srgb, var(--rp-primary) 20%, transparent) !important; }
+  & .focus\:ring-green-500:focus { --tw-ring-color: var(--rp-success) !important; }
+  & .focus\:border-orange-500:focus,
+  & .focus-within\:border-orange-500:focus-within { border-color: var(--rp-primary) !important; }
+  & .focus\:border-green-500:focus { border-color: var(--rp-success) !important; }
+
+  /* ---------- Gradient stops (all -> orchid primary/accent ramp) ---------- */
+  & .from-orange-500 { --tw-gradient-from: var(--rp-primary) !important; }
+  & .from-purple-500 { --tw-gradient-from: var(--rp-primary-strong) !important; }
+  & .from-purple-600 { --tw-gradient-from: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .from-purple-50, & .from-green-50, & .from-blue-50, & .from-slate-100 { --tw-gradient-from: var(--rp-primary-soft) !important; }
+  & .from-slate-900 { --tw-gradient-from: var(--rp-sidebar) !important; }
+  & .via-pink-500 { --tw-gradient-via: var(--rp-accent) !important; }
+  & .via-pink-50  { --tw-gradient-via: color-mix(in srgb, var(--rp-accent) 20%, white) !important; }
+  & .to-orange-500 { --tw-gradient-to: var(--rp-primary) !important; }
+  & .to-orange-600 { --tw-gradient-to: var(--rp-primary-strong) !important; }
+  & .to-orange-50, & .to-indigo-50, & .to-emerald-50, & .to-slate-200 { --tw-gradient-to: var(--rp-primary-soft) !important; }
+  & .to-amber-600 { --tw-gradient-to: var(--rp-primary-strong) !important; }
+  & .to-pink-500 { --tw-gradient-to: var(--rp-accent) !important; }
+  & .to-red-500  { --tw-gradient-to: var(--rp-danger) !important; }
+  & .to-red-600  { --tw-gradient-to: color-mix(in srgb, var(--rp-primary-strong) 70%, var(--rp-danger)) !important; }
+  & .to-slate-800 { --tw-gradient-to: var(--rp-text) !important; }
+
+  /* ---------- Shadow colors ---------- */
+  & .shadow-orange-500\/20, & .shadow-orange-500\/25, & .shadow-orange-500\/30,
+  & .shadow-orange-600\/20 { --tw-shadow-color: color-mix(in srgb, var(--rp-primary) 22%, transparent) !important; }
+  & .shadow-purple-500\/20, & .shadow-pink-500\/20 { --tw-shadow-color: color-mix(in srgb, var(--rp-accent) 22%, transparent) !important; }
+  & .shadow-green-500\/20 { --tw-shadow-color: color-mix(in srgb, var(--rp-success) 22%, transparent) !important; }
+  & .shadow-blue-500\/20 { --tw-shadow-color: color-mix(in srgb, var(--rp-info) 22%, transparent) !important; }
+  & .shadow-slate-900\/20 { --tw-shadow-color: color-mix(in srgb, var(--rp-sidebar) 22%, transparent) !important; }
+
+  /* ---------- Hover / active / group-hover: backgrounds ---------- */
+  & .hover\:bg-slate-50:hover  { background-color: var(--rp-canvas) !important; }
+  & .hover\:bg-slate-100:hover { background-color: color-mix(in srgb, var(--rp-primary-soft) 45%, white) !important; }
+  & .hover\:bg-slate-200:hover { background-color: color-mix(in srgb, var(--rp-primary-soft) 70%, white) !important; }
+  & .hover\:bg-slate-700:hover { background-color: color-mix(in srgb, var(--rp-text) 85%, var(--rp-sidebar)) !important; }
+  & .hover\:bg-slate-800:hover { background-color: var(--rp-text) !important; }
+  & .active\:bg-slate-100:active { background-color: color-mix(in srgb, var(--rp-primary-soft) 45%, white) !important; }
+  & .active\:bg-slate-200:active { background-color: color-mix(in srgb, var(--rp-primary-soft) 70%, white) !important; }
+  & .active\:bg-slate-700:active { background-color: color-mix(in srgb, var(--rp-text) 85%, var(--rp-sidebar)) !important; }
+  & .group:hover .group-hover\:bg-slate-100 { background-color: color-mix(in srgb, var(--rp-primary-soft) 45%, white) !important; }
+  & .group:hover .group-hover\:bg-slate-900 { background-color: var(--rp-sidebar) !important; }
+  & .hover\:bg-orange-50:hover, & .hover\:bg-orange-50\/50:hover { background-color: color-mix(in srgb, var(--rp-primary-soft) 60%, white) !important; }
+  & .hover\:bg-orange-600:hover { background-color: var(--rp-primary-strong) !important; }
+  & .hover\:bg-orange-700:hover { background-color: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .hover\:bg-red-50:hover  { background-color: color-mix(in srgb, var(--rp-danger) 12%, white) !important; }
+  & .hover\:bg-red-100:hover { background-color: color-mix(in srgb, var(--rp-danger) 22%, white) !important; }
+  & .hover\:bg-red-700:hover { background-color: color-mix(in srgb, var(--rp-danger) 82%, black) !important; }
+  & .hover\:bg-green-200:hover { background-color: color-mix(in srgb, var(--rp-success) 30%, white) !important; }
+  & .hover\:bg-blue-100:hover  { background-color: color-mix(in srgb, var(--rp-info) 26%, white) !important; }
+  & .hover\:bg-amber-100:hover { background-color: color-mix(in srgb, var(--rp-warning) 24%, white) !important; }
+  & .hover\:bg-amber-700:hover { background-color: color-mix(in srgb, var(--rp-warning) 82%, black) !important; }
+  & .hover\:bg-purple-100:hover { background-color: color-mix(in srgb, var(--rp-primary-soft) 60%, white) !important; }
+  & .hover\:bg-pink-50:hover, & .hover\:bg-pink-100:hover { background-color: color-mix(in srgb, var(--rp-accent) 20%, white) !important; }
+  & .hover\:bg-pink-700:hover { background-color: color-mix(in srgb, var(--rp-accent) 82%, black) !important; }
+
+  /* ---------- Hover / active / group-hover: text ---------- */
+  & .hover\:text-slate-500:hover { color: var(--rp-muted) !important; }
+  & .hover\:text-slate-600:hover { color: color-mix(in srgb, var(--rp-muted) 80%, var(--rp-text)) !important; }
+  & .hover\:text-slate-700:hover { color: color-mix(in srgb, var(--rp-muted) 45%, var(--rp-text)) !important; }
+  & .hover\:text-slate-900:hover { color: var(--rp-text) !important; }
+  & .hover\:text-orange-500:hover { color: var(--rp-primary) !important; }
+  & .hover\:text-orange-600:hover { color: var(--rp-primary-strong) !important; }
+  & .hover\:text-red-300:hover, & .hover\:text-red-500:hover { color: var(--rp-danger) !important; }
+  & .hover\:text-red-700:hover { color: color-mix(in srgb, var(--rp-danger) 85%, black) !important; }
+  & .hover\:text-green-600:hover { color: var(--rp-success) !important; }
+  & .hover\:text-green-800:hover { color: color-mix(in srgb, var(--rp-success) 80%, black) !important; }
+  & .hover\:text-pink-700:hover { color: color-mix(in srgb, var(--rp-accent) 85%, black) !important; }
+  & .active\:text-red-400:active { color: color-mix(in srgb, var(--rp-danger) 78%, white) !important; }
+  & .active\:text-green-800:active { color: color-mix(in srgb, var(--rp-success) 80%, black) !important; }
+  & .group:hover .group-hover\:text-slate-400 { color: color-mix(in srgb, var(--rp-muted) 75%, white) !important; }
+  & .group:hover .group-hover\:text-slate-600 { color: color-mix(in srgb, var(--rp-muted) 80%, var(--rp-text)) !important; }
+  & .group:hover .group-hover\:text-orange-500 { color: var(--rp-primary) !important; }
+  & .group:hover .group-hover\:text-orange-600 { color: var(--rp-primary-strong) !important; }
+  & .group:hover .group-hover\:text-orange-700 { color: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .group:hover .group-hover\:text-red-500 { color: var(--rp-danger) !important; }
+  & .group:hover .group-hover\:text-red-600 { color: color-mix(in srgb, var(--rp-danger) 85%, black) !important; }
+
+  /* ---------- Hover / gradient / border states ---------- */
+  & .hover\:from-orange-600:hover { --tw-gradient-from: var(--rp-primary-strong) !important; }
+  & .hover\:to-orange-700:hover { --tw-gradient-to: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .hover\:to-amber-700:hover { --tw-gradient-to: color-mix(in srgb, var(--rp-primary-strong) 85%, black) !important; }
+  & .hover\:border-slate-300:hover { border-color: color-mix(in srgb, var(--rp-line) 70%, var(--rp-muted)) !important; }
+  & .hover\:border-orange-200:hover { border-color: color-mix(in srgb, var(--rp-primary) 25%, white) !important; }
+  & .hover\:border-orange-300:hover { border-color: color-mix(in srgb, var(--rp-primary) 40%, white) !important; }
+  & .hover\:border-orange-400:hover { border-color: color-mix(in srgb, var(--rp-primary) 55%, white) !important; }
+  & .hover\:border-pink-300:hover { border-color: color-mix(in srgb, var(--rp-accent) 40%, white) !important; }
+}
+
+
+/* ---- Download as PDF (browser print) ------------------------------------
+   The screen shell is a fixed-height scroll-container chain (html/body
+   overflow:hidden, #root + <main> scrolling, h-screen wrapper). Browsers only
+   print what fits in that box, so every link of the chain must be released or
+   the PDF is clipped to ~one screen. The interactive dashboard is hidden
+   (.no-print) and PrintReport (.print-only) is shown instead. */
+.print-only { display: none; }
+
+@page { margin: 12mm; }
+
+@media print {
+    html, body, #root { height: auto !important; overflow: visible !important; }
+    .app-shell { display: block !important; height: auto !important; overflow: visible !important; }
+    main { overflow: visible !important; padding: 0 !important; height: auto !important; }
+    /* Hide the shell chrome and anything screen-only. */
+    aside, header, nav, .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white !important; color: #111 !important; padding: 0 !important; }
+    /* Keep fills (dial, bars, chips) instead of the browser's ink-saving strip. */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    .print-report { font-size: 11pt; line-height: 1.4; color: #111; }
+    .print-header { border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 14px; }
+    .print-kicker { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; color: #555; margin: 0; }
+    .print-h1 { font-size: 22pt; font-weight: 700; margin: 2px 0 4px; }
+    .print-score { font-size: 14pt; margin: 6px 0; }
+    .print-score strong { font-size: 24pt; }
+    .print-h2 { font-size: 14pt; font-weight: 700; margin: 0 0 8px; break-after: avoid; }
+    .print-section { margin: 0 0 16px; }
+    .print-p { margin: 0 0 6px; }
+    .print-label { font-weight: 700; margin: 8px 0 2px; break-after: avoid; }
+    .print-muted { color: #555; font-size: 9.5pt; margin: 0; }
+    .print-list { margin: 0 0 6px 18px; padding: 0; }
+    .print-actions { list-style: none; margin-left: 0; }
+    .print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    /* Only small blocks refuse to split; a big card taller than a page must be allowed to flow. */
+    .print-card { border: 1px solid #ccc; border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; break-inside: avoid; }
+    .print-card-title { font-weight: 700; margin: 0 0 4px; }
+    .print-table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    .print-table th, .print-table td { border-bottom: 1px solid #ddd; padding: 3px 6px; text-align: left; }
+    .print-table tr { break-inside: avoid; }
+    .print-strong { font-weight: 700; background: #f3f3f3; }
+    .print-footer { margin-top: 18px; border-top: 1px solid #ccc; padding-top: 6px; }
+}

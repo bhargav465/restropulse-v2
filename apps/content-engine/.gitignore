@@ -1,0 +1,15 @@
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+
+# Turbo cache
+.turbo/
+
+# Node modules
+node_modules/
+
+# Downloaded placeholder assets (run `npm run download-assets` to populate)
+assets/

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Mirrors the CI checks in .github/workflows/ci.yml.
+# db-cli is excluded -- it depends on a gitignored local seed file.
+npx turbo type-check --filter=!@restropulse/db-cli
+npx turbo lint --filter=!@restropulse/db-cli
+npx turbo build --filter=!@restropulse/db-cli
