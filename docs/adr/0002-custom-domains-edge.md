@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-**Proposed** -- 2026-10-04. Needs owner decision before Lane B2/B3 (see `docs/LAUNCH_ARCHITECTURE.md`).
+**Accepted** -- 2026-10-04 (owner approved Option D). Open sub-question: whether `restropulse.in` DNS moves to Cloudflare or sites use a separate zone.
 
 ## 2. Context
 

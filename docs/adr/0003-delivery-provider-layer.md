@@ -2,11 +2,11 @@
 
 ## 1. Status
 
-**Proposed** -- 2026-10-04. Interface, mock, self and dispatcher proceed now; real adapters start when API docs and sandbox credentials are provided (see `docs/LAUNCH_ARCHITECTURE.md` B4).
+**Accepted** -- 2026-10-04, with one amendment from the owner: aggregators are reached through a delivery middleware (uEngage Flash / Pidge / Shipway; choice pending in ADR 0004) rather than direct Rapido/Shadowfax adapters, because Rapido exposes no public API and Shadowfax's public Unified API is the e-commerce product, not hyperlocal Flash. Interface, mock, self and dispatcher proceed now; the middleware adapter starts when a merchant account + API key + webhook secret exist.
 
 ## 2. Context
 
-Orders placed on a restaurant's website need a rider. The owner has partner API access to Rapido and Shadowfax and wants both, "behind a clean provider interface" so more aggregators (Porter, Dunzo-class, ONDC logistics) can be added later. Aggregator APIs are asynchronous (webhooks for rider assignment and status), rate-limited, occasionally unavailable, and charge for waiting time at pickup. The API must never block an HTTP request on an aggregator call, and a provider outage must degrade to a manual fallback rather than lose the order.
+Orders placed on a restaurant's website need a rider. The owner wants Rapido and Shadowfax (and later Porter, ONDC logistics and similar) "behind a clean provider interface". No API documentation is in hand for either; online, Rapido has no public merchant API and Shadowfax publishes only its e-commerce Unified API, so the first real adapter targets a delivery middleware that already carries both. Aggregator APIs are asynchronous (webhooks for rider assignment and status), rate-limited, occasionally unavailable, and charge for waiting time at pickup. The API must never block an HTTP request on an aggregator call, and a provider outage must degrade to a manual fallback rather than lose the order.
 
 Existing patterns to reuse: the Razorpay webhook (raw body + HMAC verification + status-rank idempotency in `routes/subscriptions.ts`), the publisher cron worker (retry with attempt counts), the ordering status machine (`services/ordering/status.ts`, imported from the Vercel line).
 
@@ -18,7 +18,7 @@ New workspace package `packages/delivery` (`@restropulse/delivery`), types in `@
 
 ```ts
 export interface DeliveryProvider {
-  readonly id: DeliveryProviderId;            // 'mock' | 'self' | 'shadowfax' | 'rapido'
+  readonly id: DeliveryProviderId;            // 'mock' | 'self' | 'middleware' | 'shadowfax' | 'rapido'
   quote(req: QuoteRequest): Promise<DeliveryQuote | NotServiceable>;
   createShipment(input: CreateShipmentInput): Promise<Shipment>;   // idempotent on input.idempotencyKey
   cancelShipment(externalId: string, reason: string): Promise<void>;
@@ -52,10 +52,14 @@ Order <-> shipment coupling: `PICKED_UP` moves the order to `OUT_FOR_DELIVERY`; 
 |---|---|---|
 | `mock` | Deterministic scripted timeline for tests, demo mode and the storefront tracking page | Yes |
 | `self` | Merchant marks `RIDER_ASSIGNED/PICKED_UP/DELIVERED` manually from the Orders feed | Yes |
-| `shadowfax` | Real API + webhook | When docs + sandbox creds arrive |
-| `rapido` | Real API + webhook | When docs + sandbox creds arrive |
+| `middleware` | The chosen delivery middleware (ADR 0004); exposes Rapido, Shadowfax and others as `shipment.carrier` | When merchant account + API key + webhook secret exist |
+| `shadowfax`, `rapido` | Direct adapters | Later, only if direct partner docs arrive; same interface |
 
-Vendor credentials live in Key Vault as `{env}-shadowfax-api-key`, `{env}-shadowfax-webhook-secret`, `{env}-rapido-client-id`, `{env}-rapido-client-secret`, `{env}-rapido-webhook-secret` and are declared in `packages/secrets/src/manifest.ts` under `dispatch-worker` and `api`.
+Vendor credentials live in Key Vault as `{env}-delivery-middleware-api-key` and `{env}-delivery-middleware-webhook-secret` (renamed to the vendor once ADR 0004 picks it) and are declared in `packages/secrets/src/manifest.ts` under `dispatch-worker` and `api`.
+
+### 3.5 Customer delivery fee is separate from provider cost
+
+The provider quote is what we pay; what the customer pays comes from the restaurant's own fee rules (`services/delivery/fee-rules.ts`, zone x time x order value, see `docs/LAUNCH_ARCHITECTURE.md` B5). Both are stored on the shipment so margin per order is visible. Dispatch strategy (`cheapest | fastest | preferred`) decides the provider; fee rules decide the price. They never read each other except through the `pass_through` charge kind.
 
 ## 4. Alternatives considered
 
@@ -67,4 +71,4 @@ Vendor credentials live in Key Vault as `{env}-shadowfax-api-key`, `{env}-shadow
 
 - Positive: aggregator outages never block the merchant; adding a provider is one adapter file plus pricing; tests run entirely on `mock`; the storefront tracking page works in demo mode.
 - Negative: a new worker process in `startup.sh` and both deploy workflows; two new collections and an outbox to monitor (dead-letter alert required); quote fan-out costs one API call per enabled provider per order.
-- Open: dispatch trigger point (`READY` vs `PREPARING`) and whether the delivery fee is passed through from the quote or absorbed -- owner decisions tracked in `docs/LAUNCH_ARCHITECTURE.md` Section 8.
+- Decided by owner (2026-10-04): dispatch at `READY` with per-restaurant override to `PREPARING`; customer fee fully configurable per restaurant (Section 3.5). Open: which middleware (ADR 0004).

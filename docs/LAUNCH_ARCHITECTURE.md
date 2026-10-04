@@ -1,6 +1,8 @@
 # RestroPulse -- Launch Architecture (two lanes)
 
-*Status: DRAFT for owner review -- 4 Oct 2026. Base: `baxeltech-staging` (snapshot of baxeltech/restropulse staging @ c070aa2). Nothing in this document is implemented yet; it is the plan both lanes build against. Decisions marked **DECISION** need Bhargav's answer before that piece starts.*
+*Status: APPROVED by owner -- 4 Oct 2026 (decisions recorded in Section 8). Base: `baxeltech-staging` (snapshot of baxeltech/restropulse staging @ c070aa2). Nothing in this document is implemented yet; it is the plan both lanes build against.*
+
+**Launch sequencing (owner decision):** two launches. **Launch 1** = Phase 0 + Lane A to production (content engine, publishing, profile, landing, grader). **Launch 2** = Lane B (restaurant sites, ordering, delivery) as a separate promotion once Launch 1 is stable. Lane B development starts in parallel but does not gate Launch 1.
 
 ---
 
@@ -85,10 +87,14 @@ Files: `apps/web/components/ContentStudio.tsx` (split: `ReviewCard.tsx`, `Schedu
 
 ### A3 - Video / Reels
 
-- `media-job-poller`: hard timeout per job (Kling > 20 min -> FAILED), exponential poll backoff, dead-letter after N attempts.
-- `PENDING_MEDIA` posts older than timeout -> auto-fallback to IMAGE post with a notice, or FAILED with nudge (**DECISION A3-1:** fallback or fail?).
+**Owner decision A3-1: a video post keeps retrying until it succeeds -- no silent fallback to an image.**
+
+- `media-job-poller`: per-attempt timeout (Kling > 20 min -> attempt FAILED, not the post), exponential backoff between attempts (2 min, 10 min, 30 min, 2 h, 6 h), **alternate video model on attempt 3+** (second Replicate model declared in `media/replicate/models.ts` with its own `pricing.ts` row) so a single-model outage does not stall the queue.
+- The post stays `PENDING_MEDIA` across attempts with `mediaAttempts[]` recorded (model, started, ended, error class). The review card shows "Still generating your video (attempt 3)".
+- `ASSUMPTION:` "until it succeeds" still needs a hard ceiling so a permanently broken prompt cannot burn money forever: after **8 attempts or 24 h**, the post is marked `FAILED` with a merchant nudge and the full attempt history. Owner to confirm the ceiling; the number is a config value, not code.
+- Retry only on transient/model errors; a content-policy rejection is permanent and fails immediately with the reason.
 - `download-assets.mjs`: degrade when `ffmpeg` missing (skip video step, log) instead of failing the run.
-- Cost: per-restaurant monthly video cap in `RestaurantOrderingSettings`-style config; refuse with a clear message beyond cap.
+- Cost: every attempt writes a `costEvents` row; a daily spend alert per restaurant replaces the earlier "monthly cap" idea (owner does not want video to be optional/capped per plan).
 
 ### A4 - Meta publishing reliability
 
@@ -148,7 +154,7 @@ Collection `restaurant_domains`: `{ hostname, restaurantId, status: 'pending_dns
 
 Owner flow in admin: "Add your domain" -> we show `CNAME www -> sites.restropulse.in` + TXT verify record -> poll DNS -> on success call the SSL provider -> `active`. Every restaurant also always gets `<slug>.restropulse.in` (wildcard) as the default/preview URL.
 
-**DECISION B2-1 -- SSL/edge provider for arbitrary customer domains.** See `docs/adr/0002-custom-domains-edge.md`. Recommendation: **Cloudflare for SaaS (Custom Hostnames)** in front of an Azure App Service running `apps/sites`. Azure SWA caps custom domains (2 free / 5 standard) so it cannot host N restaurants; Front Door works but is costlier and slower to automate.
+**Decision B2-1 (approved): Cloudflare for SaaS (Custom Hostnames)** in front of an Azure App Service running `apps/sites`. See `docs/adr/0002-custom-domains-edge.md`. Azure SWA caps custom domains (2 free / 5 standard) so it cannot host N restaurants; Front Door works but is costlier and slower to automate. Open sub-question for the owner: does `restropulse.in` DNS move to Cloudflare, or do sites live on a separate zone?
 
 ### B3 - Sites host & SEO
 
@@ -156,7 +162,7 @@ Owner flow in admin: "Add your domain" -> we show `CNAME www -> sites.restropuls
 - `<title>`, meta description, OG/Twitter tags, canonical
 - JSON-LD `Restaurant` + `Menu` + `OpeningHoursSpecification`
 - `/sitemap.xml`, `/robots.txt` per tenant
-- Pre-rendered first paint of the hero + menu (string-rendered on server, hydrated on client) -- enough for Google and WhatsApp/IG link previews. Full SSR framework migration is **out of scope** (**DECISION B3-1:** confirm).
+- Pre-rendered first paint of the hero + menu (string-rendered on server, hydrated on client) -- enough for Google and WhatsApp/IG link previews. Full SSR framework migration is **out of scope** (decision B3-1, approved).
 
 Deploy: new App Service `restropulse-sites` (+ staging slot), same slot-swap promotion as the API. Cache: menu/content responses `s-maxage=60` at Cloudflare, purged on publish.
 
@@ -164,9 +170,11 @@ Deploy: new App Service `restropulse-sites` (+ staging slot), same slot-swap pro
 
 New package `packages/delivery`:
 
+**Owner decision B4-2: aggregators are reached through a delivery middleware** (uEngage Flash, Pidge or Shipway -- one adapter exposes Rapido, Shadowfax and others). Reason: Rapido has no public API (integrations exist only via partner agreements or such middleware), and Shadowfax's public Unified API is the e-commerce forward-shipping product, not the hyperlocal Flash API restaurants need. Direct `shadowfax`/`rapido` adapters stay possible later behind the same interface. **Decision B4-3 (pending, mine to recommend):** which middleware -- picked by a short evaluation of public API docs, webhook support, Hyderabad/Bengaluru coverage, per-order fee and sandbox availability; written up as ADR 0004 before the adapter starts.
+
 ```ts
 interface DeliveryProvider {
-  readonly id: 'mock' | 'self' | 'shadowfax' | 'rapido';
+  readonly id: 'mock' | 'self' | 'middleware' | 'shadowfax' | 'rapido';
   quote(req: QuoteRequest): Promise<DeliveryQuote>;          // price, ETA, serviceable?
   createShipment(order: Order, quote: DeliveryQuote): Promise<Shipment>;
   cancelShipment(shipmentId: string, reason: string): Promise<void>;
@@ -178,20 +186,40 @@ interface DeliveryProvider {
 
 Canonical shipment states: `QUOTED -> BOOKED -> RIDER_ASSIGNED -> PICKED_UP -> IN_TRANSIT -> DELIVERED | CANCELLED | FAILED(RTO)`. Mapping to order status: `PICKED_UP -> OUT_FOR_DELIVERY`, `DELIVERED -> COMPLETED`.
 
-Dispatcher (`apps/api/src/services/delivery/dispatcher.ts`), triggered by order transition (**DECISION B4-1:** at `PREPARING` or at `READY`? Aggregators bill waiting time):
+Dispatcher (`apps/api/src/services/delivery/dispatcher.ts`), triggered by order transition to `READY` by default with a per-restaurant override to `PREPARING` (decision B4-1, approved; aggregators bill waiting time):
 1. quotes from enabled providers (per-restaurant `deliverySettings.providers[]`, `strategy: 'cheapest'|'fastest'|'preferred'`)
 2. `createShipment` on the winner; on failure try next provider; on all-fail -> `self` adapter + nudge "assign a rider"
 3. persist `shipments` doc; order gets `shipmentId`
 
 Reliability: outbox collection `delivery_jobs { type, payload, attempts, nextRunAt, status }` processed by a new worker `apps/dispatch-worker` (copy of the publisher pattern) -- the API never calls an aggregator inline. Webhooks at `POST /api/webhooks/delivery/:provider` with signature verify + idempotency (`provider+eventId` unique index) + raw-body parsing like the Razorpay webhook. Tracking page reads `shipments.events`.
 
-Adapters: `mock` (deterministic timeline for tests/demo), `self` (merchant marks states manually), `shadowfax`, `rapido`. **Hard dependency:** Shadowfax + Rapido API docs, sandbox creds and webhook IP/secret info from Bhargav before the real adapters start; the interface, mock, self and dispatcher do not wait for them.
+Adapters at Launch 2: `mock` (deterministic timeline for tests/demo), `self` (merchant marks states manually), `middleware` (the chosen platform; carries the underlying carrier -- Rapido, Shadowfax -- as `shipment.carrier`). **Hard dependency:** a merchant account + API key + webhook secret on the chosen middleware, from Bhargav, before the real adapter starts; the interface, mock, self and dispatcher do not wait for it.
 
 ### B5 - Payments completion
 
 - Reuse `services/razorpay.ts`; add `payment.captured` / `payment.failed` handling for storefront orders to the existing webhook route (today only `/payments/verify` confirms) so a closed browser tab still confirms the order.
 - Refund on merchant cancel after capture (`refunds` via Razorpay API, idempotent on orderId).
-- Delivery fee from the chosen quote added to `OrderTotals` server-side (**DECISION B5-1:** pass-through fee or restaurant-absorbed/flat?).
+- **Delivery fee rules engine (owner decision B5-1: fully configurable by the restaurant; depends on customer location, time and restaurant).** The fee the customer pays is computed server-side by `services/delivery/fee-rules.ts` from `restaurant.deliverySettings.feeRules`, evaluated top-down, first match wins:
+
+  ```ts
+  interface DeliveryFeeRule {
+    id: string; label: string; enabled: boolean; priority: number;
+    when: {
+      zone?: { kind: 'radius_km'; min: number; max: number } | { kind: 'pincodes'; list: string[] } | { kind: 'polygon'; geojson: Polygon };
+      time?: { days: Weekday[]; from: 'HH:mm'; to: 'HH:mm' };       // restaurant local time
+      orderValue?: { min?: number; max?: number };
+      orderType?: 'delivery';
+    };
+    charge:
+      | { kind: 'free' }
+      | { kind: 'flat'; amount: number }
+      | { kind: 'per_km'; base: number; perKm: number; minKm?: number; cap?: number }
+      | { kind: 'pass_through'; markupPct?: number; markupFlat?: number; cap?: number }   // from the provider quote
+      | { kind: 'tiered'; tiers: { uptoKm: number; amount: number }[] };
+    surcharge?: { kind: 'flat' | 'pct'; amount: number; label: string };                  // e.g. rain / late-night
+  }
+  ```
+  Default rule set seeded per restaurant: `pass_through` with 0 markup. The admin "Delivery" bucket edits rules with a live preview ("a 4.2 km order at 9:30 pm on Saturday pays Rs 49"). The customer-facing quote is computed at checkout (`POST /payments/intent` includes `deliveryFee` and the matched `ruleId` in `OrderTotals`), re-validated server-side at order creation, and never trusted from the client. Provider cost vs customer fee is stored on the shipment so the merchant sees margin per order.
 
 ### B6 - CMS
 
@@ -229,30 +257,33 @@ Already exists after B1: menu CRUD + CSV import, content draft/publish/rollback 
 | 0 | Phase 0 (shared) | Phase 0 (shared) |
 | 1 | A1 PR1-2 (IG-4/5, IG-1/2) | B1 import + Section 3 menu canonicalisation + migration |
 | 2 | A1 PR3 art-director + fixture eval | B2 tenant resolution, `/r/:slug`, `restaurant_domains`, admin "Add domain" |
-| 3 | A2 approval-queue UX | B3 `apps/sites` host + SEO head + sitemap; Cloudflare for SaaS wiring |
-| 4 | A4 Meta reliability + A3 video | B4 interface + mock + self + dispatcher + dispatch-worker + webhooks |
-| 5 | A5 profile/landing/grader | B4 Shadowfax adapter (needs docs) - B5 payments completion |
-| 6 | eval + hardening + docs | B4 Rapido adapter - B6 offers/CMS additions |
-| 7 | -- staging soak, E2E happy path, production promotion -- | |
+| 3 | A2 approval-queue UX + A4 Meta reliability | B3 `apps/sites` host + SEO head + sitemap; Cloudflare for SaaS wiring |
+| 4 | A3 video retries + A5 profile/landing/grader | B4 interface + mock + self + dispatcher + dispatch-worker + webhooks; ADR 0004 middleware choice |
+| 5 | **Launch 1:** staging soak, E2E, production promotion | B5 payments completion + fee rules engine |
+| 6 | post-launch fixes | B4 middleware adapter (needs account) - B6 offers/CMS additions |
+| 7 | -- | **Launch 2:** staging soak, E2E order->pay->dispatch->track, production promotion |
+
+Lane A is deliberately compressed to 4 build weeks so Launch 1 happens in week 5; Lane B's week 1-2 work (menu canonicalisation, tenant model) is additive and flag-gated so it can ship with Launch 1 without being user-visible.
 
 Review cadence: one PR per row cell, each with tests, `ASSUMPTION:` labels, and conventional-commit messages. Mongo-backed suites run on the Mac before merge.
 
 ---
 
-## 8. Decisions needed from Bhargav before the relevant piece starts
+## 8. Decision log (owner answers, 4 Oct 2026)
 
-| ID | Question | My recommendation |
+| ID | Question | Decision |
 |---|---|---|
-| B2-1 | Edge/SSL provider for arbitrary custom domains | Cloudflare for SaaS (ADR) |
-| B3-1 | Prerender head + hero only (no SSR framework) | Yes |
-| B4-1 | Dispatch at `PREPARING` or `READY` | `READY` default, per-restaurant override |
-| B4-2 | Provide Shadowfax + Rapido API docs, sandbox creds, webhook secrets | -- (hard dependency) |
-| B5-1 | Delivery fee pass-through vs absorbed/flat | Pass-through from quote, merchant can set flat override |
-| A3-1 | Video timeout -> fallback to image post or FAIL | Fallback with notice |
-| Section 3 | `menu_items` canonical, `restaurant.menu` projected | Yes |
-| -- | `apps/superadmin` import now or later | Later |
-| -- | Target launch date | -- |
+| B2-1 | Edge/SSL provider for arbitrary custom domains | **Cloudflare for SaaS** (ADR 0002). Sub-question open: move `restropulse.in` DNS or use a separate zone |
+| B3-1 | Prerender head + hero only (no SSR framework) | **Yes** |
+| B4-1 | Dispatch at `PREPARING` or `READY` | **`READY` default, per-restaurant override** |
+| B4-2 | Aggregator access | **No docs in hand; go through a delivery middleware** (uEngage Flash / Pidge / Shipway). Rapido has no public API; Shadowfax public docs cover the wrong product |
+| B4-3 | Which middleware | **Pending** -- Claude evaluates and writes ADR 0004 before the adapter starts |
+| B5-1 | Delivery fee | **Fully configurable per restaurant** by zone, time and order -- rules engine in B5 |
+| A3-1 | Video timeout | **Keep retrying until success** (alternate model on attempt 3+). `ASSUMPTION:` hard ceiling 8 attempts / 24 h -- owner to confirm |
+| Section 3 | `menu_items` canonical, `restaurant.menu` projected | **Yes** (implicit in approving the plan) |
+| -- | `apps/superadmin` import | **Later** (not answered; default kept) |
+| -- | Launch sequencing | **Content engine first (Launch 1, week 5), sites + ordering + delivery second (Launch 2, week 7)** |
 
 ## 9. Human-only items (cannot be done by Claude)
 
-Meta App Review + sandbox IG account - Razorpay live KYC + webhook secret - Cloudflare account + `restropulse.in` DNS - Azure resource creation + Key Vault secrets - Shadowfax/Rapido partner agreements and credentials - key rotation from Aug - go/no-go and rollback ownership.
+Meta App Review + sandbox IG account - Razorpay live KYC + webhook secret - Cloudflare account + DNS for the sites zone - Azure resource creation + Key Vault secrets - merchant account, API key and webhook secret on the chosen delivery middleware - key rotation from Aug - go/no-go and rollback ownership for each of the two launches.

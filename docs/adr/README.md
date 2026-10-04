@@ -18,8 +18,8 @@ Each ADR is a single markdown file named `NNNN-short-slug.md` where `NNNN` is a 
 | ID | Title | Status |
 |---|---|---|
 | 0001 | [Content-Engine AI Framework + Current-Affairs RAG](0001-content-engine-ai-framework.md) | Accepted |
-| 0002 | [Custom domains for per-restaurant websites (edge + TLS)](0002-custom-domains-edge.md) | Proposed |
-| 0003 | [Delivery provider layer (Rapido, Shadowfax, self-delivery)](0003-delivery-provider-layer.md) | Proposed |
+| 0002 | [Custom domains for per-restaurant websites (edge + TLS)](0002-custom-domains-edge.md) | Accepted |
+| 0003 | [Delivery provider layer (Rapido, Shadowfax, self-delivery)](0003-delivery-provider-layer.md) | Accepted |
 
 ## Authoring guidelines
 
