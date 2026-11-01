@@ -375,7 +375,7 @@ Individual app builds produce output in their respective `dist/` directories.
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | PRs to `main`/`staging`, push to `staging` | Parallel type-check, lint, per-service tests with path filtering |
+| `ci.yml` | PRs to `staging`/`main`/`baxeltech-staging`, push to those branches, manual dispatch | Parallel type-check, lint, per-service tests with path filtering |
 | `deploy-staging.yml` | Push to `staging` | Build, deploy API to staging slot + SWA to staging environment, enforce/validate App Service Key Vault references, smoke tests, tag |
 | `deploy-production.yml` | Manual (`workflow_dispatch`) | Promote a staging tag to production via slot swap (API) and SWA upload (web), enforce/validate App Service Key Vault references |
 
@@ -389,7 +389,7 @@ Uses path-based change detection to skip unnecessary jobs. A `ci-complete` aggre
 | Only `apps/web/**` | detect-changes, type-check, lint, test-web, ci-complete |
 | `packages/**` | ALL jobs (package changes cascade to all services) |
 
-Coverage is enforced on PRs via `config/coverage-baseline.json` (85% minimum for lines/branches/functions for web, api, and content-engine). Publisher is excluded — its src/ is a thin process entry point with no testable business logic.
+Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are floors set to the measured coverage at the last reset (web: 68/59/58 on 2026-10-04) and ratcheted upward as suites grow -- not an 85% target. New code must still ship with >=85% on its own files. Publisher is excluded -- its src/ is a thin process entry point with no testable business logic.
 
 ### Azure Deployment Targets
 

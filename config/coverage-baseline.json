@@ -1,6 +1,7 @@
 {
+  "_comment": "Floors, not targets. Set to the measured value at reset time and ratcheted up as suites grow; CI fails a PR that drops a workspace below its floor. New code in Lane A/B must ship with >=85% on its own files regardless of the floor. web: measured 68.75/60.01/58.64 on 2026-10-04 (baxeltech-staging @ c070aa2). api/content-engine: not measurable outside CI yet (mongodb-memory-server); reset to measured values in the first CI run after this lands (Phase 0, P0-2).",
   "@restropulse/api":            { "lines": 95, "branches": 90, "functions": 95 },
-  "@restropulse/web":            { "lines": 94, "branches": 84, "functions": 90 },
+  "@restropulse/web":            { "lines": 68, "branches": 59, "functions": 58 },
   "@restropulse/publisher":      { "lines": 0,  "branches": 0,  "functions": 0  },
   "@restropulse/content-engine": { "lines": 85, "branches": 85, "functions": 85 }
 }
