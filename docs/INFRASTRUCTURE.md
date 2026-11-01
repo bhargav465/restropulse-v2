@@ -208,6 +208,7 @@ When `CURRENT_AFFAIRS_V2_ENABLED=true`:
 
 - **Database**: `restropulse`
 - **Collections**: users, restaurants, posts, contentStrategies, strategyCycles, accountManagers, subscriptionPlans, subscriptions, coupons, couponRedemptions, creditPurchases, creditPacks, invoices
+- **API rate limiting**: rateLimits (fixed-window counters, TTL index on `expireAt`)
 - **Restaurant Intelligence collections**: intelligenceScans, intelligenceReports, competitorCache (7-day TTL), intelligenceSnapshots, nearbySightings, zomatoManualEntries, events. See `docs/INTELLIGENCE_BACKEND_CHANGES.md`.
 - **Driver**: mongodb v6.12
 - **Connection**: Shared singleton via `@restropulse/db`
@@ -401,6 +402,22 @@ Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are 
 | production | must be absent (script exits 1 otherwise) | `Allow: /` | `apply-robots-policy.mjs production` + smoke test `EXPECT_NOINDEX=false` |
 
 Content-Security-Policy is not set yet: `index.html` loads esm.sh, Google Fonts, Razorpay checkout and App Insights, so an enforced policy needs a report-only soak first.
+
+### API security headers and rate limiting
+
+`apps/api` sets `trust proxy` to 1 (the App Service front end is the single hop) and applies `helmet` to every response (`apps/api/src/middleware/security-headers.ts`): `Content-Security-Policy: default-src 'none'` (the API never serves executable HTML), HSTS, `nosniff`, `Referrer-Policy: no-referrer`, and `Cross-Origin-Resource-Policy: cross-origin` so the SPA can still load `/content/*` and grader photo/map URLs as `<img>`.
+
+Rate limits are MongoDB-backed fixed windows (`apps/api/src/middleware/rate-limit.ts`, collection `rateLimits`, TTL-cleaned), so they hold across instances and restarts. Keys are the client IP with the port Azure appends to `X-Forwarded-For` stripped, and IPv6 grouped by /56. If MongoDB is unreachable the limiters fail open and log.
+
+| Limiter | Scope | Budget |
+|---|---|---|
+| `api` | every `/api/*` route except `/api/subscriptions/webhook` | 300 / minute / IP |
+| `grader-scan` | `POST /api/grader/scan` | 5 / hour / IP in production (100 elsewhere) |
+| `grader-unlock` | `POST /api/grader/unlock` | 60 / hour / IP |
+| `grader-suggest` | `GET /api/grader/suggest` | 120 / hour / IP |
+| `grader-image` | `GET /api/grader/photo` + `/staticmap` (shared) | 300 / hour / IP |
+
+Grader scans also keep a per-process daily circuit breaker (500/day in production). Request bodies on the grader and Restaurant Intelligence POST routes are validated with zod via `apps/api/src/middleware/validate.ts` (`validateBody`/`validateQuery`); new routes should use the same helper.
 
 ### Azure Deployment Targets
 

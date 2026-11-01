@@ -4,8 +4,8 @@
  * unlock it with a promo code (which is where we capture the lead).
  *
  * Cost guardrails: each scan costs real Places calls, so scans are
- * rate-limited per IP (in-memory — adequate for one instance; revisit if the
- * API ever scales out) and the pipeline never calls Claude.
+ * rate-limited per IP (MongoDB-backed, so limits hold across instances) and
+ * the pipeline never calls Claude.
  */
 
 import express, { Request, Response } from 'express';
@@ -14,36 +14,53 @@ import { runGraderScan, unlockGraderScan, type GraderResult } from '../services/
 import { searchPlaceCandidates } from '../services/intelligence/places.js';
 import type { PlaceCandidate } from '@restropulse/shared';
 import { createLogger, trackEvent } from '@restropulse/telemetry/server';
+import { z } from 'zod';
+import { createRateLimiter } from '../middleware/rate-limit.js';
+import { validateBody, requiredText, optionalText } from '../middleware/validate.js';
 
 const log = createLogger('grader');
 const router = express.Router();
 
-// Per-IP sliding-hour limiters (in-memory — adequate for one instance; revisit
-// if the API ever scales out). Scans are the expensive call; suggest fires per
+// Per-IP hourly limiters, shared across API instances via MongoDB (see
+// middleware/rate-limit.ts). Scans are the expensive call; suggest fires per
 // (debounced) keystroke and photo per image load, so they get looser budgets.
-function makeLimiter(maxPerHour: number) {
-    const hits = new Map<string, number[]>();
-    return (ip: string): boolean => {
-        const now = Date.now();
-        const windowStart = now - 3600_000;
-        const list = (hits.get(ip) ?? []).filter((t) => t > windowStart);
-        if (list.length >= maxPerHour) {
-            hits.set(ip, list);
-            return true;
-        }
-        list.push(now);
-        hits.set(ip, list);
-        return false;
-    };
-}
+const HOUR_MS = 3600_000;
+const gradeTrip = (endpoint: string) => () =>
+    trackEvent('grader_rate_limit_trip', { limitType: 'per-ip', endpoint });
 // 5/hr in production keeps Places costs bounded; local dev gets room to test.
-const rateLimited = makeLimiter(process.env.NODE_ENV === 'production' ? 5 : 100);
-const unlockLimited = makeLimiter(60); // Backstop abuse of unlock endpoint (lead-capture spam)
-const suggestLimited = makeLimiter(120);
-const photoLimited = makeLimiter(300);
+const scanLimiter = createRateLimiter({
+    name: 'grader-scan',
+    windowMs: HOUR_MS,
+    limit: process.env.NODE_ENV === 'production' ? 5 : 100,
+    message: 'Too many scans from this connection — try again in an hour.',
+    onTrip: gradeTrip('/scan'),
+});
+// Backstop abuse of the unlock endpoint (lead-capture spam).
+const unlockLimiter = createRateLimiter({
+    name: 'grader-unlock',
+    windowMs: HOUR_MS,
+    limit: 60,
+    message: 'Too many unlock attempts — please wait before trying again.',
+    onTrip: gradeTrip('/unlock'),
+});
+const suggestLimiter = createRateLimiter({
+    name: 'grader-suggest',
+    windowMs: HOUR_MS,
+    limit: 120,
+    message: 'Too many searches — slow down a little.',
+});
+// /photo and /staticmap share one budget (both are image loads on the same screen).
+const imageLimiter = createRateLimiter({
+    name: 'grader-image',
+    windowMs: HOUR_MS,
+    limit: 300,
+    message: 'Too many image requests.',
+});
 
 // Daily circuit-breaker (global, not per-IP) — backstop against distributed
 // scraping that rotates IPs to evade per-IP limits. Resets at midnight UTC.
+// ASSUMPTION: still per-process. With N instances the effective ceiling is
+// N x limit; acceptable as a backstop while the API runs on one instance.
 let dailyScanCount = 0;
 let lastDayReset = new Date().toDateString();
 function checkDailyCircuitBreaker(): boolean {
@@ -56,9 +73,6 @@ function checkDailyCircuitBreaker(): boolean {
     return ++dailyScanCount > limit;
 }
 
-function clientIp(req: Request): string {
-    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-}
 
 interface ApiResponse<T> {
     success: boolean;
@@ -66,26 +80,23 @@ interface ApiResponse<T> {
     error?: string;
 }
 
-router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<GraderResult>>) => {
-    const ip = clientIp(req);
-    if (rateLimited(ip)) {
-        log.warn({ ip }, 'Per-IP scan rate limit exceeded');
-        trackEvent('grader_rate_limit_trip', { limitType: 'per-ip', endpoint: '/scan' });
-        return res.status(429).json({ success: false, error: 'Too many scans from this connection — try again in an hour.' });
-    }
+const SCAN_REQUIRED = 'Restaurant name and city are required.';
+const ScanBody = z.object({
+    name: requiredText(120, SCAN_REQUIRED),
+    city: requiredText(80, SCAN_REQUIRED),
+    placeId: optionalText(100),
+});
+
+router.post('/scan', scanLimiter, validateBody(ScanBody), handle(async (req: Request, res: Response<ApiResponse<GraderResult>>) => {
     if (checkDailyCircuitBreaker()) {
         log.error({}, 'Daily scan circuit-breaker tripped — too many scans today');
         trackEvent('grader_circuit_breaker_trip', { limitType: 'daily', endpoint: '/scan' });
         return res.status(503).json({ success: false, error: 'Service temporarily unavailable. Please try again later.' });
     }
-    const { name, city, placeId } = (req.body ?? {}) as { name?: unknown; city?: unknown; placeId?: unknown };
-    if (typeof name !== 'string' || !name.trim() || typeof city !== 'string' || !city.trim()) {
-        return res.status(400).json({ success: false, error: 'Restaurant name and city are required.' });
-    }
-    const cleanPlaceId = typeof placeId === 'string' && placeId.trim() ? placeId.trim().slice(0, 100) : undefined;
-    const result = await runGraderScan(name.trim().slice(0, 120), city.trim().slice(0, 80), cleanPlaceId);
+    const { name, city, placeId } = req.body as z.infer<typeof ScanBody>;
+    const result = await runGraderScan(name, city, placeId);
     if (!result) {
-        return res.status(404).json({ success: false, error: `We couldn't find "${name.trim()}" on Google in ${city.trim()}. Try the exact name from your Google listing.` });
+        return res.status(404).json({ success: false, error: `We couldn't find "${name}" on Google in ${city}. Try the exact name from your Google listing.` });
     }
     log.info({ scanId: result.scanId, score: result.score, problems: result.problems.length }, 'Grader scan completed');
     // The locked response hides the details the unlock reveals — the numbers the
@@ -105,17 +116,19 @@ router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<Grade
     });
 }));
 
-router.post('/unlock', handle(async (req: Request, res: Response<ApiResponse<GraderResult>>) => {
-    const ip = clientIp(req);
-    if (unlockLimited(ip)) {
-        log.warn({ ip }, 'Per-IP unlock rate limit exceeded');
-        trackEvent('grader_rate_limit_trip', { limitType: 'per-ip', endpoint: '/unlock' });
-        return res.status(429).json({ success: false, error: 'Too many unlock attempts — please wait before trying again.' });
-    }
-    const { scanId, promoCode, phone, email, name } = (req.body ?? {}) as Record<string, unknown>;
-    if (typeof scanId !== 'string' || typeof promoCode !== 'string' || !promoCode.trim()) {
-        return res.status(400).json({ success: false, error: 'scanId and promoCode are required.' });
-    }
+const UnlockBody = z.object({
+    scanId: z.string({ required_error: 'scanId and promoCode are required.', invalid_type_error: 'scanId and promoCode are required.' }),
+    promoCode: z.string({ required_error: 'scanId and promoCode are required.', invalid_type_error: 'scanId and promoCode are required.' })
+        .refine((s) => s.trim().length > 0, 'scanId and promoCode are required.'),
+    // Contact fields stay loosely typed: the handler decides which one is usable
+    // and answers 422 with a friendlier message when neither is.
+    phone: z.unknown().optional(),
+    email: z.unknown().optional(),
+    name: z.unknown().optional(),
+});
+
+router.post('/unlock', unlockLimiter, validateBody(UnlockBody), handle(async (req: Request, res: Response<ApiResponse<GraderResult>>) => {
+    const { scanId, promoCode, phone, email, name } = req.body as z.infer<typeof UnlockBody>;
     // The lead IS the product of this page: at least one way to reach them.
     const cleanPhone = typeof phone === 'string' && phone.trim() ? phone.trim().slice(0, 20) : undefined;
     const cleanEmail = typeof email === 'string' && /.+@.+\..+/.test(email.trim()) ? email.trim().slice(0, 120) : undefined;
@@ -137,11 +150,7 @@ router.post('/unlock', handle(async (req: Request, res: Response<ApiResponse<Gra
  * with name, address, rating and a photo reference, so the owner picks their
  * exact restaurant instead of hoping text search guesses right.
  */
-router.get('/suggest', handle(async (req: Request, res: Response<ApiResponse<PlaceCandidate[]>>) => {
-    const ip = clientIp(req);
-    if (suggestLimited(ip)) {
-        return res.status(429).json({ success: false, error: 'Too many searches — slow down a little.' });
-    }
+router.get('/suggest', suggestLimiter, handle(async (req: Request, res: Response<ApiResponse<PlaceCandidate[]>>) => {
     const name = typeof req.query.name === 'string' ? req.query.name.trim().slice(0, 120) : '';
     const city = typeof req.query.city === 'string' ? req.query.city.trim().slice(0, 80) : '';
     if (name.length < 2) {
@@ -156,9 +165,7 @@ router.get('/suggest', handle(async (req: Request, res: Response<ApiResponse<Pla
  * 302 to Google's short-lived photoUri. Keeps the Maps API key server-side.
  */
 const PHOTO_REF = /^places\/[\w-]+\/photos\/[\w.=-]+$/;
-router.get('/photo', handle(async (req: Request, res: Response) => {
-    const ip = clientIp(req);
-    if (photoLimited(ip)) return res.status(429).end();
+router.get('/photo', imageLimiter, handle(async (req: Request, res: Response) => {
     const ref = typeof req.query.ref === 'string' ? req.query.ref.trim() : '';
     const key = process.env.GOOGLE_MAPS_API_KEY;
     if (!PHOTO_REF.test(ref) || !key) return res.status(404).end();
@@ -180,8 +187,7 @@ router.get('/photo', handle(async (req: Request, res: Response) => {
  * Separate Google product from Place photos, so it works even while the key's
  * project lacks the photo/review SKUs.
  */
-router.get('/staticmap', handle(async (req: Request, res: Response) => {
-    if (photoLimited(clientIp(req))) return res.status(429).end();
+router.get('/staticmap', imageLimiter, handle(async (req: Request, res: Response) => {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
     const key = process.env.GOOGLE_MAPS_API_KEY;

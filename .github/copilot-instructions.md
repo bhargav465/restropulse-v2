@@ -76,6 +76,8 @@ packages/
 - API returns `{ success: boolean, data?: T, error?: string }` (ApiResponse type)
 - HTTP status codes: 200 (success), 201 (created), 400 (bad request), 401 (unauthorized), 404 (not found), 500 (server error)
 - All async route handlers must catch errors and return proper ApiResponse
+- Validate request bodies with zod via `validateBody(schema)` from `apps/api/src/middleware/validate.ts`; put human-readable messages in the schema (the SPA shows `error` verbatim)
+- Per-route limits use `createRateLimiter` from `apps/api/src/middleware/rate-limit.ts` (MongoDB-backed); do not add new in-memory limiters
 - Runtime policy for Node services: `uncaughtException` and `unhandledRejection` are logged and terminate the process; SIGINT/SIGTERM perform graceful shutdown
 
 ### No Special Characters
@@ -98,6 +100,7 @@ packages/
 - Database name: `restropulse`
 - Collections: users, restaurants, posts, contentStrategies, strategyCycles, accountManagers, subscriptionPlans, subscriptions, coupons, couponRedemptions, creditPurchases, creditPacks, invoices
 - Restaurant Intelligence collections: intelligenceScans, intelligenceReports, competitorCache (7d TTL), intelligenceSnapshots, nearbySightings, zomatoManualEntries, events (see `docs/INTELLIGENCE_BACKEND_CHANGES.md`)
+- API rate limiting collection: rateLimits (MongoDB-backed counters shared across instances; see `apps/api/src/middleware/rate-limit.ts`)
 - Document IDs: Support both ObjectId and custom string IDs (e.g., `r1` for seed data)
 - Connection: Always use `@restropulse/db` singleton -- never create separate MongoClient instances
 
