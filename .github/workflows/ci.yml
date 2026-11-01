@@ -112,6 +112,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test:coverage --filter=@restropulse/api
         env:
@@ -137,6 +140,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test --filter=@restropulse/publisher
         env:
@@ -160,6 +166,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test:coverage --filter=@restropulse/content-engine
         env:
@@ -182,6 +191,9 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
 
       - name: Run tests
         run: npx turbo test --filter=@restropulse/intelligence-worker

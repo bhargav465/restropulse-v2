@@ -390,7 +390,7 @@ Uses path-based change detection to skip unnecessary jobs. A `ci-complete` aggre
 | Only `apps/web/**` | detect-changes, type-check, lint, test-web, ci-complete |
 | `packages/**` | ALL jobs (package changes cascade to all services) |
 
-Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are floors set to the measured coverage at the last reset (web: 68/59/58 on 2026-10-04) and ratcheted upward as suites grow -- not an 85% target. New code must still ship with >=85% on its own files. Publisher is excluded -- its src/ is a thin process entry point with no testable business logic.
+Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are floors set to the measured coverage at the last reset (web: 68/59/58 on 2026-10-04; api: 70/54/61 on 2026-11-01) and ratcheted upward as suites grow -- not an 85% target. New code must still ship with >=85% on its own files. Publisher is excluded -- its src/ is a thin process entry point with no testable business logic.
 
 ### Web security headers and robots policy
 

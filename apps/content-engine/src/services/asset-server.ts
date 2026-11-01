@@ -31,14 +31,19 @@ const MIME_TYPES: Record<string, string> = {
   '.webm': 'video/webm',
 };
 
-export function startAssetServer(port: number): http.Server {
+/**
+ * @param assetsDir Root to serve from. Defaults to the repo's assets/ folder;
+ *   tests pass a temp directory because assets/ is downloaded, not committed.
+ */
+export function startAssetServer(port: number, assetsDir: string = ASSETS_DIR): http.Server {
+  const root = path.resolve(assetsDir);
   const server = http.createServer((req, res) => {
     // Sanitize path to prevent directory traversal
     const safePath = path.normalize(req.url ?? '/').replace(/^(\.\.[/\\])+/, '');
-    const filePath = path.join(ASSETS_DIR, safePath);
+    const filePath = path.join(root, safePath);
 
-    // Ensure the resolved path stays within ASSETS_DIR
-    if (!filePath.startsWith(ASSETS_DIR)) {
+    // Ensure the resolved path stays within the assets root
+    if (!filePath.startsWith(root)) {
       res.writeHead(403);
       res.end('Forbidden');
       return;

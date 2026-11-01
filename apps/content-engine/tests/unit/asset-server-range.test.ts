@@ -1,4 +1,7 @@
 import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
 vi.mock('@restropulse/telemetry/server', () => ({
@@ -9,6 +12,11 @@ const { startAssetServer } = await import('../../src/services/asset-server.js');
 
 let server: http.Server;
 let port: number;
+let assetsDir: string;
+
+// assets/ is downloaded by scripts/download-assets.mjs and not committed, so the
+// test serves its own fixture: 64 distinct bytes make range slices checkable.
+const FIXTURE = Buffer.from(Array.from({ length: 64 }, (_, i) => i));
 
 function request(path: string, headers: http.OutgoingHttpHeaders = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer }> {
   return new Promise((resolve, reject) => {
@@ -23,7 +31,10 @@ function request(path: string, headers: http.OutgoingHttpHeaders = {}): Promise<
 }
 
 beforeAll(async () => {
-  server = startAssetServer(0);
+  assetsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'asset-server-range-'));
+  fs.mkdirSync(path.join(assetsDir, 'images'));
+  fs.writeFileSync(path.join(assetsDir, 'images', 'food-01.jpg'), FIXTURE);
+  server = startAssetServer(0, assetsDir);
   await new Promise<void>((resolve) => (server.listening ? resolve() : server.once('listening', resolve)));
   const addr = server.address();
   if (!addr || typeof addr === 'string') throw new Error('no port');
@@ -32,6 +43,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+  fs.rmSync(assetsDir, { recursive: true, force: true });
 });
 
 /** Browsers refuse to play <video> without HTTP 206 + Content-Range support. */
@@ -42,6 +54,7 @@ describe('asset-server Range requests', () => {
     expect(res.headers['accept-ranges']).toBe('bytes');
     expect(res.headers['content-type']).toBe('image/jpeg');
     expect(res.body.length).toBe(Number(res.headers['content-length']));
+    expect(res.body.equals(FIXTURE)).toBe(true);
   });
 
   it('serves an explicit byte range as 206 Partial Content', async () => {
