@@ -64,6 +64,9 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Apply robots policy (production)
+        run: node scripts/apply-robots-policy.mjs production apps/web/dist
+
       - name: Generate config.json sidecar from Key Vault
         run: |
           get_secret() {
@@ -453,6 +456,7 @@ jobs:
       - name: Smoke test Web
         run: bash scripts/smoke-test.sh web "${{ vars.PRODUCTION_WEB_URL }}"
         env:
+          EXPECT_NOINDEX: "false"
           EXPECTED_GIT_SHA: ${{ needs.resolve-ref.outputs.deploy-git-sha }}
 
   tag-production:

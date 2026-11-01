@@ -391,6 +391,17 @@ Uses path-based change detection to skip unnecessary jobs. A `ci-complete` aggre
 
 Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are floors set to the measured coverage at the last reset (web: 68/59/58 on 2026-10-04) and ratcheted upward as suites grow -- not an 85% target. New code must still ship with >=85% on its own files. Publisher is excluded -- its src/ is a thin process entry point with no testable business logic.
 
+### Web security headers and robots policy
+
+`apps/web/public/staticwebapp.config.json` sets `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and `Strict-Transport-Security` for every environment. It deliberately carries no `X-Robots-Tag`: the same source builds for both environments, so the deploy workflows apply the robots policy to the built bundle with `scripts/apply-robots-policy.mjs`:
+
+| Environment | `X-Robots-Tag` | `robots.txt` | Enforced by |
+|---|---|---|---|
+| staging | `noindex, nofollow` (injected) | `Disallow: /` | `apply-robots-policy.mjs staging` + smoke test `EXPECT_NOINDEX=true` |
+| production | must be absent (script exits 1 otherwise) | `Allow: /` | `apply-robots-policy.mjs production` + smoke test `EXPECT_NOINDEX=false` |
+
+Content-Security-Policy is not set yet: `index.html` loads esm.sh, Google Fonts, Razorpay checkout and App Insights, so an enforced policy needs a report-only soak first.
+
 ### Azure Deployment Targets
 
 | Service | Azure Resource | Staging deploy | Production deploy | Cost |
