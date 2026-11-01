@@ -1,0 +1,17 @@
+name: Pre-download MongoDB binary
+description: >
+  Downloads the mongodb-memory-server binary once, before tests start.
+  Vitest runs test files in parallel workers and each worker's setup starts a
+  MongoMemoryServer; on a cold runner they all race to download the same
+  binary and fail on the shared lockfile (UnableToUnlockLockfileError).
+runs:
+  using: composite
+  steps:
+    - name: Cache MongoDB binary
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/mongodb-binaries
+        key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+    - name: Download MongoDB binary
+      shell: bash
+      run: node -e "import('mongodb-memory-server').then(async (m) => console.log('mongod at', await m.MongoBinary.getPath()))"

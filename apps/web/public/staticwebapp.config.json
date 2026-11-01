@@ -2,5 +2,13 @@
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/assets/*", "/*.{png,jpg,jpeg,gif,svg,ico,css,js,json,txt,woff,woff2,ttf,map}"]
-  }
+  },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(self \"https://checkout.razorpay.com\" \"https://api.razorpay.com\")",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+  },
+  "_comment": "X-Robots-Tag is NOT set here on purpose. The staging deploy workflow injects 'X-Robots-Tag: noindex, nofollow' and a Disallow robots.txt into the built dist; the production deploy asserts both are absent. See scripts/apply-robots-policy.mjs and docs/LAUNCH_ARCHITECTURE.md P0-3. Content-Security-Policy is deferred: index.html loads esm.sh, Google Fonts, Razorpay and App Insights, so an enforced CSP needs an inventory + report-only soak first."
 }

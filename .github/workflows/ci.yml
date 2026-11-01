@@ -1,6 +1,10 @@
 name: CI
 
 on:
+  pull_request:
+    branches: [staging, main, baxeltech-staging]
+  push:
+    branches: [staging, main, baxeltech-staging]
   workflow_dispatch:
     inputs:
       ref:
@@ -25,6 +29,7 @@ jobs:
       api: ${{ steps.changes.outputs.api }}
       publisher: ${{ steps.changes.outputs.publisher }}
       content-engine: ${{ steps.changes.outputs.content-engine }}
+      intelligence-worker: ${{ steps.changes.outputs.intelligence-worker }}
       docs-only: ${{ steps.changes.outputs.docs-only }}
     steps:
       - name: Checkout
@@ -107,6 +112,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test:coverage --filter=@restropulse/api
         env:
@@ -132,6 +140,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test --filter=@restropulse/publisher
         env:
@@ -155,6 +166,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
+
       - name: Run tests
         run: npx turbo test:coverage --filter=@restropulse/content-engine
         env:
@@ -177,6 +191,9 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+
+      - name: Pre-download MongoDB binary
+        uses: ./.github/actions/mongo-binary
 
       - name: Run tests
         run: npx turbo test --filter=@restropulse/intelligence-worker

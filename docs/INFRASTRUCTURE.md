@@ -208,6 +208,7 @@ When `CURRENT_AFFAIRS_V2_ENABLED=true`:
 
 - **Database**: `restropulse`
 - **Collections**: users, restaurants, posts, contentStrategies, strategyCycles, accountManagers, subscriptionPlans, subscriptions, coupons, couponRedemptions, creditPurchases, creditPacks, invoices
+- **API rate limiting**: rateLimits (fixed-window counters, TTL index on `expireAt`)
 - **Restaurant Intelligence collections**: intelligenceScans, intelligenceReports, competitorCache (7-day TTL), intelligenceSnapshots, nearbySightings, zomatoManualEntries, events. See `docs/INTELLIGENCE_BACKEND_CHANGES.md`.
 - **Driver**: mongodb v6.12
 - **Connection**: Shared singleton via `@restropulse/db`
@@ -375,7 +376,7 @@ Individual app builds produce output in their respective `dist/` directories.
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | PRs to `main`/`staging`, push to `staging` | Parallel type-check, lint, per-service tests with path filtering |
+| `ci.yml` | PRs to `staging`/`main`/`baxeltech-staging`, push to those branches, manual dispatch | Parallel type-check, lint, per-service tests with path filtering |
 | `deploy-staging.yml` | Push to `staging` | Build, deploy API to staging slot + SWA to staging environment, enforce/validate App Service Key Vault references, smoke tests, tag |
 | `deploy-production.yml` | Manual (`workflow_dispatch`) | Promote a staging tag to production via slot swap (API) and SWA upload (web), enforce/validate App Service Key Vault references |
 
@@ -389,7 +390,34 @@ Uses path-based change detection to skip unnecessary jobs. A `ci-complete` aggre
 | Only `apps/web/**` | detect-changes, type-check, lint, test-web, ci-complete |
 | `packages/**` | ALL jobs (package changes cascade to all services) |
 
-Coverage is enforced on PRs via `config/coverage-baseline.json` (85% minimum for lines/branches/functions for web, api, and content-engine). Publisher is excluded — its src/ is a thin process entry point with no testable business logic.
+Coverage is enforced on PRs via `config/coverage-baseline.json`. The values are floors set to the measured coverage at the last reset (web: 68/59/58 on 2026-10-04; api: 70/54/61 on 2026-11-01) and ratcheted upward as suites grow -- not an 85% target. New code must still ship with >=85% on its own files. Publisher is excluded -- its src/ is a thin process entry point with no testable business logic.
+
+### Web security headers and robots policy
+
+`apps/web/public/staticwebapp.config.json` sets `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and `Strict-Transport-Security` for every environment. It deliberately carries no `X-Robots-Tag`: the same source builds for both environments, so the deploy workflows apply the robots policy to the built bundle with `scripts/apply-robots-policy.mjs`:
+
+| Environment | `X-Robots-Tag` | `robots.txt` | Enforced by |
+|---|---|---|---|
+| staging | `noindex, nofollow` (injected) | `Disallow: /` | `apply-robots-policy.mjs staging` + smoke test `EXPECT_NOINDEX=true` |
+| production | must be absent (script exits 1 otherwise) | `Allow: /` | `apply-robots-policy.mjs production` + smoke test `EXPECT_NOINDEX=false` |
+
+Content-Security-Policy is not set yet: `index.html` loads esm.sh, Google Fonts, Razorpay checkout and App Insights, so an enforced policy needs a report-only soak first.
+
+### API security headers and rate limiting
+
+`apps/api` sets `trust proxy` to 1 (the App Service front end is the single hop) and applies `helmet` to every response (`apps/api/src/middleware/security-headers.ts`): `Content-Security-Policy: default-src 'none'` (the API never serves executable HTML), HSTS, `nosniff`, `Referrer-Policy: no-referrer`, and `Cross-Origin-Resource-Policy: cross-origin` so the SPA can still load `/content/*` and grader photo/map URLs as `<img>`.
+
+Rate limits are MongoDB-backed fixed windows (`apps/api/src/middleware/rate-limit.ts`, collection `rateLimits`, TTL-cleaned), so they hold across instances and restarts. Keys are the client IP with the port Azure appends to `X-Forwarded-For` stripped, and IPv6 grouped by /56. If MongoDB is unreachable the limiters fail open and log.
+
+| Limiter | Scope | Budget |
+|---|---|---|
+| `api` | every `/api/*` route except `/api/subscriptions/webhook` | 300 / minute / IP |
+| `grader-scan` | `POST /api/grader/scan` | 5 / hour / IP in production (100 elsewhere) |
+| `grader-unlock` | `POST /api/grader/unlock` | 60 / hour / IP |
+| `grader-suggest` | `GET /api/grader/suggest` | 120 / hour / IP |
+| `grader-image` | `GET /api/grader/photo` + `/staticmap` (shared) | 300 / hour / IP |
+
+Grader scans also keep a per-process daily circuit breaker (500/day in production). Request bodies on the grader and Restaurant Intelligence POST routes are validated with zod via `apps/api/src/middleware/validate.ts` (`validateBody`/`validateQuery`); new routes should use the same helper.
 
 ### Azure Deployment Targets
 

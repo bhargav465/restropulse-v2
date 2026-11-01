@@ -59,6 +59,8 @@ import { getNotificationFeed } from '../services/intelligence/notifications.js';
 import { getWatchlistDigest, type WatchlistDigestResponse } from '../services/intelligence/watchlist-digest.js';
 import { draftReviewReply, type DraftReplyOutput } from '../services/intelligence/analysis.js';
 import { createLogger } from '@restropulse/telemetry/server';
+import { z } from 'zod';
+import { validateBody, requiredText, optionalText } from '../middleware/validate.js';
 
 const log = createLogger('admin-intelligence');
 
@@ -149,14 +151,21 @@ router.get('/watchlist/digest', handle(async (req: Request, res: Response<ApiRes
 // POST /reviews/draft-reply — one-tap follow-through for a review
 // ============================================================
 
-router.post('/reviews/draft-reply', handle(async (req: Request, res: Response<ApiResponse<DraftReplyOutput>>) => {
-    const { text, rating, author } = (req.body ?? {}) as { text?: unknown; rating?: unknown; author?: unknown };
-    if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ success: false, error: 'text is required' });
-    if (typeof rating !== 'number' || rating < 1 || rating > 5) return res.status(400).json({ success: false, error: 'rating (1-5) is required' });
+const RATING_REQUIRED = 'rating (1-5) is required';
+const DraftReplyBody = z.object({
+    // ASSUMPTION: 4000 chars covers any Google review (they cap around 4096) and bounds LLM input cost.
+    text: requiredText(4000, 'text is required'),
+    rating: z.number({ required_error: RATING_REQUIRED, invalid_type_error: RATING_REQUIRED })
+        .min(1, RATING_REQUIRED).max(5, RATING_REQUIRED),
+    author: optionalText(120),
+});
+
+router.post('/reviews/draft-reply', validateBody(DraftReplyBody), handle(async (req: Request, res: Response<ApiResponse<DraftReplyOutput>>) => {
+    const { text, rating, author } = req.body as z.infer<typeof DraftReplyBody>;
     const restaurant = await findRestaurantById(restaurantId(req));
     const out = await draftReviewReply({
         restaurantName: restaurant?.name ?? 'our restaurant',
-        review: { text: text.trim(), rating, ...(typeof author === 'string' && author.trim() ? { author: author.trim() } : {}) },
+        review: { text, rating, ...(author ? { author } : {}) },
         voice: { ...(restaurant?.cuisine ? { cuisine: restaurant.cuisine } : {}) },
     });
     res.json({ success: true, data: out });
@@ -221,27 +230,25 @@ router.get('/places/search', handle(async (req: Request, res: Response<ApiRespon
 // POST /scan — start an async scan (async job, fire-and-forget)
 // ============================================================
 
-router.post('/scan', handle(async (req: Request, res: Response<ApiResponse<{ scanId: string }>>) => {
+// Every field is optional (defaults come from the profile); the schema only
+// normalises shape so the handler never sees non-strings or unbounded text.
+const ScanBody = z.object({
+    name: optionalText(120),
+    city: optionalText(80),
+    placeId: optionalText(200),
+    force: z.unknown().optional(),
+});
+
+router.post('/scan', validateBody(ScanBody), handle(async (req: Request, res: Response<ApiResponse<{ scanId: string }>>) => {
     const rid = restaurantId(req);
-    const { name, city, force, placeId } = (req.body ?? {}) as {
-        name?: unknown;
-        city?: unknown;
-        force?: unknown;
-        placeId?: unknown;
-    };
+    const { name, city, force, placeId } = req.body as z.infer<typeof ScanBody>;
 
     // Defaults from the restaurant profile.
     const restaurant = await findRestaurantById(rid);
-    const scanName = typeof name === 'string' && name.trim() ? name.trim() : restaurant?.name;
-    const scanCity =
-        typeof city === 'string' && city.trim()
-            ? city.trim()
-            : await cityDisplayName(restaurant);
+    const scanName = name ?? restaurant?.name;
+    const scanCity = city ?? await cityDisplayName(restaurant);
     // Brief 10: confirmed placeId from the picker (request) → else the saved profile id.
-    const scanPlaceId =
-        typeof placeId === 'string' && placeId.trim()
-            ? placeId.trim()
-            : restaurant?.googlePlaceId;
+    const scanPlaceId = placeId ?? restaurant?.googlePlaceId;
 
     if (!scanName || !scanCity) {
         return res.status(400).json({
@@ -600,24 +607,24 @@ router.get('/new-openings', handle(async (req: Request, res: Response<ApiRespons
 }));
 
 // ---- POST /zomato-manual ----
-router.post('/zomato-manual', handle(async (req: Request, res: Response<ApiResponse<{ snapshotWritten: boolean }>>) => {
+// Numbers may arrive as numeric strings from form inputs, so coerce like the
+// previous Number(...) parsing did; messages and the 422 status are unchanged.
+const nonNegativeInt = (field: string) => {
+    const msg = `${field} must be a non-negative integer`;
+    return z.coerce.number({ invalid_type_error: msg }).int(msg).min(0, msg);
+};
+const ZOMATO_RATING = 'rating must be between 0 and 5';
+const ZomatoManualBody = z.object({
+    target: optionalText(200).transform((t) => t ?? 'self'),
+    rating: z.coerce.number({ invalid_type_error: ZOMATO_RATING })
+        .min(0, ZOMATO_RATING).max(5, ZOMATO_RATING),
+    reviewCount: nonNegativeInt('reviewCount'),
+    photoCount: nonNegativeInt('photoCount'),
+});
+
+router.post('/zomato-manual', validateBody(ZomatoManualBody, { status: 422 }), handle(async (req: Request, res: Response<ApiResponse<{ snapshotWritten: boolean }>>) => {
     const rid = restaurantId(req);
-    const body = (req.body ?? {}) as { target?: unknown; rating?: unknown; reviewCount?: unknown; photoCount?: unknown };
-
-    const target = typeof body.target === 'string' && body.target.trim() ? body.target.trim() : 'self';
-    const rating = Number(body.rating);
-    const reviewCount = Number(body.reviewCount);
-    const photoCount = Number(body.photoCount);
-
-    if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
-        return res.status(422).json({ success: false, error: 'rating must be between 0 and 5' });
-    }
-    if (!Number.isInteger(reviewCount) || reviewCount < 0) {
-        return res.status(422).json({ success: false, error: 'reviewCount must be a non-negative integer' });
-    }
-    if (!Number.isInteger(photoCount) || photoCount < 0) {
-        return res.status(422).json({ success: false, error: 'photoCount must be a non-negative integer' });
-    }
+    const { target, rating, reviewCount, photoCount } = req.body as z.infer<typeof ZomatoManualBody>;
 
     // Resolve the target placeId (self shares the Google self placeId).
     let captureTarget: CaptureTarget;
