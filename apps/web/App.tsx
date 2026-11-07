@@ -1,27 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Layout from './components/Layout';
-import ContentStudio from './components/ContentStudio';
-import Intelligence from './components/Intelligence';
 import { shellBucketToView, type DeepLinkTarget } from './components/intelligence/sections/deep-links';
 import { announceNotificationsSeen, requestIntelNav, INTEL_NOTIFICATIONS_SEEN_EVENT } from './components/intelligence/sections/notifications';
 import type { IntelligenceNotification } from '@restropulse/shared';
 import { track } from './components/intelligence/sections/track';
-import Inputs from './components/Inputs';
-import Strategy from './components/Strategy';
-import ProfileSheet from './components/ProfileSheet';
 import AdhocPostModal from './components/AdhocPostModal';
 import Login from './components/Login';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstagramCallback from './components/InstagramCallback';
-import Onboarding from './components/Onboarding';
 import Landing from './components/Landing';
-import Grader from './components/Grader';
 import Paywall from './components/Paywall';
-import PrivacyPolicy from './components/PrivacyPolicy';
-import TermsOfService from './components/TermsOfService';
+import { lazyWithReload } from './utils/lazy-with-reload';
 import { ViewState, Restaurant, User, Post, FeatureFlags, Platform, WebThemeName, EntitlementState } from '@restropulse/shared';
 import { authAPI, restaurantAPI, postsAPI, configAPI, subscriptionAPI, intelligenceAPI } from './api';
 import { trackPageView, browserEvents } from '@restropulse/telemetry/browser';
+
+// Route-level code splitting (P0-6). Each view is its own chunk so the first
+// load ships only the shell plus the view being opened. Login, Landing and
+// Paywall stay eager: they are first-paint screens. Onboarding (new users
+// only) and ProfileSheet carry the Google Maps SDK, so they split out too;
+// ProfileSheet is mounted closed, so its chunk loads right after first paint.
+const Intelligence = lazyWithReload(() => import('./components/Intelligence'));
+const ContentStudio = lazyWithReload(() => import('./components/ContentStudio'));
+const Inputs = lazyWithReload(() => import('./components/Inputs'));
+const Strategy = lazyWithReload(() => import('./components/Strategy'));
+const Grader = lazyWithReload(() => import('./components/Grader'));
+const PrivacyPolicy = lazyWithReload(() => import('./components/PrivacyPolicy'));
+const TermsOfService = lazyWithReload(() => import('./components/TermsOfService'));
+const Onboarding = lazyWithReload(() => import('./components/Onboarding'));
+const ProfileSheet = lazyWithReload(() => import('./components/ProfileSheet'));
+
+function ViewFallback() {
+    return (
+        <div role="status" aria-live="polite" className="flex items-center justify-center py-24 text-sm text-slate-500">
+            Loading...
+        </div>
+    );
+}
 
 function getUserInitials(name: string): string {
     return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
@@ -427,15 +442,15 @@ const App: React.FC = () => {
 
     // Public static pages render immediately, independent of auth/session state.
     if (staticPage === 'privacy-policy') {
-        return <PrivacyPolicy onBack={() => { window.location.href = '/'; }} />;
+        return <Suspense fallback={<ViewFallback />}><PrivacyPolicy onBack={() => { window.location.href = '/'; }} /></Suspense>;
     }
     if (staticPage === 'terms') {
-        return <TermsOfService onBack={() => { window.location.href = '/'; }} />;
+        return <Suspense fallback={<ViewFallback />}><TermsOfService onBack={() => { window.location.href = '/'; }} /></Suspense>;
     }
 
     // Public lead-gen grader (?view=grader) — no auth, its own page entirely.
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'grader') {
-        return <Grader />;
+        return <ErrorBoundary><Suspense fallback={<ViewFallback />}><Grader /></Suspense></ErrorBoundary>;
     }
 
     if (loading) {
@@ -503,6 +518,7 @@ const App: React.FC = () => {
     if (currentView === 'ONBOARDING') {
         return (
             <ErrorBoundary>
+                <Suspense fallback={<ViewFallback />}>
                 <Onboarding
                     onComplete={async (restaurant) => {
                         setRestaurantData(restaurant);
@@ -512,6 +528,7 @@ const App: React.FC = () => {
                         setCurrentView('DASHBOARD');
                     }}
                 />
+                </Suspense>
             </ErrorBoundary>
         );
     }
@@ -536,11 +553,14 @@ const App: React.FC = () => {
                 onNotificationsOpen={handleNotificationsOpen}
                 onNotificationClick={handleNotificationClick}
             >
-                {renderView()}
+                <Suspense fallback={<ViewFallback />}>
+                    {renderView()}
+                </Suspense>
             </Layout>
 
             {/* Profile Sheet */}
             {restaurantData && (
+                <Suspense fallback={null}>
                 <ProfileSheet
                     isOpen={isProfileOpen}
                     onClose={() => { setIsProfileOpen(false); setAutoOpenInstagramSetup(false); setAutoOpenSubscription(false); }}
@@ -558,6 +578,7 @@ const App: React.FC = () => {
                     instagramEnabled={instagramEnabled}
                     facebookEnabled={facebookEnabled}
                 />
+                </Suspense>
             )}
 
             {/* Adhoc Post Modal */}
