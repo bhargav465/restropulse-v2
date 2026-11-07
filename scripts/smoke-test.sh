@@ -85,6 +85,25 @@ case "$SERVICE" in
       echo "Web smoke test failed. Response does not contain root div."
       exit 1
     fi
+    # Robots policy: staging must send X-Robots-Tag noindex; production must not.
+    # EXPECT_NOINDEX=true|false is set by the deploy workflow. Unset -> skip.
+    if [ -n "${EXPECT_NOINDEX:-}" ]; then
+      HEADERS=$(curl --silent --show-error --head --connect-timeout 10 --max-time 30 \
+        --retry "$MAX_RETRIES" --retry-delay "$RETRY_DELAY" --retry-all-errors "${BASE_URL}" || true)
+      HAS_NOINDEX=false
+      if echo "$HEADERS" | grep -qi '^x-robots-tag:.*noindex'; then
+        HAS_NOINDEX=true
+      fi
+      if [ "$EXPECT_NOINDEX" = "true" ] && [ "$HAS_NOINDEX" != "true" ]; then
+        echo "Web smoke test failed. Staging must send X-Robots-Tag: noindex but did not."
+        exit 1
+      fi
+      if [ "$EXPECT_NOINDEX" = "false" ] && [ "$HAS_NOINDEX" = "true" ]; then
+        echo "Web smoke test failed. Production is sending X-Robots-Tag: noindex."
+        exit 1
+      fi
+      echo "Robots policy check passed (noindex expected=${EXPECT_NOINDEX}, present=${HAS_NOINDEX})."
+    fi
     if [ -n "$EXPECTED_GIT_SHA" ]; then
       for attempt in $(seq 1 "$SHA_CHECK_RETRIES"); do
         if ! CONFIG_RESPONSE=$(request "${BASE_URL}/config.json" 2>/dev/null); then

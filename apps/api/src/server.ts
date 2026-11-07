@@ -25,6 +25,8 @@ import configRoutes from './routes/config.js';
 import accountRoutes from './routes/account.js';
 import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
+import { securityHeaders } from './middleware/security-headers.js';
+import { createGlobalApiLimiter } from './middleware/rate-limit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,6 +130,15 @@ const CORS_ORIGIN = env.CORS_ORIGIN;
 // Initialize Firebase Admin SDK (optional - for production auth)
 initializeFirebaseAdmin();
 
+// App Service's front end is the single proxy hop in front of Node. Trusting
+// exactly one hop makes req.ip the real client (from X-Forwarded-For) without
+// letting a client spoof it by sending its own X-Forwarded-For chain.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// Security headers on every response (see middleware/security-headers.ts).
+app.use(securityHeaders());
+
 // Serve static content from public directory
 app.use('/content', express.static(path.join(__dirname, '../public')));
 
@@ -160,6 +171,10 @@ app.get('/health', (_req: Request, res: Response) => {
     });
 });
 
+// Global per-IP budget for /api, shared across instances via MongoDB.
+// Mounted before every router; webhooks are exempt inside the limiter.
+app.use('/api', createGlobalApiLimiter());
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/restaurant', restaurantRoutes);
@@ -173,7 +188,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
-// Public lead-gen grader — deliberately unauthenticated; rate-limited inside.
+// Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);
 
 // Dev-only: proxy /dev-assets/* to the content-engine asset server (port 3002).

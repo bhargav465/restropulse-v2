@@ -76,6 +76,8 @@ packages/
 - API returns `{ success: boolean, data?: T, error?: string }` (ApiResponse type)
 - HTTP status codes: 200 (success), 201 (created), 400 (bad request), 401 (unauthorized), 404 (not found), 500 (server error)
 - All async route handlers must catch errors and return proper ApiResponse
+- Validate request bodies with zod via `validateBody(schema)` from `apps/api/src/middleware/validate.ts`; put human-readable messages in the schema (the SPA shows `error` verbatim)
+- Per-route limits use `createRateLimiter` from `apps/api/src/middleware/rate-limit.ts` (MongoDB-backed); do not add new in-memory limiters
 - Runtime policy for Node services: `uncaughtException` and `unhandledRejection` are logged and terminate the process; SIGINT/SIGTERM perform graceful shutdown
 
 ### No Special Characters
@@ -98,6 +100,7 @@ packages/
 - Database name: `restropulse`
 - Collections: users, restaurants, posts, contentStrategies, strategyCycles, accountManagers, subscriptionPlans, subscriptions, coupons, couponRedemptions, creditPurchases, creditPacks, invoices
 - Restaurant Intelligence collections: intelligenceScans, intelligenceReports, competitorCache (7d TTL), intelligenceSnapshots, nearbySightings, zomatoManualEntries, events (see `docs/INTELLIGENCE_BACKEND_CHANGES.md`)
+- API rate limiting collection: rateLimits (MongoDB-backed counters shared across instances; see `apps/api/src/middleware/rate-limit.ts`)
 - Document IDs: Support both ObjectId and custom string IDs (e.g., `r1` for seed data)
 - Connection: Always use `@restropulse/db` singleton -- never create separate MongoClient instances
 
@@ -166,10 +169,10 @@ Full setup details: `docs/MCP-SETUP.md`
 
 ## CI/CD
 
-- **CI workflow** (`ci.yml`): Runs on PRs to `main`/`staging`. Uses path-based change detection to skip irrelevant jobs. `ci-complete` is the single required status check.
+- **CI workflow** (`ci.yml`): Runs on PRs to and pushes to `staging`/`main`/`baxeltech-staging`, plus manual dispatch. Uses path-based change detection to skip irrelevant jobs. `ci-complete` is the single required status check.
 - **Staging deploy** (`deploy-staging.yml`): Auto-deploys on push to `staging`. Builds once, deploys artifacts to Azure (SWA for web, App Service for API + Linux startup script that launches API + workers).
 - **Production deploy** (`deploy-production.yml`): Manual `workflow_dispatch` with a staging tag. Requires environment approval.
-- **Coverage gate**: PRs enforce coverage thresholds from `config/coverage-baseline.json` (85% lines/branches/functions for web, api, content-engine). Publisher is excluded.
+- **Coverage gate**: PRs enforce floors from `config/coverage-baseline.json` (measured value at last reset, ratcheted up over time; new code ships >=85% on its own files). Publisher is excluded.
 - **Branching model**: Feature branches -> PR to `staging` -> PR to `main` (production promotion).
 - **No MongoDB service container in CI**: All tests use `mongodb-memory-server` in-process.
 - **OIDC auth**: Deploy jobs use Workload Identity Federation (no publish profiles or SWA API tokens stored as secrets). `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` are GitHub environment variables.
