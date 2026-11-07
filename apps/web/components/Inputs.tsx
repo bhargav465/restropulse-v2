@@ -6,6 +6,7 @@ import { ActionNotice } from './ActionNotice';
 import ConfirmDialog from './ConfirmDialog';
 import PageContainer from './ui/PageContainer';
 import { useHistoryModal } from '../hooks/useHistoryModal';
+import { formatCalendarDate } from '../utils/format-date';
 
 interface InputsProps {
     restaurantData: Restaurant;
@@ -296,7 +297,7 @@ const Inputs: React.FC<InputsProps> = ({ restaurantData, onRefresh }) => {
                                 <div className="flex justify-between items-start">
                                     <p className="font-bold text-slate-800 text-sm flex items-center gap-2">
                                         <CalendarCheck size={14} className="text-blue-500" />
-                                        Last updated: {new Date(menuUpdated).toLocaleDateString()}
+                                        Last updated: {formatCalendarDate(menuUpdated)}
                                     </p>
                                 </div>
                             ) : (
