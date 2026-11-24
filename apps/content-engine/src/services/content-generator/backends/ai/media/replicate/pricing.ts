@@ -11,6 +11,8 @@ export interface ReplicateModelPricing {
 export const REPLICATE_PRICING: Record<string, ReplicateModelPricing> = {
   'black-forest-labs/flux-dev': { usdPerCall: 0.025 },
   'kwaivgi/kling-v1.6-standard': { usdPerCall: 0.28 },
+  // ASSUMPTION: list price for one ~6s clip; confirm on replicate.com before launch.
+  'minimax/video-01': { usdPerCall: 0.5 },
 };
 
 export function computeReplicateCostUsd(modelSlug: string): number {

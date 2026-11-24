@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@restropulse/telemetry/server', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+  trackEvent: vi.fn(),
 }));
 
 const dbMocks = vi.hoisted(() => ({
@@ -30,8 +31,8 @@ const baseRunningJob = {
 const post = { id: 'p1', mediaJobId: 'job_v1', restaurantId: 'r1' };
 
 describe('pollMediaJob', () => {
-  it('reaps stale RUNNING jobs (>10 min) as FAILED and marks post FAILED', async () => {
-    const stale = { ...baseRunningJob, startedAt: new Date(Date.now() - 11 * 60 * 1000) };
+  it('reaps stale RUNNING jobs (>20 min) with no stored request as FAILED and marks post FAILED', async () => {
+    const stale = { ...baseRunningJob, startedAt: new Date(Date.now() - 21 * 60 * 1000) };
     const store = {
       findById: vi.fn(async () => stale),
       updateStatus: vi.fn(async () => ({ ...stale, status: 'FAILED' })),
@@ -43,7 +44,7 @@ describe('pollMediaJob', () => {
 
     expect(store.updateStatus).toHaveBeenCalledWith('job_v1', expect.objectContaining({ status: 'FAILED' }));
     expect(media.pollJob).not.toHaveBeenCalled();
-    expect(dbMocks.markPostFailedWithMedia).toHaveBeenCalledWith('p1', expect.stringMatching(/stale|10/i));
+    expect(dbMocks.markPostFailedWithMedia).toHaveBeenCalledWith('p1', expect.stringMatching(/stale/i));
   });
 
   it('delegates to media.pollJob for fresh RUNNING jobs', async () => {
