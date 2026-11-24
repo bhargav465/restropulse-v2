@@ -301,6 +301,7 @@ export function renderTracking(ctx: PageContext, orderId: string): string {
         body: `<section class="rp-section rp-track" data-track data-order-id="${esc(orderId)}" aria-live="polite">
   <h1>Your order</h1>
   <p class="rp-muted" data-track-status>Loading your order...</p>
+  <p class="rp-muted" data-track-rider hidden></p>
   <ol class="rp-timeline" data-track-timeline></ol>
   <dl class="rp-totals" data-track-totals></dl>
   <p class="rp-error" role="alert" data-error></p>

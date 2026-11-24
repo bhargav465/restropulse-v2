@@ -17,10 +17,11 @@ import {
     DuplicateRestaurantSlugError,
     findOrderById,
     findOrders,
+    findShipmentsForOrders,
     findRestaurantById,
     updateRestaurantOrdering,
 } from '@restropulse/db';
-import type { ApiResponse, OrderStatus, Restaurant } from '@restropulse/shared';
+import type { ApiResponse, OrderStatus, Restaurant, Shipment } from '@restropulse/shared';
 import {
     ACTIVE_ORDER_STATUSES,
     isOrderStatus,
@@ -70,8 +71,15 @@ router.get('/', validateQuery(FeedQuery), handle(async (req, res: Response<ApiRe
         ...(q.since ? { since: new Date(q.since) } : {}),
         ...(q.limit ? { limit: q.limit } : {}),
     });
+    // Rider status for delivery orders, so the board can show it without a call per order.
+    const deliveryIds = orders.filter((o) => o.orderType === 'delivery').map((o) => o.id);
+    const shipments = new Map<string, Shipment>((await findShipmentsForOrders(rid(req), deliveryIds)).map((s) => [s.orderId, s]));
+    const withDelivery = orders.map((o) => {
+        const s = shipments.get(o.id);
+        return { ...strip(o), ...(s ? { delivery: { status: s.status, provider: s.provider, ...(s.carrier ? { carrier: s.carrier } : {}) } } : {}) };
+    });
     // serverTime is the next poll's ?since (the dashboard's clock may drift).
-    res.json({ success: true, data: { orders: orders.map(strip), serverTime: new Date().toISOString() } });
+    res.json({ success: true, data: { orders: withDelivery, serverTime: new Date().toISOString() } });
 }));
 
 function settingsView(restaurant: Restaurant) {

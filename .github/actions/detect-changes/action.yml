@@ -23,6 +23,9 @@ outputs:
   sites:
     description: Whether the restaurant sites host or its dependencies changed
     value: ${{ steps.combine.outputs.sites }}
+  delivery:
+    description: Whether the delivery package, the dispatch worker or their dependencies changed
+    value: ${{ steps.combine.outputs.delivery }}
   docs-only:
     description: Whether only documentation files changed
     value: ${{ steps.combine.outputs.docs-only }}
@@ -52,6 +55,8 @@ runs:
             - 'apps/intelligence-worker/**'
           sites:
             - 'apps/sites/**'
+          delivery:
+            - 'apps/dispatch-worker/**'
           src:
             - 'apps/**'
             - 'packages/**'
@@ -73,5 +78,6 @@ runs:
         echo "content-engine=${{ steps.filter.outputs.content-engine == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         echo "intelligence-worker=${{ steps.filter.outputs.intelligence-worker == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         echo "sites=${{ steps.filter.outputs.sites == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
+        echo "delivery=${{ steps.filter.outputs.delivery == 'true' || steps.filter.outputs.packages == 'true' }}" >> "$GITHUB_OUTPUT"
         # docs-only is true when no source/config/workflow files changed
         echo "docs-only=${{ steps.filter.outputs.src == 'false' }}" >> "$GITHUB_OUTPUT"

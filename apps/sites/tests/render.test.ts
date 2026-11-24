@@ -197,6 +197,7 @@ describe('other pages', () => {
         expect(out).toContain('<meta name="robots" content="noindex">');
         expect(out).toContain('data-order-id="ord1"');
         expect(out).toContain('"page":"track"');
+        expect(out).toContain('data-track-rider hidden');
     });
 
     it('plain pages', () => {

@@ -8,11 +8,13 @@ import type {
     MenuCategory, OrderingMenuItem, MenuItemAvailability, MenuItemVariant, MenuItemAddon,
     Offer, OfferReward, OfferScope, OfferSchedule, OfferStatus, StorefrontContent,
     Order, OrderStatus, RestaurantOrderingSettings, RestaurantDomainStatus, RestaurantDomainSslStatus,
+    DeliveryProviderId, DeliveryProviderInfo, RestaurantDeliverySettings, Shipment, ShipmentStatus,
 } from '@restropulse/shared';
 import { intelligenceAPI as demoIntelligenceAPI } from './demo-api-intelligence';
 import { cmsAPI as demoCmsAPI } from './demo-api-cms';
 import { ordersAPI as demoOrdersAPI } from './demo-api-orders';
 import { sitesAPI as demoSitesAPI } from './demo-api-sites';
+import { deliveryAPI as demoDeliveryAPI } from './demo-api-delivery';
 import { isDemoMode } from './lib/demo';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
@@ -1044,8 +1046,15 @@ export { realCmsAPI };
 // Online orders (Phase 2 M2) -- /api/admin/orders
 // ============================================
 
+/** Rider status the feed attaches to delivery orders (Phase 2 M4). */
+export interface AdminOrderDelivery {
+    status: ShipmentStatus;
+    provider: DeliveryProviderId;
+    carrier?: string;
+}
+
 /** An order as the dashboard sees it (the customer's tracking token stays server-side). */
-export type AdminOrder = Omit<Order, 'trackingToken' | 'idempotencyKey'>;
+export type AdminOrder = Omit<Order, 'trackingToken' | 'idempotencyKey'> & { delivery?: AdminOrderDelivery };
 
 export interface OrderFeed {
     orders: AdminOrder[];
@@ -1087,6 +1096,47 @@ const realOrdersAPI = {
 // Demo twin: in-memory [SAMPLE] orders that move when the demo merchant acts.
 export const ordersAPI: typeof realOrdersAPI = isDemoMode() ? (demoOrdersAPI as typeof realOrdersAPI) : realOrdersAPI;
 export { realOrdersAPI };
+
+// ----- Rider dispatch (Phase 2 M4) -- /api/admin/delivery -----
+
+export interface DeliverySettingsView {
+    settings: RestaurantDeliverySettings;
+    /** Partners this server can use (own riders always). */
+    providers: DeliveryProviderInfo[];
+}
+
+export interface OrderRiderView {
+    shipment: Shipment | null;
+    /** A dispatch or cancel waiting for the dispatch worker. */
+    queued: 'dispatch' | 'cancel' | null;
+    /** Why the last dispatch gave up, if it did. */
+    lastError: string | null;
+    /** The order's status after an own-rider update. */
+    orderStatus?: OrderStatus;
+}
+
+export type OwnRiderStep = 'RIDER_ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED';
+
+const realDeliveryAPI = {
+    getSettings: async (): Promise<DeliverySettingsView> =>
+        (await fetchAPI<ApiResponse<DeliverySettingsView>>('/admin/delivery/settings')).data!,
+    saveSettings: async (settings: RestaurantDeliverySettings): Promise<DeliverySettingsView> =>
+        (await fetchAPI<ApiResponse<DeliverySettingsView>>('/admin/delivery/settings', cmsJson('PUT', settings))).data!,
+    getRider: async (orderId: string): Promise<OrderRiderView> =>
+        (await fetchAPI<ApiResponse<OrderRiderView>>(`/admin/delivery/orders/${orderId}`)).data!,
+    findRider: async (orderId: string): Promise<OrderRiderView> =>
+        (await fetchAPI<ApiResponse<OrderRiderView>>(`/admin/delivery/orders/${orderId}/dispatch`, { method: 'POST' })).data!,
+    useOwnRider: async (orderId: string): Promise<OrderRiderView> =>
+        (await fetchAPI<ApiResponse<OrderRiderView>>(`/admin/delivery/orders/${orderId}/own-rider`, { method: 'POST' })).data!,
+    updateOwnRider: async (orderId: string, input: { status: OwnRiderStep; riderName?: string; riderPhone?: string }): Promise<OrderRiderView> =>
+        (await fetchAPI<ApiResponse<OrderRiderView>>(`/admin/delivery/orders/${orderId}/rider`, cmsJson('POST', input))).data!,
+    cancelRider: async (orderId: string, reason: string): Promise<OrderRiderView> =>
+        (await fetchAPI<ApiResponse<OrderRiderView>>(`/admin/delivery/orders/${orderId}/cancel`, cmsJson('POST', { reason }))).data!,
+};
+
+// Demo twin: own riders plus the test partner, moving on the demo merchant's clicks.
+export const deliveryAPI: typeof realDeliveryAPI = isDemoMode() ? (demoDeliveryAPI as typeof realDeliveryAPI) : realDeliveryAPI;
+export { realDeliveryAPI };
 
 // ----- Restaurant website + own domains (Phase 2 M3) -----
 

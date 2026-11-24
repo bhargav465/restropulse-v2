@@ -26,9 +26,10 @@ import {
     findRestaurantBySlug,
     findSiteOffers,
     findStorefrontContent,
+    findShipmentForOrder,
 } from '@restropulse/db';
 import type { ApiResponse, Restaurant } from '@restropulse/shared';
-import { describeOffer, isOfferLive, isValidRestaurantSlug, resolveOrderingSettings, toPublicOrder } from '@restropulse/shared';
+import { describeOffer, isOfferLive, isValidRestaurantSlug, resolveOrderingSettings, toPublicOrder, toPublicShipment } from '@restropulse/shared';
 import { createLogger } from '@restropulse/telemetry/server';
 import { handle } from '../middleware/async-handler.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
@@ -233,7 +234,9 @@ router.post('/:slug/orders/:id/payment/retry', writeLimiter, validateBody(TokenB
 router.get('/:slug/orders/:id', handle(async (req, res: Response<ApiResponse>) => {
     const order = await loadCustomerOrder(req, res, req.query.token);
     if (!order) return;
-    res.json({ success: true, data: { order: toPublicOrder(order) } });
+    // Rider progress for delivery orders (Phase 2, M4); never the rider's phone.
+    const shipment = order.orderType === 'delivery' ? await findShipmentForOrder(order.restaurantId, order.id) : null;
+    res.json({ success: true, data: { order: toPublicOrder(order), delivery: shipment ? toPublicShipment(shipment) : null } });
 }));
 
 export default router;

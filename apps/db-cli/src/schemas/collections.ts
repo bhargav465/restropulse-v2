@@ -631,6 +631,30 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { restaurantId: 1, createdAt: 1 } },
         ],
     },
+    // ----- Phase 2 M4: delivery (shipments, dispatch outbox, partner webhooks) -----
+    {
+        name: 'shipments',
+        indexes: [
+            { spec: { restaurantId: 1, orderId: 1, createdAt: -1 } },
+            { spec: { provider: 1, providerShipmentId: 1 }, options: { unique: true } },
+            { spec: { provider: 1, status: 1, updatedAt: 1 } },
+        ],
+    },
+    {
+        name: 'delivery_jobs',
+        indexes: [
+            { spec: { status: 1, nextRunAt: 1 } },
+            { spec: { openKey: 1 }, options: { unique: true, sparse: true } },
+            { spec: { restaurantId: 1, orderId: 1, createdAt: -1 } },
+        ],
+    },
+    {
+        name: 'delivery_webhook_events',
+        indexes: [
+            { spec: { provider: 1, eventId: 1 }, options: { unique: true } },
+            { spec: { receivedAt: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60 } },
+        ],
+    },
     // ----- Public Grader (Lead Generation) -----
     {
         name: 'graderScans',

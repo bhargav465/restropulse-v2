@@ -185,6 +185,8 @@ export interface Restaurant {
   slug?: string;
   /** Online-ordering settings (store open, order types, fees, tax). Absent = ordering off. */
   ordering?: Partial<import('./orders.js').RestaurantOrderingSettings>;
+  /** Rider dispatch for delivery orders (Phase 2, M4). Absent = no automatic dispatch. */
+  deliverySettings?: Partial<import('./delivery.js').RestaurantDeliverySettings>;
   /** Short restaurant bio used in AI content prompts and profile display. */
   description?: string;
   phone?: string;
@@ -674,3 +676,4 @@ export * from './cms.js';
 // Phase 2 M2: orders, status workflow and payments.
 export * from './orders.js';
 export * from './sites.js';
+export * from './delivery.js';

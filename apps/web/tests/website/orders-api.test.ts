@@ -69,4 +69,24 @@ describe('sitesAPI (real client)', () => {
         await realSitesAPI.removeDomain('d1');
         expect(call(3)).toMatchObject({ url: 'http://localhost:3001/api/admin/sites/domains/d1', method: 'DELETE' });
     });
+
+    it('talks to the rider dispatch routes', async () => {
+        const { realDeliveryAPI } = await import('../../api');
+        mockFetch.mockResolvedValue(ok({ shipment: null, queued: null, lastError: null }));
+        await realDeliveryAPI.getSettings();
+        expect(call(0).url).toBe('http://localhost:3001/api/admin/delivery/settings');
+        const settings = { dispatchEnabled: true, dispatchAt: 'READY' as const, strategy: 'preferred' as const, providers: ['self' as const] };
+        await realDeliveryAPI.saveSettings(settings);
+        expect(call(1)).toMatchObject({ method: 'PUT', body: JSON.stringify(settings) });
+        await realDeliveryAPI.getRider('o1');
+        expect(call(2).url).toBe('http://localhost:3001/api/admin/delivery/orders/o1');
+        await realDeliveryAPI.findRider('o1');
+        expect(call(3)).toMatchObject({ url: 'http://localhost:3001/api/admin/delivery/orders/o1/dispatch', method: 'POST' });
+        await realDeliveryAPI.useOwnRider('o1');
+        expect(call(4)).toMatchObject({ url: 'http://localhost:3001/api/admin/delivery/orders/o1/own-rider', method: 'POST' });
+        await realDeliveryAPI.updateOwnRider('o1', { status: 'PICKED_UP' });
+        expect(call(5)).toMatchObject({ url: 'http://localhost:3001/api/admin/delivery/orders/o1/rider', method: 'POST', body: JSON.stringify({ status: 'PICKED_UP' }) });
+        await realDeliveryAPI.cancelRider('o1', 'Customer will collect');
+        expect(call(6)).toMatchObject({ url: 'http://localhost:3001/api/admin/delivery/orders/o1/cancel', method: 'POST', body: JSON.stringify({ reason: 'Customer will collect' }) });
+    });
 });
