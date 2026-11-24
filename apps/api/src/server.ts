@@ -11,6 +11,7 @@ import { connectDB, disconnectDB } from '@restropulse/db';
 import { createLogger, requestLoggingMiddleware, errorHandlerMiddleware, shutdownServerTelemetry, registerProcessGuards } from '@restropulse/telemetry/server';
 import { createSecretsProvider, hydrateEnvFromProvider, API_SECRET_KEYS } from '@restropulse/secrets';
 import { initializeFirebaseAdmin } from './services/firebase-admin.js';
+import { jwtSecretProblem } from './services/jwt.js';
 // NOTE: Cron jobs (publishing + token refresh) are now handled by apps/publisher
 import authRoutes from './routes/auth.js';
 import restaurantRoutes from './routes/restaurant.js';
@@ -31,6 +32,7 @@ import storefrontRoutes from './routes/storefront.js';
 import paymentWebhookRoutes from './routes/payment-webhooks.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
+import { createReadinessHandler } from './routes/health.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -127,6 +129,17 @@ if (env.NODE_ENV === 'development' && portConfig.strictInDevelopment && env.PORT
 }
 
 const log = createLogger('server');
+
+// Refuse to serve production with a guessable token-signing secret. Staging
+// only warns so an unconfigured staging slot still boots for testing.
+const jwtProblem = jwtSecretProblem(process.env.JWT_SECRET);
+if (jwtProblem && env.NODE_ENV === 'production') {
+    throw new Error(`${jwtProblem}. Set a random secret of at least 32 characters before starting in production.`);
+}
+if (jwtProblem && env.NODE_ENV === 'staging') {
+    log.error({}, `${jwtProblem}; tokens on this environment can be forged`);
+}
+
 const app: Express = express();
 const PORT = env.PORT;
 const CORS_ORIGIN = env.CORS_ORIGIN;
@@ -175,6 +188,11 @@ app.get('/health', (_req: Request, res: Response) => {
         },
     });
 });
+
+// Readiness: pings MongoDB; 503 when the API can't actually serve requests.
+// Use this for smoke tests and availability alerts; keep /health (liveness)
+// as the App Service health-check path so a DB outage doesn't recycle the app.
+app.get('/health/ready', createReadinessHandler());
 
 // Global per-IP budget for /api, shared across instances via MongoDB.
 // Mounted before every router; webhooks are exempt inside the limiter.

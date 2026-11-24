@@ -16,6 +16,7 @@ vi.mock('@restropulse/telemetry/server', () => {
     initServerTelemetry: vi.fn(),
     shutdownServerTelemetry: vi.fn(),
     trackAIUsage: vi.fn(),
+    trackEvent: vi.fn(),
   };
 });
 
@@ -55,7 +56,8 @@ describe('Stale-job recovery', () => {
       lastStepAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
     });
 
-    // Insert a stale RUNNING job (started 11 min ago)
+    // Insert a stale RUNNING job (started 21 min ago, past the 20 min attempt budget).
+    // No stored request, so it is not resumable and fails the post as before.
     await insertMediaJob({
       jobId: 'job_stale',
       providerJobId: 'req_stale',
@@ -66,7 +68,7 @@ describe('Stale-job recovery', () => {
       attempts: 1,
       restaurantId: 'r-stale',
       postId: post.id,
-      startedAt: new Date(Date.now() - 11 * 60 * 1000),
+      startedAt: new Date(Date.now() - 21 * 60 * 1000),
     });
 
     // Run the poller -- the runner should reap stale jobs WITHOUT calling Replicate
@@ -78,12 +80,52 @@ describe('Stale-job recovery', () => {
 
     const updatedJob = await findMediaJobById('job_stale');
     expect(updatedJob!.status).toBe('FAILED');
-    expect(updatedJob!.error).toMatch(/stale|10/i);
+    expect(updatedJob!.error).toMatch(/stale/i);
 
     const updatedPost = await findPostById(post.id);
     expect(updatedPost!.status).toBe('MISSED_DEADLINE');
     expect(updatedPost!.publishError).toContain('media-generation');
 
+    expect(noFetchClient.getPrediction).not.toHaveBeenCalled();
+  });
+  it('parks a stale resumable video job for another attempt and keeps the post PENDING_MEDIA', async () => {
+    const startedAt = new Date(Date.now() - 21 * 60 * 1000);
+    const post = await createPost({
+      type: 'REEL', status: 'PENDING_MEDIA',
+      thumbnail: '', caption: 'retry me', platforms: ['INSTAGRAM'],
+      restaurantId: 'r-stale',
+      mediaJobId: 'job_resumable',
+      lastStepAt: startedAt.toISOString(),
+    });
+    await insertMediaJob({
+      jobId: 'job_resumable',
+      providerJobId: 'req_resumable',
+      provider: 'replicate',
+      modelId: 'kwaivgi/kling-v1.6-standard',
+      postType: 'REEL',
+      status: 'RUNNING',
+      attempts: 1,
+      request: { prompt: 'Chef plating biryani' },
+      restaurantId: 'r-stale',
+      postId: post.id,
+      startedAt,
+      firstStartedAt: startedAt,
+    });
+
+    const noFetchClient = { createPrediction: vi.fn(), getPrediction: vi.fn() };
+    const store = new MongoMediaJobStore();
+    const media = new ReplicateMediaGenerator({ client: noFetchClient as any, store });
+
+    await processMediaJobs({ store, media });
+
+    const job = await findMediaJobById('job_resumable');
+    expect(job!.status).toBe('PENDING');
+    expect(job!.attemptHistory).toHaveLength(1);
+    expect(job!.attemptHistory![0]!.errorClass).toBe('retryable');
+    expect(new Date(job!.nextAttemptAt!).getTime()).toBeGreaterThan(Date.now());
+
+    const stillPending = await findPostById(post.id);
+    expect(stillPending!.status).toBe('PENDING_MEDIA');
     expect(noFetchClient.getPrediction).not.toHaveBeenCalled();
   });
 });

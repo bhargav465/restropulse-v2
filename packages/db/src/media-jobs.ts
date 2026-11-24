@@ -30,7 +30,10 @@ export async function findMediaJobById(jobId: string): Promise<MediaJobRecord | 
 export type MediaJobUpdatable = Partial<
   Pick<
     MediaJobRecord,
-    'status' | 'mediaUrl' | 'mediaUrls' | 'thumbnail' | 'metadata' | 'error' | 'lastPolledAt' | 'completedAt'
+    | 'status' | 'mediaUrl' | 'mediaUrls' | 'thumbnail' | 'metadata' | 'error' | 'lastPolledAt' | 'completedAt'
+    // Video retries (A3): a resubmission moves the same job to a new provider
+    // prediction, so these change too.
+    | 'providerJobId' | 'modelId' | 'attempts' | 'startedAt' | 'nextAttemptAt' | 'attemptHistory'
   >
 >;
 

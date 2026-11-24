@@ -17,7 +17,12 @@ import { createLogger } from '@restropulse/telemetry/server';
 import type { PostType, MediaJobRecord } from '@restropulse/shared';
 import { withRetry, RETRY_PROFILES } from '../../with-retry.js';
 import { withCostTracking } from '../../with-cost-tracking.js';
-import { REPLICATE_MODELS } from './models.js';
+import {
+  REPLICATE_MODELS,
+  PRIMARY_VIDEO_MODEL,
+  ALTERNATE_VIDEO_MODEL,
+  buildVideoPredictionInput,
+} from './models.js';
 import { computeReplicateCostUsd } from './pricing.js';
 import type { ReplicateClient, ReplicatePrediction } from './replicate-client.js';
 import type { IMediaJobStore } from '../jobs/types.js';
@@ -84,19 +89,19 @@ export class ReplicateMediaGenerator implements IMediaGenerator {
 
   async generateVideo(input: VideoGenInput): Promise<MediaGenJob> {
     const jobId = randomUUID();
-    const modelSlug = REPLICATE_MODELS.klingStandard;
+    const modelSlug = PRIMARY_VIDEO_MODEL;
     const prompt = buildPrompt(input);
+    const startedAt = new Date();
 
     let prediction: ReplicatePrediction;
     try {
       prediction = await withRetry(
         () => withCostTracking(
           async () => {
-            const result = await this.client.createPrediction(modelSlug, {
-              prompt,
-              duration: 5,
-              aspect_ratio: '16:9',
-            });
+            const result = await this.client.createPrediction(
+              modelSlug,
+              buildVideoPredictionInput(modelSlug, prompt),
+            );
             return { result, usage: { costUsd: computeReplicateCostUsd(modelSlug) } };
           },
           {
@@ -121,10 +126,12 @@ export class ReplicateMediaGenerator implements IMediaGenerator {
         status: 'FAILED',
         error: (err as Error).message ?? 'unknown',
         attempts: 1,
+        request: { prompt },
         ...(input.restaurantId ? { restaurantId: input.restaurantId } : {}),
         ...(input.postId ? { postId: input.postId } : {}),
         ...(input.cycleId ? { cycleId: input.cycleId } : {}),
-        startedAt: new Date(),
+        startedAt,
+        firstStartedAt: startedAt,
       });
       return this.recordToJob(failed);
     }
@@ -137,12 +144,77 @@ export class ReplicateMediaGenerator implements IMediaGenerator {
       postType: input.postType,
       status: 'RUNNING',
       attempts: 1,
+      request: { prompt },
       ...(input.restaurantId ? { restaurantId: input.restaurantId } : {}),
       ...(input.postId ? { postId: input.postId } : {}),
       ...(input.cycleId ? { cycleId: input.cycleId } : {}),
-      startedAt: new Date(),
+      startedAt,
+      firstStartedAt: startedAt,
     });
     return this.recordToJob(record);
+  }
+
+  /**
+   * Resubmits a video job the poller parked as PENDING after a failed
+   * attempt. The job keeps its jobId (the post points at it) and moves to a
+   * new provider prediction. One submission only: the poller's backoff is
+   * the retry loop, so this does not wrap the call in withRetry. Every
+   * submission writes a cost event, retries included.
+   */
+  async retryVideoJob(jobId: string, options: { useAlternateModel: boolean }): Promise<MediaGenJob> {
+    const record = await this.store.findById(jobId);
+    if (!record) return { jobId, status: 'FAILED', error: 'job not found' };
+    if (record.status !== 'PENDING' || !record.request?.prompt) return this.recordToJob(record);
+
+    const attempt = (record.attempts ?? 1) + 1;
+    const modelSlug = options.useAlternateModel ? ALTERNATE_VIDEO_MODEL : PRIMARY_VIDEO_MODEL;
+    const startedAt = new Date();
+
+    try {
+      const prediction = await withCostTracking(
+        async () => {
+          const result = await this.client.createPrediction(
+            modelSlug,
+            buildVideoPredictionInput(modelSlug, record.request!.prompt),
+          );
+          return { result, usage: { costUsd: computeReplicateCostUsd(modelSlug) } };
+        },
+        {
+          ...(record.restaurantId ? { restaurantId: record.restaurantId } : {}),
+          ...(record.postId ? { postId: record.postId } : {}),
+          ...(record.cycleId ? { cycleId: record.cycleId } : {}),
+          operation: 'generatePost',
+          surface: 'video',
+          step: 'video-retry-submit',
+          model: modelSlug,
+        },
+      );
+      const updated = await this.store.updateStatus(jobId, {
+        status: 'RUNNING',
+        providerJobId: prediction.id,
+        modelId: modelSlug,
+        attempts: attempt,
+        startedAt,
+        nextAttemptAt: null,
+        lastPolledAt: startedAt,
+      });
+      log.info({ jobId, attempt, modelSlug }, 'Video job resubmitted');
+      return this.recordToJob(updated ?? record);
+    } catch (err) {
+      // The submission itself is this attempt's failure; the poller records it
+      // and decides whether another attempt follows.
+      log.warn({ err, jobId, attempt, modelSlug }, 'Video resubmission failed');
+      const updated = await this.store.updateStatus(jobId, {
+        status: 'FAILED',
+        modelId: modelSlug,
+        attempts: attempt,
+        startedAt,
+        nextAttemptAt: null,
+        error: (err as Error).message ?? 'unknown',
+        lastPolledAt: startedAt,
+      });
+      return this.recordToJob(updated ?? record);
+    }
   }
 
   async pollJob(jobId: string): Promise<MediaGenJob> {

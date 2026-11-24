@@ -89,4 +89,10 @@ export interface IMediaGenerator {
   generateVideo(input: VideoGenInput): Promise<MediaGenJob>;
   /** Phase 5: poll a previously-submitted job. Phase 2 impls return COMPLETED jobs immediately so this is a no-op for them. */
   pollJob(jobId: string): Promise<MediaGenJob>;
+  /**
+   * A3: resubmit a video job the poller parked as PENDING after a failed
+   * attempt. Optional: generators without long-running video never park a
+   * job, and the poller gives up on a job it cannot resubmit.
+   */
+  retryVideoJob?(jobId: string, options: { useAlternateModel: boolean }): Promise<MediaGenJob>;
 }

@@ -121,3 +121,26 @@ export function stripPIIFromUrl(url: string): string {
         return url;
     }
 }
+
+/**
+ * Sanitize custom-event properties (flat string map) before export.
+ *
+ * Redacts sensitive keys and email/JWT/bearer patterns, but NOT the phone
+ * heuristic: event properties are IDs, counts and costs, and a 7+ digit run
+ * (an ObjectId fragment, a long decimal cost) would otherwise be masked and
+ * break the per-restaurant cost workbooks.
+ */
+export function sanitizeEventProperties(props: Record<string, string>): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(props)) {
+        if (SENSITIVE_FIELDS.has(key.toLowerCase())) {
+            result[key] = '[REDACTED]';
+            continue;
+        }
+        result[key] = String(value)
+            .replace(EMAIL_PATTERN, '[EMAIL]')
+            .replace(TOKEN_PATTERN, '[TOKEN]')
+            .replace(BEARER_PATTERN, 'Bearer [REDACTED]');
+    }
+    return result;
+}

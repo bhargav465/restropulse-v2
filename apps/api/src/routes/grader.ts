@@ -11,6 +11,9 @@
 import express, { Request, Response } from 'express';
 import { handle } from '../middleware/async-handler.js';
 import { runGraderScan, unlockGraderScan, type GraderResult } from '../services/intelligence/grader.js';
+import { toLockedTeaser } from '../services/intelligence/grader-teaser.js';
+import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/require-role.js';
 import { searchPlaceCandidates } from '../services/intelligence/places.js';
 import type { PlaceCandidate } from '@restropulse/shared';
 import { createLogger, trackEvent } from '@restropulse/telemetry/server';
@@ -99,21 +102,8 @@ router.post('/scan', scanLimiter, validateBody(ScanBody), handle(async (req: Req
         return res.status(404).json({ success: false, error: `We couldn't find "${name}" on Google in ${city}. Try the exact name from your Google listing.` });
     }
     log.info({ scanId: result.scanId, score: result.score, problems: result.problems.length }, 'Grader scan completed');
-    // The locked response hides the details the unlock reveals — the numbers the
-    // teaser needs stay (score, loss, counts, top problem, top-3 board).
-    res.json({
-        success: true,
-        data: {
-            ...result,
-            problems: result.problems.slice(0, 4),
-            leaderboard: result.leaderboard.slice(0, 4),
-            searches: result.searches.map((s, i) => (i === 0 ? s : { ...s, topResult: '••••••', yourPosition: s.yourPosition })),
-            // Teaser keeps pillar grades but not the checks inside them, and
-            // holds back the new-openings intel entirely — that's the unlock.
-            pillars: result.pillars.map((p) => ({ ...p, checks: [] })),
-            likelyNew: [],
-        },
-    });
+    // The locked response hides what the unlock reveals; see toLockedTeaser.
+    res.json({ success: true, data: toLockedTeaser(result) });
 }));
 
 const UnlockBody = z.object({
@@ -213,11 +203,10 @@ router.get('/staticmap', imageLimiter, handle(async (req: Request, res: Response
 }));
 
 /**
- * Admin-gated: retrieve captured leads. Supports pagination for operator review.
- * Note: This route is NOT protected by requireAuth in this file. The deploy workflow
- * should mount this router behind API-level auth + admin role checking middleware.
+ * Admin only: captured leads (names, phones, emails) for operator review.
+ * The rest of this router is public, so the guard has to live on the route.
  */
-router.get('/leads', handle(async (req: Request, res: Response<ApiResponse<{ total: number; skip: number; limit: number; leads: unknown[] }>>) => {
+router.get('/leads', requireAuth, requireRole('ADMIN'), handle(async (req: Request, res: Response<ApiResponse<{ total: number; skip: number; limit: number; leads: unknown[] }>>) => {
     const skip = Math.max(0, Number(req.query.skip ?? 0));
     const limit = Math.min(1000, Number(req.query.limit ?? 50));
     const { getGraderLeads } = await import('../services/intelligence/grader.js');
