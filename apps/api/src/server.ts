@@ -25,6 +25,7 @@ import configRoutes from './routes/config.js';
 import accountRoutes from './routes/account.js';
 import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
+import adminCmsRoutes from './routes/admin-cms.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
 
@@ -188,6 +189,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/admin/cms', adminCmsRoutes);
 // Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);
 

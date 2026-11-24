@@ -200,7 +200,23 @@ router.put('/:id', requireAuth, handle(async (req: Request, res: Response<ApiRes
     // autoContentEnabled / dailyAdhocPostLimit are operator-configured (see
     // PATCH /:id/config below) -- excluded from this owner-editable passthrough
     // so a restaurant can't self-serve-raise its own daily post cap.
-    const { autoContentEnabled: _ignoredAutoContentEnabled, dailyAdhocPostLimit: _ignoredDailyAdhocPostLimit, ...allowedUpdates } = req.body;
+    // menuSource is server-owned (set by the CMS projection). Once a restaurant's
+    // menu comes from the CMS catalog, restaurant.menu is a read-only projection,
+    // so a legacy full-menu write is dropped instead of silently diverging.
+    const {
+        autoContentEnabled: _ignoredAutoContentEnabled,
+        dailyAdhocPostLimit: _ignoredDailyAdhocPostLimit,
+        menuSource: _ignoredMenuSource,
+        ...allowedUpdates
+    } = req.body;
+
+    if ('menu' in allowedUpdates) {
+        const existing = await findRestaurantById(id);
+        if (existing?.menuSource === 'catalog') {
+            delete allowedUpdates.menu;
+            delete allowedUpdates.menuLastUpdated;
+        }
+    }
 
     const restaurant = await updateRestaurant(id, allowedUpdates);
 
