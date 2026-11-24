@@ -11,6 +11,7 @@ import { connectDB, disconnectDB } from '@restropulse/db';
 import { createLogger, requestLoggingMiddleware, errorHandlerMiddleware, shutdownServerTelemetry, registerProcessGuards } from '@restropulse/telemetry/server';
 import { createSecretsProvider, hydrateEnvFromProvider, API_SECRET_KEYS } from '@restropulse/secrets';
 import { initializeFirebaseAdmin } from './services/firebase-admin.js';
+import { jwtSecretProblem } from './services/jwt.js';
 // NOTE: Cron jobs (publishing + token refresh) are now handled by apps/publisher
 import authRoutes from './routes/auth.js';
 import restaurantRoutes from './routes/restaurant.js';
@@ -27,7 +28,6 @@ import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
-import { jwtSecretProblem } from './services/jwt.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
