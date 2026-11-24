@@ -152,6 +152,25 @@ describe('DB Connection', () => {
             expect(output.instagramConnection.tokenStatus).toBe('expired');
             expect(output.instagramConnection.needsReauthorization).toBe(true);
         });
+
+        it('should flag needsReauthorization when the publisher marked the token as rejected', () => {
+            const input = {
+                _id: 'r1',
+                name: 'Restaurant',
+                instagramCredentials: {
+                    accessToken: 'token123',
+                    tokenExpiresAt: new Date(Date.now() + 30 * 86400000),
+                    username: 'testuser',
+                    userId: 'ig-123',
+                    reauthRequiredAt: new Date(),
+                    reauthReason: 'Error validating access token'
+                }
+            };
+            const output: any = toApiFormat(input);
+            expect(output.instagramConnection.tokenStatus).toBe('valid');
+            expect(output.instagramConnection.needsReauthorization).toBe(true);
+            expect(output.instagramConnection).not.toHaveProperty('reauthReason');
+        });
     });
 
     describe('toObjectId Helper', () => {
