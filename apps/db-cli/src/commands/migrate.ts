@@ -430,4 +430,3 @@ async function migrateSplitPostPlatforms(): Promise<void> {
         await disconnect();
     }
 }
-
