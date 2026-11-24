@@ -120,6 +120,33 @@ describe('Razorpay Service', () => {
         });
     });
 
+    describe('createRazorpayOrder', () => {
+        test('sends notes only when given', async () => {
+            const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'order_1', amount: 100, currency: 'INR', status: 'created' }) });
+            vi.stubGlobal('fetch', mockFetch);
+
+            await razorpay.createRazorpayOrder(100, 'rcpt_1');
+            expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ amount: 100, currency: 'INR', receipt: 'rcpt_1' });
+
+            await razorpay.createRazorpayOrder(250, 'RP-ABC123', 'INR', { kind: 'storefront_order', orderId: 'o1' });
+            expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({ amount: 250, currency: 'INR', receipt: 'RP-ABC123', notes: { kind: 'storefront_order', orderId: 'o1' } });
+        });
+    });
+
+    describe('refundRazorpayPayment', () => {
+        test('POSTs a full refund by default and a partial one with an amount', async () => {
+            const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ id: 'rfnd_1', status: 'pending', amount: 500 }) });
+            vi.stubGlobal('fetch', mockFetch);
+
+            const result = await razorpay.refundRazorpayPayment('pay_abc');
+            expect(mockFetch).toHaveBeenCalledWith('https://api.razorpay.com/v1/payments/pay_abc/refund', expect.objectContaining({ method: 'POST', body: '{}' }));
+            expect(result.id).toBe('rfnd_1');
+
+            await razorpay.refundRazorpayPayment('pay_abc', { amountPaise: 500, notes: { reason: 'Out of stock' } });
+            expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({ amount: 500, notes: { reason: 'Out of stock' } });
+        });
+    });
+
     describe('fetchRazorpayPayment', () => {
         test('should call GET /v1/payments/:id', async () => {
             const mockFetch = vi.fn().mockResolvedValue({

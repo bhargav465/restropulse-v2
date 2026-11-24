@@ -140,6 +140,7 @@ function limitedApp(limiter: express.RequestHandler) {
     app.use('/api', limiter);
     app.get('/api/thing', (_req, res) => res.json({ success: true }));
     app.post('/api/subscriptions/webhook', (_req, res) => res.json({ received: true }));
+    app.post('/api/webhooks/razorpay/orders', (_req, res) => res.json({ received: true }));
     return app;
 }
 
@@ -198,6 +199,14 @@ describe('createGlobalApiLimiter', () => {
         const app = limitedApp(createGlobalApiLimiter(new MemoryStore()));
         for (let i = 0; i < GLOBAL_API_LIMIT_PER_MINUTE + 5; i++) {
             const r = await request(app).post('/api/subscriptions/webhook').set('X-Forwarded-For', '192.0.2.1');
+            expect(r.status).toBe(200);
+        }
+    });
+
+    it('never throttles the storefront order-payment webhook', async () => {
+        const app = limitedApp(createGlobalApiLimiter(new MemoryStore()));
+        for (let i = 0; i < GLOBAL_API_LIMIT_PER_MINUTE + 5; i++) {
+            const r = await request(app).post('/api/webhooks/razorpay/orders').set('X-Forwarded-For', '192.0.2.1');
             expect(r.status).toBe(200);
         }
     });

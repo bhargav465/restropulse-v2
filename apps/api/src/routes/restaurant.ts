@@ -203,10 +203,14 @@ router.put('/:id', requireAuth, handle(async (req: Request, res: Response<ApiRes
     // menuSource is server-owned (set by the CMS projection). Once a restaurant's
     // menu comes from the CMS catalog, restaurant.menu is a read-only projection,
     // so a legacy full-menu write is dropped instead of silently diverging.
+    // slug / ordering are validated by PUT /api/admin/orders/settings (slug
+    // uniqueness, store-open rules), so they never pass through here.
     const {
         autoContentEnabled: _ignoredAutoContentEnabled,
         dailyAdhocPostLimit: _ignoredDailyAdhocPostLimit,
         menuSource: _ignoredMenuSource,
+        slug: _ignoredSlug,
+        ordering: _ignoredOrdering,
         ...allowedUpdates
     } = req.body;
 

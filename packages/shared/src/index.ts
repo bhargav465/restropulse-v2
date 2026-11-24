@@ -178,6 +178,13 @@ export interface Restaurant {
    * rewritten on every catalog change. Absent/'embedded' = legacy Updates editor.
    */
   menuSource?: 'embedded' | 'catalog';
+  /**
+   * Public URL handle for the restaurant's ordering site (lowercase, hyphens).
+   * Unique across restaurants (sparse index). Set from the Website hub.
+   */
+  slug?: string;
+  /** Online-ordering settings (store open, order types, fees, tax). Absent = ordering off. */
+  ordering?: Partial<import('./orders.js').RestaurantOrderingSettings>;
   /** Short restaurant bio used in AI content prompts and profile display. */
   description?: string;
   phone?: string;
@@ -664,3 +671,5 @@ export * from './intelligence.js';
 // Lane B: restaurant catalog, offers and site CMS (docs/LAUNCH_ARCHITECTURE.md B1/B6).
 export * from './ordering.js';
 export * from './cms.js';
+// Phase 2 M2: orders, status workflow and payments.
+export * from './orders.js';

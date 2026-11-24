@@ -297,6 +297,18 @@ export async function findPromotableOffers(restaurantId: string): Promise<Offer[
   return toApiFormatArray(docs) as unknown as Offer[];
 }
 
+/** Active offers shown on the restaurant site (and used for automatic checkout discounts). */
+export async function findSiteOffers(restaurantId: string): Promise<Offer[]> {
+  const docs = await getOffersCollection().find({ restaurantId, status: 'active', showOnSite: true }).toArray();
+  return toApiFormatArray(docs) as unknown as Offer[];
+}
+
+/** Offer by coupon code (codes are stored upper-case). Any status; the caller checks it is live. */
+export async function findOfferByCode(restaurantId: string, code: string): Promise<Offer | null> {
+  const doc = await getOffersCollection().findOne({ restaurantId, code: code.trim().toUpperCase() });
+  return toApiFormat(doc) as unknown as Offer | null;
+}
+
 export async function findOfferById(restaurantId: string, id: string): Promise<Offer | null> {
   const doc = await getOffersCollection().findOne({ _id: toObjectId(id) as any, restaurantId });
   return toApiFormat(doc) as unknown as Offer | null;
