@@ -28,6 +28,9 @@ import adminCmsRoutes from './routes/admin-cms.js';
 import adminOrdersRoutes from './routes/admin-orders.js';
 import storefrontRoutes from './routes/storefront.js';
 import adminSitesRoutes from './routes/admin-sites.js';
+import adminDeliveryRoutes from './routes/admin-delivery.js';
+import deliveryWebhookRoutes from './routes/delivery-webhooks.js';
+import { registerDeliveryDispatch } from './services/delivery/dispatch-hook.js';
 import { corsPolicy } from './middleware/cors-policy.js';
 import sitesPublicRoutes from './routes/sites-public.js';
 import paymentWebhookRoutes from './routes/payment-webhooks.js';
@@ -130,6 +133,9 @@ if (env.NODE_ENV === 'development' && portConfig.strictInDevelopment && env.PORT
 
 const log = createLogger('server');
 const app: Express = express();
+
+// Delivery orders get a rider booked at the restaurant's dispatch point (outbox job).
+registerDeliveryDispatch();
 const PORT = env.PORT;
 const CORS_ORIGIN = env.CORS_ORIGIN;
 
@@ -157,6 +163,7 @@ app.use(corsPolicy([...CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolea
 // Razorpay webhook needs raw body for signature verification
 app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/razorpay/orders', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/delivery', express.raw({ type: () => true, limit: '256kb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -197,10 +204,12 @@ app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/admin/cms', adminCmsRoutes);
 app.use('/api/admin/orders', adminOrdersRoutes);
 app.use('/api/admin/sites', adminSitesRoutes);
+app.use('/api/admin/delivery', adminDeliveryRoutes);
 // Public ordering API for restaurant sites (guest checkout, tracking).
 app.use('/api/storefront', storefrontRoutes);
 app.use('/api/sites', sitesPublicRoutes);
 app.use('/api/webhooks/razorpay/orders', paymentWebhookRoutes);
+app.use('/api/webhooks/delivery', deliveryWebhookRoutes);
 // Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);
 

@@ -325,7 +325,31 @@
     rememberOrder({ id: id }, token);
     var timer;
 
-    function render(order) {
+    var riderEl = $('[data-track-rider]', root);
+
+    // Rider progress for delivery orders. Text only; a tracking link must be https.
+    function renderRider(d) {
+      riderEl.textContent = '';
+      riderEl.hidden = !d;
+      if (!d) return;
+      var parts = [d.label];
+      if (d.riderName) parts.push(d.riderName);
+      else if (d.carrier) parts.push(d.carrier);
+      if (d.etaMinutes && d.status !== 'DELIVERED') parts.push('about ' + d.etaMinutes + ' min');
+      riderEl.appendChild(document.createTextNode('Rider: ' + parts.join(' · ')));
+      if (d.trackingUrl && /^https:\/\//.test(d.trackingUrl)) {
+        var a = document.createElement('a');
+        a.href = d.trackingUrl;
+        a.rel = 'noopener noreferrer';
+        a.target = '_blank';
+        a.textContent = 'Follow the rider';
+        riderEl.appendChild(document.createTextNode(' '));
+        riderEl.appendChild(a);
+      }
+    }
+
+    function render(order, delivery) {
+      renderRider(delivery || null);
       statusEl.textContent = 'Order ' + order.orderNumber + ': ' + (STATUS_TEXT[order.status] || order.status);
       var tl = $('[data-track-timeline]', root);
       tl.textContent = '';
@@ -344,7 +368,7 @@
     function refresh() {
       request('GET', '/orders/' + encodeURIComponent(id) + '?token=' + encodeURIComponent(token)).then(function (data) {
         showError(root, '');
-        render(data.order);
+        render(data.order, data.delivery);
       }, function (err) {
         showError(root, err.status === 404 ? "We couldn't find this order." : err.message);
         if (err.status !== 404) timer = setTimeout(refresh, 30000);

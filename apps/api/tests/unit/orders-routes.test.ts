@@ -29,7 +29,10 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 class DuplicateRestaurantSlugError extends Error {}
 class OrderReferenceCollisionError extends Error {}
 
+const deliveryShipments: Array<Record<string, unknown> & { orderId: string }> = [];
 const fakeDb = {
+    findShipmentForOrder: vi.fn(async (_rid: string, orderId: string) => clone(deliveryShipments.filter((x) => x.orderId === orderId).at(-1) ?? null)),
+    findShipmentsForOrders: vi.fn(async (_rid: string, ids: string[]) => clone(deliveryShipments.filter((x) => ids.includes(x.orderId)))),
     findRestaurantBySlug: vi.fn(async (slug: string) => clone(state.restaurants.find((r) => r.slug === slug) ?? null)),
     findRestaurantById: vi.fn(async (id: string) => clone(state.restaurants.find((r) => r.id === id) ?? null)),
     updateRestaurantOrdering: vi.fn(async (id: string, u: { ordering?: unknown; slug?: string }) => {
@@ -482,6 +485,23 @@ describe('restaurant order routes', () => {
         expect((await admin('get', '?status=bogus')).status).toBe(400);
         expect((await admin('get', '?since=yesterday')).status).toBe(400);
         expect((await admin('get', '', otherOwner)).body.data.orders).toHaveLength(0);
+    });
+
+    test('delivery orders carry their rider status in the feed and on the tracking page', async () => {
+        const address = { line1: '12 MG Road', pincode: '500001', city: 'Hyderabad' };
+        const placed = (await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, orderType: 'delivery', paymentMethod: 'cash', address })).body.data;
+        await placeOnline();
+        const track = () => request(app).get(`/api/storefront/bawarchi/orders/${placed.order.id}`).query({ token: placed.trackingToken });
+        expect((await track()).body.data.delivery).toBeNull();
+        deliveryShipments.length = 0;
+        deliveryShipments.push({ orderId: placed.order.id, status: 'PICKED_UP', provider: 'mock', carrier: 'Mock Rider Co', rider: { name: 'Ravi', phone: '+919999999999' } });
+        expect((await track()).body.data.delivery).toEqual({ status: 'PICKED_UP', label: 'Picked up', carrier: 'Mock Rider Co', riderName: 'Ravi' });
+        const feed = (await admin('get', '?status=all')).body.data.orders as Array<{ id: string; delivery?: unknown }>;
+        expect(feed.find((o) => o.id === placed.order.id)?.delivery).toEqual({ status: 'PICKED_UP', provider: 'mock', carrier: 'Mock Rider Co' });
+        expect(feed.find((o) => o.id !== placed.order.id)).not.toHaveProperty('delivery');
+        deliveryShipments[0] = { orderId: placed.order.id, status: 'BOOKED', provider: 'self' };
+        expect((await admin('get', '?status=all')).body.data.orders.find((o: { id: string }) => o.id === placed.order.id).delivery).toEqual({ status: 'BOOKED', provider: 'self' });
+        deliveryShipments.length = 0;
     });
 
     test('moves an order through the kitchen and rejects skips', async () => {

@@ -13,6 +13,7 @@ vi.mock('../../api', async () => {
     return {
         cmsAPI: (await import('../../demo-api-cms')).cmsAPI,
         ordersAPI: (await import('../../demo-api-orders')).ordersAPI,
+        deliveryAPI: (await import('../../demo-api-delivery')).deliveryAPI,
         sitesAPI: new Proxy(demoSites, { get: (t, k: string) => (api.override?.[k] ?? (t as Record<string, unknown>)[k]) }),
     };
 });

@@ -4,6 +4,7 @@ import type { OrderStatus } from '@restropulse/shared';
 import { ACTIVE_ORDER_STATUSES, ORDER_STATUS_LABELS, canRestaurantCancel, restaurantNextStatuses } from '@restropulse/shared';
 import { ordersAPI, type AdminOrder } from '../../api';
 import { Badge, Button, Card, SectionHeader } from '../ui';
+import OrderRider from './OrderRider';
 
 /** How often the open-orders view refreshes on its own. */
 export const ORDERS_POLL_MS = 15_000;
@@ -58,7 +59,8 @@ const OrderCard: React.FC<{
     busy: boolean;
     onMove: (to: OrderStatus) => void;
     onCancel: (reason: string, refund: boolean) => void;
-}> = ({ order, busy, onMove, onCancel }) => {
+    onRiderChanged: (orderId: string) => void;
+}> = ({ order, busy, onMove, onCancel, onRiderChanged }) => {
     const [cancelling, setCancelling] = useState(false);
     const [reason, setReason] = useState('');
     const [refund, setRefund] = useState(true);
@@ -104,6 +106,9 @@ const OrderCard: React.FC<{
                 <span className="font-bold text-[var(--rp-text)] tabular-nums">{rupees(order.totals.total)}</span>
             </div>
             {order.cancelReason && <p className="text-sm text-[var(--rp-danger)]">Cancelled: {order.cancelReason}</p>}
+            {order.orderType === 'delivery' && order.status !== 'PENDING_PAYMENT' && order.status !== 'PAYMENT_FAILED' && (
+                <OrderRider order={order} onOrderChanged={onRiderChanged} />
+            )}
 
             {(next.length > 0 || canRestaurantCancel(order)) && !cancelling && (
                 <div className="flex flex-wrap gap-2">
@@ -207,6 +212,15 @@ const OrdersBoard: React.FC = () => {
         }
     };
 
+    /** A rider update moved the order (picked up, delivered): show its new status. */
+    const refreshOrder = async (id: string) => {
+        try {
+            replace(await ordersAPI.getOrder(id));
+        } catch {
+            /* the next poll catches up */
+        }
+    };
+
     const cancel = async (order: AdminOrder, reason: string, refund: boolean) => {
         setBusyId(order.id);
         try {
@@ -255,7 +269,7 @@ const OrdersBoard: React.FC = () => {
             )}
             <div className="grid gap-3 md:grid-cols-2">
                 {orders.map((o) => (
-                    <OrderCard key={o.id} order={o} busy={busyId === o.id} onMove={(to) => void move(o, to)} onCancel={(r, refund) => void cancel(o, r, refund)} />
+                    <OrderCard key={o.id} order={o} busy={busyId === o.id} onMove={(to) => void move(o, to)} onCancel={(r, refund) => void cancel(o, r, refund)} onRiderChanged={(id) => void refreshOrder(id)} />
                 ))}
             </div>
         </div>

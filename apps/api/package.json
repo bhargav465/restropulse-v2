@@ -28,6 +28,7 @@
     "dependencies": {
         "@anthropic-ai/sdk": "^0.68.0",
         "@restropulse/db": "*",
+        "@restropulse/delivery": "*",
         "@restropulse/publishing": "*",
         "@restropulse/secrets": "*",
         "@restropulse/shared": "*",

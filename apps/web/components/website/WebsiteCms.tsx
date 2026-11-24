@@ -5,6 +5,7 @@ import OffersEditor from './OffersEditor';
 import SiteContentEditor from './SiteContentEditor';
 import OrdersBoard from './OrdersBoard';
 import OrderingSettings from './OrderingSettings';
+import DeliverySettings from './DeliverySettings';
 import SiteDomains from './SiteDomains';
 
 type Tab = 'orders' | 'menu' | 'offers' | 'content' | 'site' | 'settings';
@@ -52,7 +53,12 @@ const WebsiteCms: React.FC<{ initialTab?: Tab }> = ({ initialTab = 'menu' }) => 
                 {tab === 'content' && <SiteContentEditor />}
                 {tab === 'orders' && <OrdersBoard />}
                 {tab === 'site' && <SiteDomains />}
-                {tab === 'settings' && <OrderingSettings />}
+                {tab === 'settings' && (
+                    <div className="space-y-8">
+                        <OrderingSettings />
+                        <DeliverySettings />
+                    </div>
+                )}
             </div>
         </PageContainer>
     );
