@@ -8,7 +8,14 @@
 
 import { trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { createLogger } from './logger.js';
-import { serverMetrics } from './events.js';
+import { serverMetrics, trackEvent } from './events.js';
+
+/**
+ * Emitted after every cron run (success or failure). Custom events are never
+ * sampled, unlike spans (10% in production), so this is the reliable
+ * heartbeat that the "worker stalled" alerts in infra/alerts/ watch.
+ */
+export const CRON_JOB_COMPLETED_EVENT = 'cron.job.completed';
 
 const tracer = trace.getTracer('restropulse-cron');
 
@@ -37,6 +44,7 @@ export async function tracedCronJob<T>(
             span.setStatus({ code: SpanStatusCode.OK });
             serverMetrics.cronJobDuration.record(durationMs, { job: jobName });
             log.info({ durationMs }, 'Job completed');
+            trackEvent(CRON_JOB_COMPLETED_EVENT, { job: jobName, status: 'ok', durationMs: String(durationMs) });
 
             return result;
         } catch (error) {
@@ -46,6 +54,7 @@ export async function tracedCronJob<T>(
             span.recordException(error as Error);
             serverMetrics.cronJobDuration.record(durationMs, { job: jobName, error: 'true' });
             log.error({ err: error, durationMs }, 'Job failed');
+            trackEvent(CRON_JOB_COMPLETED_EVENT, { job: jobName, status: 'error', durationMs: String(durationMs) });
 
             throw error;
         } finally {

@@ -27,6 +27,7 @@ import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
+import { createReadinessHandler } from './routes/health.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +171,11 @@ app.get('/health', (_req: Request, res: Response) => {
         },
     });
 });
+
+// Readiness: pings MongoDB; 503 when the API can't actually serve requests.
+// Use this for smoke tests and availability alerts; keep /health (liveness)
+// as the App Service health-check path so a DB outage doesn't recycle the app.
+app.get('/health/ready', createReadinessHandler());
 
 // Global per-IP budget for /api, shared across instances via MongoDB.
 // Mounted before every router; webhooks are exempt inside the limiter.

@@ -5,7 +5,8 @@ set -euo pipefail
 # Smoke tests for post-deploy verification.
 #
 # Services:
-#   api  -- curl /health, verify {"status":"ok"}
+#   api  -- curl /health, verify {"status":"ok"}; then /health/ready must be
+#           200 (MongoDB reachable from the deployed app)
 #   web  -- curl /, verify HTTP 200 with <div id="root">
 
 SERVICE="${1:?Usage: smoke-test.sh <api|web> <base-url>}"
@@ -18,6 +19,7 @@ SHA_CHECK_RETRIES=36
 SHA_CHECK_DELAY=10
 BOOT_RETRIES=24
 BOOT_RETRY_DELAY=10
+READY_RETRIES=6
 
 request() {
   local url="$1"
@@ -65,6 +67,19 @@ case "$SERVICE" in
         sleep "$SHA_CHECK_DELAY"
       done
     fi
+    echo "Checking API readiness at ${BASE_URL}/health/ready ..."
+    for attempt in $(seq 1 "$READY_RETRIES"); do
+      if READY=$(request "${BASE_URL}/health/ready" 2>/dev/null); then
+        echo "API ready: $READY"
+        break
+      fi
+      echo "API not ready yet (attempt ${attempt}/${READY_RETRIES})..."
+      if [ "$attempt" -eq "$READY_RETRIES" ]; then
+        echo "API readiness check failed: the app is up but cannot reach its dependencies (MongoDB)."
+        exit 1
+      fi
+      sleep "$BOOT_RETRY_DELAY"
+    done
     echo "API health check passed."
     ;;
   web)
