@@ -4,7 +4,12 @@ import type {
     IntelligenceScan, IntelligenceReport, IntelligenceReportSummary, IntelligenceSelfMetrics, CompareRow, PlaceCandidate,
     IntelligenceNotificationsResponse,
 } from '@restropulse/shared';
+import type {
+    MenuCategory, OrderingMenuItem, MenuItemAvailability, MenuItemVariant, MenuItemAddon,
+    Offer, OfferReward, OfferScope, OfferSchedule, OfferStatus, StorefrontContent,
+} from '@restropulse/shared';
 import { intelligenceAPI as demoIntelligenceAPI } from './demo-api-intelligence';
+import { cmsAPI as demoCmsAPI } from './demo-api-cms';
 import { isDemoMode } from './lib/demo';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
@@ -913,3 +918,121 @@ const realIntelligenceAPI = {
 export const intelligenceAPI: typeof realIntelligenceAPI = isDemoMode()
     ? (demoIntelligenceAPI as typeof realIntelligenceAPI)
     : realIntelligenceAPI;
+
+// ============================================
+// Website CMS (Phase 2) -- /api/admin/cms
+// ============================================
+
+export interface CmsItemInput {
+    categoryId: string;
+    name: string;
+    description?: string;
+    price: number;
+    isVeg?: boolean;
+    isBestSeller?: boolean;
+    images?: string[];
+    variants?: Array<Omit<MenuItemVariant, 'id'> & { id?: string }>;
+    addons?: Array<Omit<MenuItemAddon, 'id'> & { id?: string }>;
+    availability?: MenuItemAvailability;
+    sortOrder?: number;
+}
+
+export interface CmsOfferInput {
+    title: string;
+    description?: string | null;
+    reward: OfferReward;
+    scope?: OfferScope;
+    minOrderValue?: number | null;
+    code?: string | null;
+    /** endsAt / from / to accept null to clear them on update. */
+    schedule?: Partial<Omit<OfferSchedule, 'endsAt' | 'from' | 'to'>> & { endsAt?: string | null; from?: string | null; to?: string | null };
+    bannerImage?: string | null;
+    showOnSite?: boolean;
+    promoteInContent?: boolean;
+    status?: OfferStatus;
+}
+
+/** An offer as the admin list returns it: plus a one-line summary and whether it applies right now. */
+export type CmsOffer = Offer & { summary: string; live?: boolean };
+
+export interface CmsImportResult {
+    created: number;
+    updated: number;
+    failed: number;
+    errors: Array<{ row: number; message: string }>;
+}
+
+export interface CmsContentState {
+    draft: StorefrontContent;
+    published: StorefrontContent | null;
+    publishedVersion: number | null;
+    publishedAt: string | null;
+    versions: Array<{ version: number; publishedAt: string }>;
+}
+
+export interface CmsPublishResult {
+    publishedVersion: number;
+    publishedAt: string;
+    restoredFrom?: number;
+}
+
+const cmsJson = (method: string, body?: unknown): RequestInit => ({
+    method,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+});
+
+const realCmsAPI = {
+    getCategories: async (): Promise<MenuCategory[]> =>
+        (await fetchAPI<ApiResponse<MenuCategory[]>>('/admin/cms/menu/categories')).data!,
+    createCategory: async (input: { name: string; description?: string }): Promise<MenuCategory> =>
+        (await fetchAPI<ApiResponse<MenuCategory>>('/admin/cms/menu/categories', cmsJson('POST', input))).data!,
+    updateCategory: async (id: string, input: { name?: string; description?: string }): Promise<MenuCategory> =>
+        (await fetchAPI<ApiResponse<MenuCategory>>(`/admin/cms/menu/categories/${id}`, cmsJson('PATCH', input))).data!,
+    deleteCategory: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse<void>>(`/admin/cms/menu/categories/${id}`, cmsJson('DELETE'));
+    },
+    reorderCategories: async (orderedIds: string[]): Promise<MenuCategory[]> =>
+        (await fetchAPI<ApiResponse<MenuCategory[]>>('/admin/cms/menu/categories/reorder', cmsJson('PUT', { orderedIds }))).data!,
+
+    getItems: async (): Promise<OrderingMenuItem[]> =>
+        (await fetchAPI<ApiResponse<OrderingMenuItem[]>>('/admin/cms/menu/items')).data!,
+    createItem: async (input: CmsItemInput): Promise<OrderingMenuItem> =>
+        (await fetchAPI<ApiResponse<OrderingMenuItem>>('/admin/cms/menu/items', cmsJson('POST', input))).data!,
+    updateItem: async (id: string, input: Partial<CmsItemInput>): Promise<OrderingMenuItem> =>
+        (await fetchAPI<ApiResponse<OrderingMenuItem>>(`/admin/cms/menu/items/${id}`, cmsJson('PATCH', input))).data!,
+    setAvailability: async (id: string, availability: MenuItemAvailability): Promise<OrderingMenuItem> =>
+        (await fetchAPI<ApiResponse<OrderingMenuItem>>(`/admin/cms/menu/items/${id}/availability`, cmsJson('PATCH', { availability }))).data!,
+    deleteItem: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse<void>>(`/admin/cms/menu/items/${id}`, cmsJson('DELETE'));
+    },
+    importCsv: async (csv: string): Promise<CmsImportResult> =>
+        (await fetchAPI<ApiResponse<CmsImportResult>>('/admin/cms/menu/import', {
+            method: 'POST',
+            body: csv,
+            headers: { 'Content-Type': 'text/csv' },
+        })).data!,
+
+    getOffers: async (includeArchived = false): Promise<CmsOffer[]> =>
+        (await fetchAPI<ApiResponse<CmsOffer[]>>(`/admin/cms/offers${includeArchived ? '?includeArchived=true' : ''}`)).data!,
+    createOffer: async (input: CmsOfferInput): Promise<CmsOffer> =>
+        (await fetchAPI<ApiResponse<CmsOffer>>('/admin/cms/offers', cmsJson('POST', input))).data!,
+    updateOffer: async (id: string, input: Partial<CmsOfferInput>): Promise<CmsOffer> =>
+        (await fetchAPI<ApiResponse<CmsOffer>>(`/admin/cms/offers/${id}`, cmsJson('PATCH', input))).data!,
+    deleteOffer: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse<void>>(`/admin/cms/offers/${id}`, cmsJson('DELETE'));
+    },
+
+    getContent: async (): Promise<CmsContentState> =>
+        (await fetchAPI<ApiResponse<CmsContentState>>('/admin/cms/content')).data!,
+    saveDraft: async (draft: StorefrontContent): Promise<StorefrontContent> =>
+        (await fetchAPI<ApiResponse<{ draft: StorefrontContent }>>('/admin/cms/content/draft', cmsJson('PUT', draft))).data!.draft,
+    publish: async (): Promise<CmsPublishResult> =>
+        (await fetchAPI<ApiResponse<CmsPublishResult>>('/admin/cms/content/publish', cmsJson('POST'))).data!,
+    rollback: async (version: number): Promise<CmsPublishResult> =>
+        (await fetchAPI<ApiResponse<CmsPublishResult>>('/admin/cms/content/rollback', cmsJson('POST', { version }))).data!,
+};
+
+// Demo twin (VITE_DEMO_MODE=true): in-memory [SAMPLE] catalog. `typeof realCmsAPI`
+// keeps the two surfaces identical.
+export const cmsAPI: typeof realCmsAPI = isDemoMode() ? (demoCmsAPI as typeof realCmsAPI) : realCmsAPI;
+export { realCmsAPI };
