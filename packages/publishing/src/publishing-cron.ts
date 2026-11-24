@@ -12,8 +12,8 @@
  */
 
 import cron from 'node-cron';
-import { getPostsCollection, getRestaurantsCollection, toApiFormat, toObjectId } from '@restropulse/db';
-import { publishPost } from './publishing-service.js';
+import { getPostsCollection, getPublishFailuresCollection, getRestaurantsCollection, toObjectId } from '@restropulse/db';
+import { publishPost, type PublishFailureClass } from './publishing-service.js';
 import { applyPublishResult } from './publish-result.js';
 import { POST_PUBLISH_GRACE_HOURS } from '@restropulse/shared';
 import { createLogger, tracedCronJob, trackEvent } from '@restropulse/telemetry/server';
@@ -23,6 +23,32 @@ const log = createLogger('publishing-cron');
 // Constants
 const MAX_PUBLISH_ATTEMPTS = 3;
 const MS_PER_HOUR = 60 * 60 * 1000;
+const MS_PER_MINUTE = 60 * 1000;
+
+/**
+ * Wait before retry N (index = attempts already made - 1). Without this a
+ * transient failure was retried on the very next 5-minute tick, so a short
+ * Meta outage burned all three attempts in ~10 minutes.
+ */
+export const PUBLISH_RETRY_BACKOFF_MINUTES = [5, 20] as const;
+
+/**
+ * A post stuck in PUBLISHING longer than this was abandoned by a crashed or
+ * restarted worker. The slowest legitimate publish (reel upload + 5-minute
+ * processing poll + publish) is well under this.
+ */
+export const STALE_PUBLISHING_MINUTES = 30;
+
+export const REAUTH_PUBLISH_ERROR =
+    'Instagram/Facebook needs to be reconnected before this post can go out. Reconnect in Settings and it will publish automatically.';
+
+export const INTERRUPTED_PUBLISH_ERROR =
+    'Publishing was interrupted. Check Instagram/Facebook before posting again, in case it already went out.';
+
+export function nextRetryAt(attemptsMade: number, now: Date = new Date()): Date {
+    const idx = Math.min(Math.max(attemptsMade - 1, 0), PUBLISH_RETRY_BACKOFF_MINUTES.length - 1);
+    return new Date(now.getTime() + PUBLISH_RETRY_BACKOFF_MINUTES[idx] * MS_PER_MINUTE);
+}
 const CRON_SCHEDULE = process.env.CRON_PUBLISHER ?? '*/5 * * * *';
 
 // Track publishing attempts for monitoring
@@ -56,9 +82,21 @@ export async function getPostsDueForPublishing(): Promise<any[]> {
     const posts = await col.find({
         status: 'SCHEDULED',
         scheduledFor: { $lte: now.toISOString(), $gte: graceCutoff.toISOString() },
-        $or: [
-            { publishAttempts: { $exists: false } },
-            { publishAttempts: { $lt: MAX_PUBLISH_ATTEMPTS } }
+        $and: [
+            {
+                $or: [
+                    { publishAttempts: { $exists: false } },
+                    { publishAttempts: { $lt: MAX_PUBLISH_ATTEMPTS } }
+                ]
+            },
+            {
+                // Respect retry backoff (unset = never attempted, or legacy doc)
+                $or: [
+                    { nextPublishAttemptAt: { $exists: false } },
+                    { nextPublishAttemptAt: null },
+                    { nextPublishAttemptAt: { $lte: now } }
+                ]
+            }
         ]
     }).sort({ scheduledFor: 1 }).toArray();
 
@@ -89,6 +127,84 @@ export async function reapMissedScheduledPosts(now: Date = new Date()): Promise<
         log.info({ count: result.modifiedCount, graceHours: POST_PUBLISH_GRACE_HOURS }, 'Reaped past-due scheduled posts to MISSED_DEADLINE');
     }
     return result.modifiedCount;
+}
+
+/**
+ * Record a post that failed for good in the `publishFailures` dead-letter
+ * collection and emit a telemetry event (feeds the publish-failure alert).
+ * Never throws: losing a dead-letter row must not break the publish loop.
+ */
+export async function recordPublishFailure(entry: {
+    postId: string;
+    restaurantId: string | null;
+    platform: string;
+    failureClass: PublishFailureClass | 'interrupted';
+    error: string;
+    errorCode?: string;
+    attempts: number;
+}): Promise<void> {
+    trackEvent('post.publish_dead_lettered', {
+        postId: entry.postId,
+        restaurantId: entry.restaurantId ?? 'unknown',
+        platform: entry.platform,
+        failureClass: entry.failureClass,
+        errorCode: entry.errorCode ?? 'none',
+    });
+    try {
+        await getPublishFailuresCollection().insertOne({ ...entry, createdAt: new Date() });
+    } catch (error) {
+        log.error({ postId: entry.postId, error: String(error) }, 'Failed to write publish dead-letter record');
+    }
+}
+
+/**
+ * Fail posts left in PUBLISHING by a worker that crashed or restarted
+ * mid-publish. They are NOT retried automatically: the publish may already
+ * have reached Meta, and a retry would post twice. The merchant sees the
+ * reason on the post and decides.
+ */
+export async function reapStalePublishingPosts(now: Date = new Date()): Promise<number> {
+    const col = getPostsCollection();
+    const cutoff = new Date(now.getTime() - STALE_PUBLISHING_MINUTES * MS_PER_MINUTE);
+    const stale = await col.find({ status: 'PUBLISHING', updatedAt: { $lt: cutoff } }).toArray();
+
+    let reaped = 0;
+    for (const post of stale) {
+        const result = await col.updateOne(
+            { _id: post._id, status: 'PUBLISHING', updatedAt: { $lt: cutoff } },
+            {
+                $set: { status: 'MISSED_DEADLINE', publishError: INTERRUPTED_PUBLISH_ERROR, updatedAt: now },
+                $unset: { nextPublishAttemptAt: '' },
+            },
+        );
+        if (result.modifiedCount === 0) continue;
+        reaped++;
+        await recordPublishFailure({
+            postId: String(post._id),
+            restaurantId: post.restaurantId ?? null,
+            platform: post.platform || 'INSTAGRAM',
+            failureClass: 'interrupted',
+            error: INTERRUPTED_PUBLISH_ERROR,
+            attempts: post.publishAttempts ?? 0,
+        });
+    }
+
+    if (reaped > 0) {
+        log.warn({ count: reaped, staleMinutes: STALE_PUBLISHING_MINUTES }, 'Failed posts stuck in PUBLISHING');
+    }
+    return reaped;
+}
+
+/**
+ * Flag a restaurant's Meta connection as needing reconnection. Publishing for
+ * the restaurant pauses (posts stay SCHEDULED) until the merchant reconnects,
+ * which replaces instagramCredentials and so clears the flag.
+ */
+export async function markRestaurantNeedsReauth(restaurantId: string, reason: string, now: Date = new Date()): Promise<void> {
+    await getRestaurantsCollection().updateOne(
+        { _id: toObjectId(restaurantId) as any, 'instagramCredentials.reauthRequiredAt': { $exists: false } },
+        { $set: { 'instagramCredentials.reauthRequiredAt': now, 'instagramCredentials.reauthReason': reason } },
+    );
 }
 
 /**
@@ -187,6 +303,19 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
         return false;
     }
 
+    // Publishing is paused while the restaurant's Meta connection needs
+    // reconnecting: put the post back without spending an attempt. If the
+    // merchant doesn't reconnect within the grace window it is reaped to
+    // MISSED_DEADLINE like any other late post.
+    if (restaurant.instagramCredentials.reauthRequiredAt) {
+        log.info({ postId, restaurantId }, 'Restaurant needs to reconnect Meta; leaving post scheduled');
+        await postsCol.updateOne(
+            { _id: postDoc._id },
+            { $set: { status: 'SCHEDULED', publishError: REAUTH_PUBLISH_ERROR, updatedAt: new Date() } }
+        );
+        return false;
+    }
+
     // Prepare post data for publishing
     const publishablePost = {
         id: postId,
@@ -226,7 +355,8 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
                     publishError: applied.publishError,
                     externalPostId: applied.externalPostId,
                     updatedAt: new Date()
-                }
+                },
+                $unset: { nextPublishAttemptAt: '' }
             }
         );
 
@@ -245,8 +375,27 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
 
         return true;
     } else {
-        log.error({ postId, error: result.error }, 'Post publish failed');
-        trackEvent('post.publish_failed', { postId, error: result.error ?? 'unknown' });
+        const failureClass: PublishFailureClass = result.failureClass ?? (result.retryable ? 'retryable' : 'permanent');
+        log.error({ postId, error: result.error, failureClass }, 'Post publish failed');
+        trackEvent('post.publish_failed', { postId, error: result.error ?? 'unknown', failureClass, errorCode: result.errorCode ?? 'none' });
+
+        if (failureClass === 'reauth') {
+            // Not the post's fault: pause the restaurant and keep the post
+            // scheduled without spending an attempt.
+            await markRestaurantNeedsReauth(restaurantId, result.error ?? 'Meta rejected the access token');
+            trackEvent('integration.meta_reauth_required', { restaurantId, errorCode: result.errorCode ?? 'none' });
+            await postsCol.updateOne(
+                { _id: postDoc._id },
+                { $set: { status: 'SCHEDULED', publishError: REAUTH_PUBLISH_ERROR, updatedAt: new Date() } }
+            );
+            publishAttempts.push({
+                postId, restaurantId, timestamp: new Date(), success: false,
+                platform: publishablePost.platform, error: result.error
+            });
+            return false;
+        }
+
+        const willRetry = applied.status === 'SCHEDULED';
 
         // Ensure database update completes before returning
         const updateResult = await postsCol.updateOne(
@@ -255,8 +404,10 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
                 $set: {
                     status: applied.status,
                     publishError: applied.publishError,
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
+                    ...(willRetry ? { nextPublishAttemptAt: nextRetryAt(newAttempts) } : {})
                 },
+                ...(willRetry ? {} : { $unset: { nextPublishAttemptAt: '' } }),
                 $inc: { publishAttempts: 1 }
             }
         );
@@ -266,7 +417,16 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
         }
 
         if (applied.status === 'MISSED_DEADLINE') {
-            log.error({ postId, attempts: newAttempts }, 'Post permanently failed after max attempts');
+            log.error({ postId, attempts: newAttempts, failureClass }, 'Post permanently failed');
+            await recordPublishFailure({
+                postId,
+                restaurantId,
+                platform: publishablePost.platform,
+                failureClass,
+                error: applied.publishError ?? 'Unknown publish error',
+                errorCode: result.errorCode,
+                attempts: newAttempts,
+            });
         } else {
             log.info({ postId, attempt: newAttempts, maxAttempts: MAX_PUBLISH_ATTEMPTS }, 'Post will be retried');
         }
@@ -287,12 +447,14 @@ export async function processPostForPublishing(postDoc: any): Promise<boolean> {
 /**
  * Run the publishing job - processes all posts due for publishing.
  */
-export async function runPublishingJob(): Promise<{ published: number; failed: number; skipped: number; missed: number }> {
+export async function runPublishingJob(): Promise<{ published: number; failed: number; skipped: number; missed: number; interrupted: number }> {
     log.info('Starting publishing job');
 
-    const stats = { published: 0, failed: 0, skipped: 0, missed: 0 };
+    const stats = { published: 0, failed: 0, skipped: 0, missed: 0, interrupted: 0 };
 
     try {
+        stats.interrupted = await reapStalePublishingPosts();
+
         // Reap past-due posts first so they move to MISSED_DEADLINE instead of
         // being published late; getPostsDueForPublishing then only returns
         // within-grace posts.
@@ -372,7 +534,7 @@ export function startPublishingCron(): void {
 /**
  * Manually trigger the publishing job (for admin/testing).
  */
-export async function triggerManualPublish(): Promise<{ published: number; failed: number; skipped: number }> {
+export async function triggerManualPublish(): Promise<{ published: number; failed: number; skipped: number; missed: number; interrupted: number }> {
     log.info('Manual publish triggered');
     return await runPublishingJob();
 }
