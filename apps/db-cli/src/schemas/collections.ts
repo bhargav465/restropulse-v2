@@ -546,6 +546,33 @@ export const COLLECTIONS: CollectionSchema[] = [
         name: 'settings',
         indexes: [],
     },
+    // ----- Website CMS (Phase 2). Mirrors CMS_INDEXES in packages/db/src/cms.ts. -----
+    {
+        name: 'menu_categories',
+        indexes: [
+            { spec: { restaurantId: 1, sortOrder: 1 } },
+        ],
+    },
+    {
+        name: 'menu_items',
+        indexes: [
+            { spec: { restaurantId: 1, categoryId: 1, sortOrder: 1 } },
+            { spec: { restaurantId: 1, name: 1 }, options: { unique: true } },
+        ],
+    },
+    {
+        name: 'offers',
+        indexes: [
+            { spec: { restaurantId: 1, status: 1, 'schedule.startsAt': -1 } },
+            { spec: { restaurantId: 1, code: 1 }, options: { unique: true, partialFilterExpression: { code: { $type: 'string' } } } },
+        ],
+    },
+    {
+        name: 'storefront_content',
+        indexes: [
+            { spec: { restaurantId: 1 }, options: { unique: true } },
+        ],
+    },
     // ----- Public Grader (Lead Generation) -----
     {
         name: 'graderScans',
