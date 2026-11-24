@@ -1,6 +1,5 @@
 import './instrument.js';
 import express, { Express, Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import http from 'node:http';
@@ -28,6 +27,9 @@ import graderRoutes from './routes/grader.js';
 import adminCmsRoutes from './routes/admin-cms.js';
 import adminOrdersRoutes from './routes/admin-orders.js';
 import storefrontRoutes from './routes/storefront.js';
+import adminSitesRoutes from './routes/admin-sites.js';
+import { corsPolicy } from './middleware/cors-policy.js';
+import sitesPublicRoutes from './routes/sites-public.js';
 import paymentWebhookRoutes from './routes/payment-webhooks.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
@@ -149,10 +151,9 @@ app.use('/content', express.static(path.join(__dirname, '../public')));
 // Middleware — CORS_ORIGIN accepts a comma-separated list so local dev can
 // allow localhost and the machine's LAN IP at the same time (phone testing).
 // Deployed slots keep setting a single origin; nothing changes for them.
-app.use(cors({
-    origin: [...CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean), 'http://localhost:3001'],
-    credentials: true
-}));
+// Dashboard origins get credentialed CORS; restaurant websites on any domain
+// get open, cookie-less CORS on the public storefront/sites routes.
+app.use(corsPolicy([...CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean), 'http://localhost:3001']));
 // Razorpay webhook needs raw body for signature verification
 app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/razorpay/orders', express.raw({ type: 'application/json' }));
@@ -195,8 +196,10 @@ app.use('/api/account', accountRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/admin/cms', adminCmsRoutes);
 app.use('/api/admin/orders', adminOrdersRoutes);
+app.use('/api/admin/sites', adminSitesRoutes);
 // Public ordering API for restaurant sites (guest checkout, tracking).
 app.use('/api/storefront', storefrontRoutes);
+app.use('/api/sites', sitesPublicRoutes);
 app.use('/api/webhooks/razorpay/orders', paymentWebhookRoutes);
 // Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);

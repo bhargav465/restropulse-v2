@@ -10,6 +10,7 @@ import type { AdminOrder } from '../../api';
 vi.mock('../../api', async () => ({
     cmsAPI: (await import('../../demo-api-cms')).cmsAPI,
     ordersAPI: (await import('../../demo-api-orders')).ordersAPI,
+    sitesAPI: (await import('../../demo-api-sites')).sitesAPI,
 }));
 
 beforeEach(() => {

@@ -601,6 +601,14 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { receivedAt: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60 } },
         ],
     },
+    // ----- Phase 2 M3: restaurant websites (custom domains) -----
+    {
+        name: 'restaurant_domains',
+        indexes: [
+            { spec: { hostname: 1 }, options: { unique: true } },
+            { spec: { restaurantId: 1, createdAt: 1 } },
+        ],
+    },
     // ----- Public Grader (Lead Generation) -----
     {
         name: 'graderScans',

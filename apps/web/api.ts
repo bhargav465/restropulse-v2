@@ -7,11 +7,12 @@ import type {
 import type {
     MenuCategory, OrderingMenuItem, MenuItemAvailability, MenuItemVariant, MenuItemAddon,
     Offer, OfferReward, OfferScope, OfferSchedule, OfferStatus, StorefrontContent,
-    Order, OrderStatus, RestaurantOrderingSettings,
+    Order, OrderStatus, RestaurantOrderingSettings, RestaurantDomainStatus, RestaurantDomainSslStatus,
 } from '@restropulse/shared';
 import { intelligenceAPI as demoIntelligenceAPI } from './demo-api-intelligence';
 import { cmsAPI as demoCmsAPI } from './demo-api-cms';
 import { ordersAPI as demoOrdersAPI } from './demo-api-orders';
+import { sitesAPI as demoSitesAPI } from './demo-api-sites';
 import { isDemoMode } from './lib/demo';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
@@ -1086,3 +1087,48 @@ const realOrdersAPI = {
 // Demo twin: in-memory [SAMPLE] orders that move when the demo merchant acts.
 export const ordersAPI: typeof realOrdersAPI = isDemoMode() ? (demoOrdersAPI as typeof realOrdersAPI) : realOrdersAPI;
 export { realOrdersAPI };
+
+// ----- Restaurant website + own domains (Phase 2 M3) -----
+
+export interface SiteDomainRecord {
+    type: 'CNAME' | 'TXT';
+    name: string;
+    value: string;
+}
+
+export interface SiteDomain {
+    id: string;
+    hostname: string;
+    status: RestaurantDomainStatus;
+    sslStatus: RestaurantDomainSslStatus;
+    lastError?: string;
+    lastCheckedAt?: string;
+    verifiedAt?: string;
+    records: SiteDomainRecord[];
+}
+
+export interface SiteView {
+    slug: string | null;
+    previewUrl: string | null;
+    subdomainUrl: string | null;
+    cnameTarget: string | null;
+    domainsAvailable: boolean;
+    maxDomains: number;
+    domains: SiteDomain[];
+}
+
+const realSitesAPI = {
+    getSite: async (): Promise<SiteView> =>
+        (await fetchAPI<ApiResponse<SiteView>>('/admin/sites')).data!,
+    addDomain: async (hostname: string): Promise<SiteDomain> =>
+        (await fetchAPI<ApiResponse<SiteDomain>>('/admin/sites/domains', cmsJson('POST', { hostname }))).data!,
+    verifyDomain: async (id: string): Promise<SiteDomain> =>
+        (await fetchAPI<ApiResponse<SiteDomain>>(`/admin/sites/domains/${id}/verify`, { method: 'POST' })).data!,
+    removeDomain: async (id: string): Promise<void> => {
+        await fetchAPI<ApiResponse<unknown>>(`/admin/sites/domains/${id}`, { method: 'DELETE' });
+    },
+};
+
+// Demo twin: one [SAMPLE] domain that verifies on the second check.
+export const sitesAPI: typeof realSitesAPI = isDemoMode() ? (demoSitesAPI as typeof realSitesAPI) : realSitesAPI;
+export { realSitesAPI };

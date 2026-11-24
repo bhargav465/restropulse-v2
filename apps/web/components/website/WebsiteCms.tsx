@@ -5,14 +5,16 @@ import OffersEditor from './OffersEditor';
 import SiteContentEditor from './SiteContentEditor';
 import OrdersBoard from './OrdersBoard';
 import OrderingSettings from './OrderingSettings';
+import SiteDomains from './SiteDomains';
 
-type Tab = 'orders' | 'menu' | 'offers' | 'content' | 'settings';
+type Tab = 'orders' | 'menu' | 'offers' | 'content' | 'site' | 'settings';
 
 const TABS: Array<{ id: Tab; label: string }> = [
     { id: 'orders', label: 'Orders' },
     { id: 'menu', label: 'Menu' },
     { id: 'offers', label: 'Offers' },
     { id: 'content', label: 'Site content' },
+    { id: 'site', label: 'Website' },
     { id: 'settings', label: 'Settings' },
 ];
 
@@ -49,6 +51,7 @@ const WebsiteCms: React.FC<{ initialTab?: Tab }> = ({ initialTab = 'menu' }) => 
                 {tab === 'offers' && <OffersEditor />}
                 {tab === 'content' && <SiteContentEditor />}
                 {tab === 'orders' && <OrdersBoard />}
+                {tab === 'site' && <SiteDomains />}
                 {tab === 'settings' && <OrderingSettings />}
             </div>
         </PageContainer>

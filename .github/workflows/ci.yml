@@ -30,6 +30,7 @@ jobs:
       publisher: ${{ steps.changes.outputs.publisher }}
       content-engine: ${{ steps.changes.outputs.content-engine }}
       intelligence-worker: ${{ steps.changes.outputs.intelligence-worker }}
+      sites: ${{ steps.changes.outputs.sites }}
       docs-only: ${{ steps.changes.outputs.docs-only }}
     steps:
       - name: Checkout
@@ -202,6 +203,25 @@ jobs:
       # Coverage excluded (like publisher): src/ is worker cron wiring; the
       # meaningful logic is covered by the 32 unit tests run above.
 
+  test-sites:
+    name: Test Sites
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sites == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Run tests with coverage
+        run: npx turbo test:coverage --filter=@restropulse/sites
+        env:
+          NODE_ENV: test
+
   ci-complete:
     name: CI Complete
     if: always()
@@ -214,6 +234,7 @@ jobs:
       - test-publisher
       - test-content-engine
       - test-intelligence-worker
+      - test-sites
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -226,6 +247,7 @@ jobs:
           echo "test-publisher: ${{ needs.test-publisher.result }}"
           echo "test-content-engine: ${{ needs.test-content-engine.result }}"
           echo "test-intelligence-worker: ${{ needs.test-intelligence-worker.result }}"
+          echo "test-sites: ${{ needs.test-sites.result }}"
 
           # Fail if any upstream job failed (skipped is OK)
           if [[ "${{ needs.detect-changes.result }}" == "failure" ]] || \
@@ -235,7 +257,8 @@ jobs:
              [[ "${{ needs.test-api.result }}" == "failure" ]] || \
              [[ "${{ needs.test-publisher.result }}" == "failure" ]] || \
              [[ "${{ needs.test-content-engine.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-intelligence-worker.result }}" == "failure" ]]; then
+             [[ "${{ needs.test-intelligence-worker.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-sites.result }}" == "failure" ]]; then
             echo "One or more upstream jobs failed."
             exit 1
           fi
