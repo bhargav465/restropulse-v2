@@ -18,6 +18,7 @@ import { connect, getConfig, disconnect } from '../config/database.js';
  */
 export async function migrateCommand(options: { migration: string }): Promise<void> {
     const migrations: Record<string, () => Promise<void>> = {
+        'unique-post-slot-index': migrateUniquePostSlotIndex,
         'subscription-history': migrateSubscriptionHistory,
         'rename-strategy-id-to-cycle-id': migrateRenameStrategyIdToCycleId,
         'sparse-oauth-session-id-index': migrateSparseOauthSessionIdIndex,
@@ -35,6 +36,95 @@ export async function migrateCommand(options: { migration: string }): Promise<vo
     }
 
     await run();
+}
+
+/**
+ * Migration: unique-post-slot-index
+ *
+ * split-post-platforms created cycleId_1_scheduledFor_1_platform_1 as a plain
+ * (non-unique) index, so two rolling-window ticks running at the same time
+ * could both upsert the same slot and create duplicate posts. This makes the
+ * index unique, partial on cycleId being a string so adhoc posts (no cycleId)
+ * are unaffected.
+ *
+ * Steps:
+ *   1. Look for existing duplicates. If any exist, list them and stop without
+ *      changing anything -- deciding which duplicate post to keep is a human
+ *      call (one may already be approved or published).
+ *   2. Drop the old non-unique index.
+ *   3. Create the unique partial index under the same name.
+ */
+async function migrateUniquePostSlotIndex(): Promise<void> {
+    const config = getConfig();
+    const spinner = ora();
+    const indexName = 'cycleId_1_scheduledFor_1_platform_1';
+
+    try {
+        spinner.start('Connecting to MongoDB...');
+        const client = await connect();
+        spinner.succeed('Connected to MongoDB');
+
+        const db = client.db(config.database);
+        const col = db.collection('posts');
+
+        spinner.start('Checking for duplicate cycle-slot posts...');
+        const duplicates = await col
+            .aggregate<{ _id: { cycleId: string; scheduledFor: string; platform: string }; ids: unknown[]; count: number }>([
+                { $match: { cycleId: { $type: 'string' } } },
+                {
+                    $group: {
+                        _id: { cycleId: '$cycleId', scheduledFor: '$scheduledFor', platform: '$platform' },
+                        ids: { $push: '$_id' },
+                        count: { $sum: 1 },
+                    },
+                },
+                { $match: { count: { $gt: 1 } } },
+            ])
+            .toArray();
+
+        if (duplicates.length > 0) {
+            spinner.fail(`Found ${duplicates.length} cycle slot(s) with duplicate posts -- nothing changed`);
+            for (const dup of duplicates) {
+                console.log(
+                    chalk.red(
+                        `  - cycle ${dup._id.cycleId} @ ${dup._id.scheduledFor} ${dup._id.platform}: ` +
+                            `${dup.count} posts (${dup.ids.map(String).join(', ')})`,
+                    ),
+                );
+            }
+            console.log(chalk.gray('Remove the extra posts, then run this migration again.'));
+            process.exitCode = 1;
+            return;
+        }
+        spinner.succeed('No duplicate cycle-slot posts');
+
+        const existing = (await col.indexes()).find((idx) => idx.name === indexName);
+        if (existing?.unique) {
+            spinner.succeed(`${indexName} is already unique -- nothing to do`);
+            return;
+        }
+
+        if (existing) {
+            spinner.start(`Dropping non-unique ${indexName}...`);
+            await col.dropIndex(indexName);
+            spinner.succeed(`Dropped non-unique ${indexName}`);
+        }
+
+        spinner.start(`Creating unique ${indexName}...`);
+        await col.createIndex(
+            { cycleId: 1, scheduledFor: 1, platform: 1 },
+            { name: indexName, unique: true, partialFilterExpression: { cycleId: { $type: 'string' } } },
+        );
+        spinner.succeed(`Created unique ${indexName}`);
+
+        console.log(chalk.green('\nMigration unique-post-slot-index complete!'));
+    } catch (err: any) {
+        spinner.fail('Migration failed');
+        console.error(chalk.red(`Error: ${err.message}`));
+        process.exit(1);
+    } finally {
+        await disconnect();
+    }
 }
 
 /**

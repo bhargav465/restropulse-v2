@@ -30,7 +30,10 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   client = await MongoClient.connect(mongod.getUri());
   setDB(client.db(DB_NAME));
-  await client.db(DB_NAME).collection('posts').createIndex({ cycleId: 1, scheduledFor: 1, platform: 1 });
+  await client.db(DB_NAME).collection('posts').createIndex(
+    { cycleId: 1, scheduledFor: 1, platform: 1 },
+    { unique: true, partialFilterExpression: { cycleId: { $type: 'string' } } },
+  );
 }, 60_000);
 
 afterAll(async () => {
