@@ -53,3 +53,20 @@ describe('ordersAPI (real client)', () => {
         await expect(realOrdersAPI.saveSettings({ slug: 'x', ordering: DEFAULT_ORDERING_SETTINGS })).rejects.toThrow('That web address is taken. Try another.');
     });
 });
+
+describe('sitesAPI (real client)', () => {
+    beforeEach(() => mockFetch.mockReset());
+
+    it('reads the site and manages domains', async () => {
+        const { realSitesAPI } = await import('../../api');
+        mockFetch.mockResolvedValue(ok({ id: 'd1' }));
+        await realSitesAPI.getSite();
+        expect(call(0).url).toBe('http://localhost:3001/api/admin/sites');
+        await realSitesAPI.addDomain('www.a.in');
+        expect(call(1)).toMatchObject({ url: 'http://localhost:3001/api/admin/sites/domains', method: 'POST', body: JSON.stringify({ hostname: 'www.a.in' }) });
+        await realSitesAPI.verifyDomain('d1');
+        expect(call(2)).toMatchObject({ url: 'http://localhost:3001/api/admin/sites/domains/d1/verify', method: 'POST' });
+        await realSitesAPI.removeDomain('d1');
+        expect(call(3)).toMatchObject({ url: 'http://localhost:3001/api/admin/sites/domains/d1', method: 'DELETE' });
+    });
+});

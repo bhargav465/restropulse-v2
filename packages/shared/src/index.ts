@@ -673,3 +673,4 @@ export * from './ordering.js';
 export * from './cms.js';
 // Phase 2 M2: orders, status workflow and payments.
 export * from './orders.js';
+export * from './sites.js';
