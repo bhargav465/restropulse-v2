@@ -27,6 +27,7 @@ import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
+import { jwtSecretProblem } from './services/jwt.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +124,17 @@ if (env.NODE_ENV === 'development' && portConfig.strictInDevelopment && env.PORT
 }
 
 const log = createLogger('server');
+
+// Refuse to serve production with a guessable token-signing secret. Staging
+// only warns so an unconfigured staging slot still boots for testing.
+const jwtProblem = jwtSecretProblem(process.env.JWT_SECRET);
+if (jwtProblem && env.NODE_ENV === 'production') {
+    throw new Error(`${jwtProblem}. Set a random secret of at least 32 characters before starting in production.`);
+}
+if (jwtProblem && env.NODE_ENV === 'staging') {
+    log.error({}, `${jwtProblem}; tokens on this environment can be forged`);
+}
+
 const app: Express = express();
 const PORT = env.PORT;
 const CORS_ORIGIN = env.CORS_ORIGIN;

@@ -7,16 +7,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { trackEvent } from '@restropulse/telemetry/server';
+import { generateTokens } from '../../src/services/jwt.js';
 
 const mocks = vi.hoisted(() => ({
     runGraderScan: vi.fn(),
     unlockGraderScan: vi.fn(),
     searchPlaceCandidates: vi.fn(),
+    getGraderLeads: vi.fn(),
 }));
 
-vi.mock('../../src/services/intelligence/grader.js', () => ({
+vi.mock('../../src/services/intelligence/grader.js', async (importOriginal) => ({
+    // Keep the real toLockedTeaser: what the locked response withholds is the contract.
+    ...(await importOriginal<typeof import('../../src/services/intelligence/grader.js')>()),
     runGraderScan: mocks.runGraderScan,
     unlockGraderScan: mocks.unlockGraderScan,
+    getGraderLeads: mocks.getGraderLeads,
 }));
 vi.mock('../../src/services/intelligence/places.js', () => ({
     searchPlaceCandidates: mocks.searchPlaceCandidates,
@@ -37,7 +42,14 @@ const scanResult = {
     scanId: 'scan-1',
     score: 62,
     problems: [1, 2, 3, 4, 5, 6].map((n) => ({ id: n })),
-    leaderboard: [1, 2, 3, 4, 5].map((n) => ({ rank: n })),
+    leaderboard: [1, 2, 3, 4, 5].map((n) => ({
+        name: n === 3 ? 'Bawarchi' : `Rival Kitchen ${n}`,
+        rating: 4.5 - n / 10,
+        reviews: 1000 - n * 100,
+        position: n,
+        isYou: n === 3,
+        beatsYou: n < 3 ? [`Higher rating (rival ${n})`] : [],
+    })),
     searches: [{ query: 'biryani', topResult: 'Paradise', yourPosition: 3 }, { query: 'mandi', topResult: 'Shah', yourPosition: 7 }],
     pillars: [{ id: 'reviews', grade: 'B', checks: [{ id: 'c1' }] }],
     likelyNew: [{ name: 'New Place' }],
@@ -83,6 +95,23 @@ describe('POST /api/grader/scan', () => {
         expect(res.body.data.searches[1].topResult).not.toBe('Shah');
         expect(res.body.data.pillars[0].checks).toEqual([]);
         expect(res.body.data.likelyNew).toEqual([]);
+    });
+
+    it('withholds competitor names and reasons from the locked board, not just blurs them', async () => {
+        mocks.runGraderScan.mockResolvedValue(scanResult);
+        const res = await request(app()).post('/api/grader/scan').set('X-Forwarded-For', nextIp()).send({ name: 'Bawarchi', city: 'Hyderabad' });
+        expect(res.status).toBe(200);
+        const raw = JSON.stringify(res.body);
+        expect(raw).not.toContain('Rival Kitchen');
+        expect(raw).not.toContain('Higher rating');
+        expect(raw).not.toContain('Shah');
+        expect(raw).not.toContain('New Place');
+        const board = res.body.data.leaderboard;
+        // The blurred layout still has its shape, and the scanned restaurant's own row stays readable.
+        expect(board.map((r: { position: number }) => r.position)).toEqual([1, 2, 3, 4]);
+        expect(board.find((r: { isYou: boolean }) => r.isYou).name).toBe('Bawarchi');
+        expect(board[0]).toEqual(expect.objectContaining({ name: '••••••', beatsYou: [], rating: 4.4, reviews: 900 }));
+        expect(res.body.data.unlocked).toBe(false);
     });
 
     it('404 with a helpful message when the listing is not found', async () => {
@@ -157,5 +186,34 @@ describe('image proxies share one budget', () => {
             expect((await request(app()).get('/api/grader/staticmap?lat=x').set('X-Forwarded-For', ip)).status).toBe(404);
         }
         expect((await request(app()).get('/api/grader/photo?ref=bad').set('X-Forwarded-For', ip)).status).toBe(429);
+    });
+});
+
+describe('GET /api/grader/leads', () => {
+    const leads = [{ scanId: 's1', phone: '9876543210', restaurantName: 'Bawarchi' }];
+    function leadsCollection() {
+        const cursor = { sort: vi.fn().mockReturnThis(), skip: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), toArray: vi.fn(async () => leads) };
+        return { countDocuments: vi.fn(async () => leads.length), find: vi.fn(() => cursor) };
+    }
+
+    it('401 without a token, and never touches the collection', async () => {
+        const res = await request(app()).get('/api/grader/leads');
+        expect(res.status).toBe(401);
+        expect(mocks.getGraderLeads).not.toHaveBeenCalled();
+    });
+
+    it('403 for a signed-in merchant who is not an admin', async () => {
+        const { accessToken } = generateTokens('u1', '+919999999999', 'r1', 'OWNER');
+        const res = await request(app()).get('/api/grader/leads').set('Authorization', `Bearer ${accessToken}`);
+        expect(res.status).toBe(403);
+        expect(mocks.getGraderLeads).not.toHaveBeenCalled();
+    });
+
+    it('returns leads to an admin', async () => {
+        mocks.getGraderLeads.mockReturnValue(leadsCollection());
+        const { accessToken } = generateTokens('u2', '+919999999998', 'r2', 'ADMIN');
+        const res = await request(app()).get('/api/grader/leads').set('Authorization', `Bearer ${accessToken}`);
+        expect(res.status).toBe(200);
+        expect(res.body.data).toEqual(expect.objectContaining({ total: 1, leads }));
     });
 });
