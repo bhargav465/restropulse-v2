@@ -18,7 +18,7 @@ export default defineConfig({
             // built dist/. allowExternal plus the source maps in dist/ let v8
             // attribute that coverage back to packages/publishing/src/*.ts.
             allowExternal: true,
-            include: ['**/packages/publishing/src/**/*.ts'],
+            include: ['**/packages/publishing/src/**/*.ts', '**/packages/publishing/dist/**/*.js'],
             exclude: ['node_modules/', 'tests/', '**/*.d.ts']
         }
     }
