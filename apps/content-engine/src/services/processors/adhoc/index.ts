@@ -11,6 +11,7 @@ import { getPostsCollection, findRestaurantById } from '@restropulse/db';
 import type { PostType, Platform } from '@restropulse/shared';
 import { createLogger } from '@restropulse/telemetry/server';
 import { getContentGenerator, ContentGenerationError } from '../../content-generator/index.js';
+import { resolveContentOffers } from '../content-offers.js';
 
 const logger = createLogger('content-engine:adhoc-processor');
 
@@ -62,7 +63,7 @@ export async function processPendingPosts(): Promise<{ processed: number; failed
             description: restaurant.description,
             menu: restaurant.menu,
             chefSpecials: restaurant.chefSpecials,
-            activeOffers: restaurant.activeOffers,
+            activeOffers: await resolveContentOffers(restaurant),
             priceRange: restaurant.priceRange,
           } : undefined,
         },
