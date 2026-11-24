@@ -63,3 +63,18 @@ describe('JWT Service', () => {
         });
     });
 });
+
+describe('jwtSecretProblem', () => {
+    it('flags a missing secret and the development default', async () => {
+        const { jwtSecretProblem, DEV_JWT_SECRET } = await import('../../src/services/jwt.js');
+        expect(jwtSecretProblem(undefined)).toMatch(/unset|default/);
+        expect(jwtSecretProblem('')).toMatch(/unset|default/);
+        expect(jwtSecretProblem(DEV_JWT_SECRET)).toMatch(/default/);
+    });
+
+    it('flags a short secret and accepts a long random one', async () => {
+        const { jwtSecretProblem } = await import('../../src/services/jwt.js');
+        expect(jwtSecretProblem('short-secret')).toMatch(/32 characters/);
+        expect(jwtSecretProblem('a'.repeat(32))).toBeNull();
+    });
+});

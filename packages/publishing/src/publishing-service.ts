@@ -309,12 +309,23 @@ export interface InstagramCredentialsForPublishing {
     accessToken: string;  // Encrypted access token
 }
 
+/**
+ * How a failed publish should be handled:
+ * - `retryable`: transient (rate limit, Meta outage, timeout); try again later.
+ * - `permanent`: retrying will not help (bad media, unsupported type).
+ * - `reauth`: the merchant's Meta token or permissions are no longer valid;
+ *   only reconnecting Instagram/Facebook fixes it.
+ */
+export type PublishFailureClass = 'retryable' | 'permanent' | 'reauth';
+
 export interface PublishResult {
     success: boolean;
     externalPostId?: string;
     error?: string;
     errorCode?: string;
     retryable: boolean;
+    /** Set on failures that came from a classified Meta/HTTP error. */
+    failureClass?: PublishFailureClass;
 }
 
 interface ContainerStatusResult {
@@ -331,43 +342,78 @@ interface ParsedPublishError {
     subcode: string | null;
     fbtraceId: string | null;
     retryable: boolean;
+    failureClass: PublishFailureClass;
+}
+
+/** Meta Graph API error shape (`response.data.error`). */
+export interface MetaGraphError {
+    code?: number | string;
+    error_subcode?: number | string | null;
+    is_transient?: boolean;
+    message?: string;
+}
+
+/**
+ * Classify a Meta Graph API error.
+ *
+ * - 190 (invalid/expired OAuth token, any subcode), 102 (session expired) and
+ *   200-299 (user-granted permission missing or revoked) need the merchant to
+ *   reconnect.
+ * - 4/17/32/613 (rate limits), 1/2 (unknown / service temporarily
+ *   unavailable), `is_transient`, and 2207xxx media-upload failures (media URL
+ *   temporarily unreachable) are retried.
+ * - Everything else is permanent.
+ *
+ * ASSUMPTION: code 10 ("application does not have permission") is treated as
+ * permanent, not reauth: it usually means the app itself lacks an approved
+ * permission (Meta App Review), which reconnecting cannot fix.
+ */
+export function classifyMetaError(metaError: MetaGraphError): PublishFailureClass {
+    const code = Number(metaError.code);
+    if (code === 190 || code === 102 || (code >= 200 && code <= 299)) return 'reauth';
+    const isRateLimit = [4, 17, 32, 613].includes(code);
+    const isServiceTransient = code === 1 || code === 2;
+    const isMediaUploadFailure = String(metaError.code ?? '').startsWith('2207');
+    if (isRateLimit || isServiceTransient || metaError.is_transient === true || isMediaUploadFailure) {
+        return 'retryable';
+    }
+    return 'permanent';
 }
 
 function parsePublishError(error: unknown): ParsedPublishError {
     if (error instanceof AxiosError) {
         if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-            return { message: 'Request timed out', code: 'TIMEOUT', subcode: null, fbtraceId: null, retryable: true };
+            return { message: 'Request timed out', code: 'TIMEOUT', subcode: null, fbtraceId: null, retryable: true, failureClass: 'retryable' };
         }
 
         const metaError = error.response?.data?.error;
         if (metaError) {
-            // Rate limit codes: 4 (app-level), 17 (user-level), 32 (page-level)
-            const isRateLimit = [4, 17, 32].includes(metaError.code);
-            // Transient errors flagged by Meta
-            const isTransient = metaError.is_transient === true;
-            // Media upload failures (2207xxx) can be caused by a temporarily
-            // unreachable media URL (e.g. ngrok tunnel down). Always retry these
-            // so a transient tunnel outage doesn't permanently fail the post.
-            const isMediaUploadFailure = String(metaError.code ?? '').startsWith('2207');
+            const failureClass = classifyMetaError(metaError);
             return {
                 message: metaError.message || 'Unknown Meta API error',
                 code: String(metaError.code),
                 subcode: metaError.error_subcode != null ? String(metaError.error_subcode) : null,
                 fbtraceId: metaError.fbtrace_id ?? null,
-                retryable: isRateLimit || isTransient || isMediaUploadFailure
+                retryable: failureClass === 'retryable',
+                failureClass,
             };
         }
 
+        const status = error.response?.status ?? 0;
+        // No response at all (DNS failure, connection reset) is a network blip.
+        const retryable = !error.response || status === 429 || status >= 500;
+        const failureClass: PublishFailureClass = status === 401 ? 'reauth' : retryable ? 'retryable' : 'permanent';
         return {
             message: error.message,
-            code: error.response?.status ? String(error.response.status) : null,
+            code: status ? String(status) : null,
             subcode: null,
             fbtraceId: null,
-            retryable: error.response?.status === 429 || (error.response?.status ?? 0) >= 500
+            retryable: failureClass === 'retryable',
+            failureClass,
         };
     }
 
-    return { message: String(error), code: null, subcode: null, fbtraceId: null, retryable: false };
+    return { message: String(error), code: null, subcode: null, fbtraceId: null, retryable: false, failureClass: 'permanent' };
 }
 
 // -- Container Creation --
@@ -551,8 +597,8 @@ async function publishImagePost(
         return { success: true, externalPostId: mediaId, retryable: false };
     } catch (error) {
         const parsed = parsePublishError(error);
-        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable }, 'Image post failed');
-        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable };
+        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable, failureClass: parsed.failureClass }, 'Image post failed');
+        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable, failureClass: parsed.failureClass };
     }
 }
 
@@ -595,8 +641,8 @@ async function publishCarouselPost(
         return { success: true, externalPostId: mediaId, retryable: false };
     } catch (error) {
         const parsed = parsePublishError(error);
-        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable }, 'Carousel post failed');
-        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable };
+        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable, failureClass: parsed.failureClass }, 'Carousel post failed');
+        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable, failureClass: parsed.failureClass };
     }
 }
 
@@ -638,8 +684,8 @@ async function publishReelPost(
         return { success: true, externalPostId: mediaId, retryable: false };
     } catch (error) {
         const parsed = parsePublishError(error);
-        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable }, 'Reel post failed');
-        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable };
+        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable, failureClass: parsed.failureClass }, 'Reel post failed');
+        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable, failureClass: parsed.failureClass };
     }
 }
 
@@ -694,8 +740,8 @@ async function publishStoryPost(
         return { success: true, externalPostId: mediaId, retryable: false };
     } catch (error) {
         const parsed = parsePublishError(error);
-        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable }, 'Story post failed');
-        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable };
+        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable, failureClass: parsed.failureClass }, 'Story post failed');
+        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable, failureClass: parsed.failureClass };
     }
 }
 
@@ -1043,8 +1089,8 @@ export async function publishToFacebook(
         };
     } catch (error) {
         const parsed = parsePublishError(error);
-        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable }, 'Facebook publish failed');
-        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable };
+        log.error({ error: parsed.message, code: parsed.code, subcode: parsed.subcode, fbtraceId: parsed.fbtraceId, retryable: parsed.retryable, failureClass: parsed.failureClass }, 'Facebook publish failed');
+        return { success: false, error: parsed.message, errorCode: parsed.code ?? undefined, retryable: parsed.retryable, failureClass: parsed.failureClass };
     }
 }
 

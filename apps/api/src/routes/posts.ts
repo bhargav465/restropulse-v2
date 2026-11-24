@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { findAllPosts, findPostById, createPosts, deletePostsByGroupId, updatePost, deletePost, getPostsCollection, getRestaurantsCollection, toObjectId, findActiveSubscription, deductCredits } from '@restropulse/db';
-import { publishPost, applyPublishResult, triggerManualPublish, getRecentPublishAttempts } from '@restropulse/publishing';
+import { publishPost, applyPublishResult, triggerManualPublish, getRecentPublishAttempts, markRestaurantNeedsReauth } from '@restropulse/publishing';
 import { ApiResponse, Post, isPostPastApprovalDeadline, Platform, PLATFORM_POST_TYPES } from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -567,6 +567,12 @@ router.post('/:id/publish', async (req: Request, res: Response<ApiResponse>) => 
                 message: 'Post published successfully'
             });
         } else {
+            // Expired/revoked Meta token: flag the connection so the merchant
+            // sees "Reconnect" and the scheduled publisher pauses for them.
+            if (result.failureClass === 'reauth') {
+                await markRestaurantNeedsReauth(restaurantId, result.error ?? 'Meta rejected the access token');
+            }
+
             // Update DB with failure status
             await postsCol.updateOne(
                 { _id: toObjectId(id) as any },

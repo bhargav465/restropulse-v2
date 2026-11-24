@@ -1,19 +1,30 @@
 /**
  * Server-side event and metric tracking.
  *
- * Custom events are sent via the Azure Monitor exporter's log pipeline.
- * They populate the customEvents table in Log Analytics and are NEVER
- * subject to trace sampling -- counts are always exact.
+ * Custom events are emitted as OpenTelemetry log records carrying the
+ * `microsoft.custom_event.name` attribute, which the Azure Monitor exporter
+ * maps to the customEvents table (never subject to trace sampling). They are
+ * also written to the pino logger (stdout) for local debugging.
+ *
+ * Before this, trackEvent only logged through pino. The Azure Monitor distro
+ * instruments bunyan and winston but not pino, so those events never reached
+ * Application Insights and the customEvents-based workbooks had no data.
  *
  * Metrics are pre-aggregated via OpenTelemetry and exported to the
  * customMetrics table. They are inherently cheap regardless of volume.
  */
 
 import { metrics, type Attributes } from '@opentelemetry/api';
+import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import { createLogger } from './logger.js';
+import { sanitizeEventProperties } from '../privacy.js';
 
 const log = createLogger('events');
 const meter = metrics.getMeter('restropulse');
+const eventLogger = logs.getLogger('restropulse-events');
+
+/** Attribute the Azure Monitor exporter uses to route a log record to customEvents. */
+export const CUSTOM_EVENT_NAME_ATTRIBUTE = 'microsoft.custom_event.name';
 
 // -- Custom Event Tracking --
 
@@ -22,9 +33,21 @@ const meter = metrics.getMeter('restropulse');
  * Use EventNames constants for the name parameter.
  */
 export function trackEvent(name: string, properties?: Record<string, string>): void {
-    // Log the event so it appears in Azure Monitor traces table
-    // with a special 'event' field that can be queried
     log.info({ event: name, ...properties }, `Event: ${name}`);
+
+    try {
+        // No-op until useAzureMonitor() registers a LoggerProvider (i.e. when
+        // APPLICATIONINSIGHTS_CONNECTION_STRING is unset, as in dev and tests).
+        const attributes = sanitizeEventProperties(properties ?? {});
+        eventLogger.emit({
+            severityNumber: SeverityNumber.INFO,
+            severityText: 'INFO',
+            body: name,
+            attributes: { ...attributes, [CUSTOM_EVENT_NAME_ATTRIBUTE]: name },
+        });
+    } catch {
+        // Telemetry must never break the caller.
+    }
 }
 
 // -- Pre-defined Metrics --

@@ -15,6 +15,30 @@ import type { PostType } from './index.js';
 export type MediaJobStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type MediaJobProvider = 'placeholder-media' | 'replicate';
 
+/** Whether another attempt could succeed. Content-policy rejections are permanent. */
+export type MediaFailureClass = 'retryable' | 'permanent';
+
+/** One finished (failed) attempt of a long-running media job, kept for support and cost audit. */
+export interface MediaJobAttempt {
+  attempt: number;
+  modelId: string;
+  providerJobId?: string;
+  startedAt: Date;
+  endedAt: Date;
+  error: string;
+  errorClass: MediaFailureClass;
+}
+
+/**
+ * What a video job needs to be submitted again. Stored on the job at first
+ * submission so the media-job-poller can retry without the original
+ * generation pipeline. Jobs without it (images, rows written before A3) are
+ * never retried by the poller.
+ */
+export interface MediaJobVideoRequest {
+  prompt: string;
+}
+
 export interface MediaJobRecord {
   id?: string;
   /** Stable client-side id (UUID). */
@@ -43,8 +67,16 @@ export interface MediaJobRecord {
 
   /** Failure detail when status=FAILED. */
   error?: string;
-  /** Submission attempts so far. Phase 4 increments at most once. */
+  /** Submission attempts so far, including the one in flight. */
   attempts: number;
+  /** Video only: inputs needed to resubmit (see MediaJobVideoRequest). */
+  request?: MediaJobVideoRequest;
+  /** Video only: every attempt that failed and was retried or given up on. */
+  attemptHistory?: MediaJobAttempt[];
+  /** Video only: when status=PENDING, the earliest time the poller resubmits. */
+  nextAttemptAt?: Date | null;
+  /** Video only: when the first attempt started; bounds the total retry window. */
+  firstStartedAt?: Date;
 
   /** Cost-attribution labels (denormalized for fast dashboards). */
   restaurantId?: string;

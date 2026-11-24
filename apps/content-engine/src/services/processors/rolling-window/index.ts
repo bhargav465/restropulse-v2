@@ -15,9 +15,12 @@
  * Idempotency: each stub is keyed by the compound { cycleId, scheduledFor, platform }
  * -- one slot fans out into one post per target platform, each upserted
  * independently so a platform added after a prior tick doesn't collide with
- * the platform(s) already materialised for that slot. The migration adds a
- * matching compound index; we use updateOne with $setOnInsert + upsert:true
- * so concurrent ticks never produce duplicates.
+ * the platform(s) already materialised for that slot. We use updateOne with
+ * $setOnInsert + upsert:true, backed by the UNIQUE partial index
+ * cycleId_1_scheduledFor_1_platform_1 (db-cli migration
+ * unique-post-slot-index). An upsert alone is not race-safe: two ticks can
+ * both miss the filter and both insert. With the unique index the losing
+ * insert fails with E11000, which we count as "skipped" (the post exists).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -32,6 +35,11 @@ import { createLogger } from '@restropulse/telemetry/server';
 import { deriveCycleSlots, DEFAULT_PLATFORMS, type CycleSlot } from './slots.js';
 
 const logger = createLogger('content-engine:rolling-window');
+
+/** True for a MongoDB duplicate-key error (E11000). */
+export function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 11000;
+}
 const MS_PER_HOUR = 60 * 60 * 1000;
 
 export interface RollingWindowConfig {
@@ -171,26 +179,34 @@ export async function processRollingWindow(config: RollingWindowConfig = {}): Pr
             continue;
           }
 
-          const updateResult = await postsCol.updateOne(
-            { cycleId, scheduledFor: scheduledForIso, platform },
-            {
-              $setOnInsert: {
-                cycleId,
-                scheduledFor: scheduledForIso,
-                type: slot.type,
-                platform,
-                groupId,
-                themes: slot.themes ?? [],          // additional context only, archetype excluded
-                archetype: slot.archetype,          // was: slot.themes[0] ?? null
-                status: 'PENDING_CONTENT',
-                restaurantId: cycle.restaurantId ?? null,
-                isAdhoc: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
+          let updateResult: { upsertedCount: number };
+          try {
+            updateResult = await postsCol.updateOne(
+              { cycleId, scheduledFor: scheduledForIso, platform },
+              {
+                $setOnInsert: {
+                  cycleId,
+                  scheduledFor: scheduledForIso,
+                  type: slot.type,
+                  platform,
+                  groupId,
+                  themes: slot.themes ?? [],          // additional context only, archetype excluded
+                  archetype: slot.archetype,          // was: slot.themes[0] ?? null
+                  status: 'PENDING_CONTENT',
+                  restaurantId: cycle.restaurantId ?? null,
+                  isAdhoc: false,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
               },
-            },
-            { upsert: true },
-          );
+              { upsert: true },
+            );
+          } catch (error) {
+            // A concurrent tick inserted this platform-post first; the unique
+            // index rejected our insert. The post exists, so this is a skip.
+            if (!isDuplicateKeyError(error)) throw error;
+            updateResult = { upsertedCount: 0 };
+          }
 
           if (updateResult.upsertedCount === 1) {
             created++;

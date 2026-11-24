@@ -64,10 +64,21 @@ function parseLcovMetrics(filePath) {
         lines: toPct(lh, lf),
         branches: toPct(brh, brf),
         functions: toPct(fnh, fnf),
+        linesFound: lf,
     };
 }
 
 const actual = parseLcovMetrics(lcovPath);
+
+// An empty report would otherwise score 100% on every metric and pass any
+// floor. A workspace with a baseline entry must measure something.
+if (actual.linesFound === 0) {
+    console.error(
+        `Coverage report for ${workspaceName} measured no lines (${lcovPath}). ` +
+        'Check the coverage include/exclude globs in its vitest config.',
+    );
+    process.exit(1);
+}
 
 let failed = false;
 const results = [];
