@@ -63,7 +63,7 @@ Rules:
 | ANTHROPIC_API_KEY                | No       | --                                               | Anthropic key for Restaurant Intelligence competitive analysis (haiku-4-5 classify + sonnet-4-6 analysis). Absent -> scan 503s gracefully |
 | ZOMATO_ADAPTER                   | No       | manual                                           | Restaurant Intelligence Zomato source: `manual` (merchant-entered) or `stub` |
 
-*JWT_SECRET has a dev default but must be changed in production.
+*JWT_SECRET has a dev default. The API refuses to start in production with that default or a secret under 32 characters, and logs an error on staging.
 *RAZORPAY_* vars are optional in dev; service throws if called without config.
 
 ### Telemetry (all Node.js apps)
