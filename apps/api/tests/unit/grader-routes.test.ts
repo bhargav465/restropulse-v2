@@ -16,9 +16,8 @@ const mocks = vi.hoisted(() => ({
     getGraderLeads: vi.fn(),
 }));
 
-vi.mock('../../src/services/intelligence/grader.js', async (importOriginal) => ({
-    // Keep the real toLockedTeaser: what the locked response withholds is the contract.
-    ...(await importOriginal<typeof import('../../src/services/intelligence/grader.js')>()),
+// toLockedTeaser (grader-teaser.ts) stays real: what the locked response withholds is the contract.
+vi.mock('../../src/services/intelligence/grader.js', () => ({
     runGraderScan: mocks.runGraderScan,
     unlockGraderScan: mocks.unlockGraderScan,
     getGraderLeads: mocks.getGraderLeads,

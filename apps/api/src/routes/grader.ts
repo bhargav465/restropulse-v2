@@ -10,7 +10,8 @@
 
 import express, { Request, Response } from 'express';
 import { handle } from '../middleware/async-handler.js';
-import { runGraderScan, unlockGraderScan, toLockedTeaser, type GraderResult } from '../services/intelligence/grader.js';
+import { runGraderScan, unlockGraderScan, type GraderResult } from '../services/intelligence/grader.js';
+import { toLockedTeaser } from '../services/intelligence/grader-teaser.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
 import { searchPlaceCandidates } from '../services/intelligence/places.js';
