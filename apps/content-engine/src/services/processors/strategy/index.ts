@@ -17,6 +17,7 @@ import { createLogger } from '@restropulse/telemetry/server';
 import type { PlannedSlot } from '@restropulse/shared';
 import { getContentGenerator, ContentGenerationError } from '../../content-generator/index.js';
 import { deriveCycleSlots } from '../rolling-window/slots.js';
+import { resolveContentOffers } from '../content-offers.js';
 
 const logger = createLogger('content-engine:strategy-processor');
 
@@ -104,7 +105,7 @@ export async function processPendingCycles(): Promise<{ processed: number; faile
             description: restaurant.description,
             menu: restaurant.menu,
             chefSpecials: restaurant.chefSpecials,
-            activeOffers: restaurant.activeOffers,
+            activeOffers: await resolveContentOffers(restaurant),
           } : undefined,
         },
       );

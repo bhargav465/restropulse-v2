@@ -14,6 +14,7 @@ import { lazyWithReload } from './utils/lazy-with-reload';
 import { ViewState, Restaurant, User, Post, FeatureFlags, Platform, WebThemeName, EntitlementState } from '@restropulse/shared';
 import { authAPI, restaurantAPI, postsAPI, configAPI, subscriptionAPI, intelligenceAPI } from './api';
 import { trackPageView, browserEvents } from '@restropulse/telemetry/browser';
+import { isWebsiteCmsEnabled } from './lib/website-cms';
 
 // Route-level code splitting (P0-6). Each view is its own chunk so the first
 // load ships only the shell plus the view being opened. Login, Landing and
@@ -29,6 +30,7 @@ const PrivacyPolicy = lazyWithReload(() => import('./components/PrivacyPolicy'))
 const TermsOfService = lazyWithReload(() => import('./components/TermsOfService'));
 const Onboarding = lazyWithReload(() => import('./components/Onboarding'));
 const ProfileSheet = lazyWithReload(() => import('./components/ProfileSheet'));
+const WebsiteCms = lazyWithReload(() => import('./components/website/WebsiteCms'));
 
 function ViewFallback() {
     return (
@@ -44,7 +46,7 @@ function getUserInitials(name: string): string {
 
 // Top-level app views that can be restored from a ?view= deep link / refresh.
 // Auth-flow views (LANDING/LOGIN/ONBOARDING) are driven by auth state, not the URL.
-const RESTORABLE_VIEWS: ViewState[] = ['DASHBOARD', 'STUDIO', 'INPUTS', 'STRATEGY', 'INTELLIGENCE'];
+const RESTORABLE_VIEWS: ViewState[] = ['DASHBOARD', 'STUDIO', 'INPUTS', 'STRATEGY', 'INTELLIGENCE', ...(isWebsiteCmsEnabled() ? ['WEBSITE' as const] : [])];
 
 function readViewFromUrl(): ViewState | null {
     const raw = new URLSearchParams(window.location.search).get('view');
@@ -397,7 +399,7 @@ const App: React.FC = () => {
         // Gate the paid features behind an active plan or an in-progress trial.
         // Default to allowed until entitlement is known, to avoid a paywall flash.
         const entitled = entitlement ? entitlement.entitled : true;
-        const gatedViews: ViewState[] = ['INTELLIGENCE', 'DASHBOARD', 'STUDIO', 'STRATEGY'];
+        const gatedViews: ViewState[] = ['INTELLIGENCE', 'DASHBOARD', 'STUDIO', 'STRATEGY', 'WEBSITE'];
         const inputsShowsIntelligence = currentView === 'INPUTS' && featureFlags?.updatesSection === false;
         if (!entitled && (gatedViews.includes(currentView) || inputsShowsIntelligence)) {
             return <Paywall onSubscribe={openSubscriptionPanel} />;
@@ -424,6 +426,9 @@ const App: React.FC = () => {
                 return <Inputs restaurantData={restaurantData} onRefresh={refreshRestaurantData} />;
             case 'STRATEGY':
                 return <Strategy restaurantData={restaurantData} instagramConnected={instagramConnected} onConnectInstagram={handleConnectInstagram} cycleApprovalBufferMins={featureFlags?.cycleApprovalBufferMins} instagramEnabled={instagramEnabled} />;
+            case 'WEBSITE':
+                if (isWebsiteCmsEnabled()) return <WebsiteCms />;
+                return <Intelligence restaurant={restaurantData} onNavigate={handleIntelligenceNavigate} />;
             default:
                 return <Intelligence restaurant={restaurantData} onNavigate={handleIntelligenceNavigate} />;
         }
@@ -436,6 +441,7 @@ const App: React.FC = () => {
             case 'STUDIO': return 'Content Studio';
             case 'INPUTS': return 'Updates';
             case 'STRATEGY': return 'Strategy';
+            case 'WEBSITE': return 'Website';
             default: return 'RestroPulse';
         }
     };

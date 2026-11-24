@@ -1,5 +1,6 @@
 import React from 'react';
-import { Gauge, PenTool, Lightbulb, Megaphone, Plus } from 'lucide-react';
+import { Gauge, PenTool, Lightbulb, Megaphone, Plus, Store } from 'lucide-react';
+import { isWebsiteCmsEnabled } from '../lib/website-cms';
 import { ViewState, FeatureFlags, EntitlementState, IntelligenceNotification } from '@restropulse/shared';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
@@ -147,6 +148,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, title, 
               </div>
           )}
           <NavItem view="STRATEGY" icon={Lightbulb} label="Strategy" />
+          {isWebsiteCmsEnabled() && <NavItem view="WEBSITE" icon={Store} label="Website" />}
         </div>
       </nav>
       </div>

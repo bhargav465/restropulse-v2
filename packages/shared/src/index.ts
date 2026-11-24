@@ -56,7 +56,7 @@ export type TokenStatus = 'valid' | 'expiring_soon' | 'expired';
 
 export type EmailVerificationStatus = 'idle' | 'sending' | 'sent' | 'link_ready' | 'verifying' | 'verified' | 'error';
 
-export type ViewState = 'LANDING' | 'LOGIN' | 'ONBOARDING' | 'DASHBOARD' | 'STUDIO' | 'INPUTS' | 'STRATEGY' | 'INTELLIGENCE';
+export type ViewState = 'LANDING' | 'LOGIN' | 'ONBOARDING' | 'DASHBOARD' | 'STUDIO' | 'INPUTS' | 'STRATEGY' | 'INTELLIGENCE' | 'WEBSITE';
 
 export type InstagramConnectionError =
   | 'NO_PAGES_FOUND'
@@ -172,6 +172,12 @@ export interface Restaurant {
   activeOffers?: string[];
   chefSpecials?: string[];
   menuLastUpdated?: string;
+  /**
+   * Where `menu` comes from. 'catalog' once the merchant manages the menu in the
+   * CMS (menu_categories + menu_items): `menu` is then a read-only projection
+   * rewritten on every catalog change. Absent/'embedded' = legacy Updates editor.
+   */
+  menuSource?: 'embedded' | 'catalog';
   /** Short restaurant bio used in AI content prompts and profile display. */
   description?: string;
   phone?: string;
@@ -654,3 +660,7 @@ export type { TimingConstraintConfig } from './approval-deadlines.js';
 export * from './cost-events.js';
 export * from './media-jobs.js';
 export * from './intelligence.js';
+
+// Lane B: restaurant catalog, offers and site CMS (docs/LAUNCH_ARCHITECTURE.md B1/B6).
+export * from './ordering.js';
+export * from './cms.js';

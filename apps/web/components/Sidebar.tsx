@@ -1,5 +1,6 @@
 import React from 'react';
-import { Gauge, PenTool, Lightbulb, Megaphone, User } from 'lucide-react';
+import { Gauge, PenTool, Lightbulb, Megaphone, User, Store } from 'lucide-react';
+import { isWebsiteCmsEnabled } from '../lib/website-cms';
 import { ViewState, FeatureFlags } from '@restropulse/shared';
 
 interface SidebarProps {
@@ -67,6 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, onProfileOpen, 
           </div>
         )}
         <NavItem view="STRATEGY" icon={Lightbulb} label="Content Strategy" />
+        {isWebsiteCmsEnabled() && <NavItem view="WEBSITE" icon={Store} label="Website" />}
       </nav>
 
       {/* Account */}

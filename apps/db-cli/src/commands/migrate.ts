@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { randomUUID } from 'node:crypto';
 import { connect, getConfig, disconnect } from '../config/database.js';
+import { embeddedMenuToCatalog, projectLegacyMenu, type MenuCategory, type OrderingMenuItem } from '@restropulse/shared';
 
 /**
  * Migration: subscription-history
@@ -23,6 +24,7 @@ export async function migrateCommand(options: { migration: string }): Promise<vo
         'rename-strategy-id-to-cycle-id': migrateRenameStrategyIdToCycleId,
         'sparse-oauth-session-id-index': migrateSparseOauthSessionIdIndex,
         'split-post-platforms': migrateSplitPostPlatforms,
+        'menu-to-catalog': migrateMenuToCatalog,
     };
 
     const run = migrations[options.migration];
@@ -425,6 +427,84 @@ async function migrateSplitPostPlatforms(): Promise<void> {
     } catch (err: any) {
         spinner.fail('Migration failed');
         console.error(chalk.red(`Error: ${err.message}`));
+        process.exit(1);
+    } finally {
+        await disconnect();
+    }
+}
+
+/**
+ * Migration: menu-to-catalog
+ *
+ * Phase 2 CMS: copies each restaurant's embedded restaurant.menu into the
+ * menu_categories / menu_items collections, then re-writes restaurant.menu as
+ * a projection of the catalog and sets menuSource: 'catalog'. From then on the
+ * CMS screens own the menu; the content engine keeps reading restaurant.menu.
+ *
+ * Idempotent: skips restaurants already on the catalog or that already have
+ * catalog items. Duplicate item names inside one embedded menu keep the first
+ * entry (the unique (restaurantId, name) index allows only one) and are logged.
+ */
+async function migrateMenuToCatalog(): Promise<void> {
+    const config = getConfig();
+    const spinner = ora();
+
+    try {
+        spinner.start('Connecting to MongoDB...');
+        const client = await connect();
+        spinner.succeed('Connected to MongoDB');
+
+        const db = client.db(config.database);
+        const restaurants = db.collection('restaurants');
+        const categoriesCol = db.collection('menu_categories');
+        const itemsCol = db.collection('menu_items');
+
+        const cursor = restaurants.find(
+            { menuSource: { $ne: 'catalog' }, 'menu.0': { $exists: true } },
+            { projection: { _id: 1, name: 1, menu: 1 } },
+        );
+
+        let migrated = 0;
+        let skipped = 0;
+        for await (const restaurant of cursor) {
+            const restaurantId = String(restaurant._id);
+            if (await itemsCol.countDocuments({ restaurantId }, { limit: 1 })) {
+                skipped++;
+                continue;
+            }
+
+            const draft = embeddedMenuToCatalog(restaurant.menu);
+            const now = new Date().toISOString();
+            const categoryIdByName = new Map<string, string>();
+            const categories: MenuCategory[] = [];
+            for (const category of draft.categories) {
+                const { insertedId } = await categoriesCol.insertOne({ restaurantId, ...category, createdAt: now, updatedAt: now });
+                const id = String(insertedId);
+                categoryIdByName.set(category.name, id);
+                categories.push({ id, restaurantId, ...category });
+            }
+
+            const items: OrderingMenuItem[] = [];
+            for (const { categoryName, ...item } of draft.items) {
+                const categoryId = categoryIdByName.get(categoryName)!;
+                const doc = { restaurantId, categoryId, ...item, images: [], variants: [], addons: [], createdAt: now, updatedAt: now };
+                const { insertedId } = await itemsCol.insertOne(doc);
+                items.push({ id: String(insertedId), ...doc } as unknown as OrderingMenuItem);
+            }
+
+            await restaurants.updateOne(
+                { _id: restaurant._id },
+                { $set: { menu: projectLegacyMenu(categories, items), menuSource: 'catalog', menuLastUpdated: now.slice(0, 10) } },
+            );
+            migrated++;
+            const dupes = draft.duplicateNames.length ? chalk.yellow(` (kept first of duplicate names: ${draft.duplicateNames.join(', ')})`) : '';
+            console.log(chalk.gray(`  ${restaurant.name ?? restaurantId}: ${items.length} item(s) in ${categories.length} categor(ies)`) + dupes);
+        }
+
+        spinner.succeed(`Moved ${migrated} restaurant menu(s) to the catalog; skipped ${skipped} that already had catalog items`);
+    } catch (error) {
+        spinner.fail('Migration failed');
+        console.error(error);
         process.exit(1);
     } finally {
         await disconnect();
