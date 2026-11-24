@@ -5,7 +5,23 @@
 
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'restropulse-dev-secret-change-in-production';
+export const DEV_JWT_SECRET = 'restropulse-dev-secret-change-in-production';
+const MIN_PRODUCTION_SECRET_LENGTH = 32;
+
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET;
+
+/**
+ * Whether the signing secret is safe for this environment. The dev default is
+ * in the source, so anyone could sign a token (an ADMIN one included) with it.
+ * Returns a reason when it is not safe, or null when it is.
+ */
+export function jwtSecretProblem(secret: string | undefined): string | null {
+    if (!secret || secret === DEV_JWT_SECRET) return 'JWT_SECRET is unset or still the development default';
+    if (secret.length < MIN_PRODUCTION_SECRET_LENGTH) {
+        return `JWT_SECRET is shorter than ${MIN_PRODUCTION_SECRET_LENGTH} characters`;
+    }
+    return null;
+}
 const ACCESS_TOKEN_EXPIRY = '15m';  // 15 minutes
 const REFRESH_TOKEN_EXPIRY = '7d';  // 7 days
 

@@ -63,7 +63,7 @@ Rules:
 | ANTHROPIC_API_KEY                | No       | --                                               | Anthropic key for Restaurant Intelligence competitive analysis (haiku-4-5 classify + sonnet-4-6 analysis). Absent -> scan 503s gracefully |
 | ZOMATO_ADAPTER                   | No       | manual                                           | Restaurant Intelligence Zomato source: `manual` (merchant-entered) or `stub` |
 
-*JWT_SECRET has a dev default but must be changed in production.
+*JWT_SECRET has a dev default. The API refuses to start in production with that default or a secret under 32 characters, and logs an error on staging.
 *RAZORPAY_* vars are optional in dev; service throws if called without config.
 
 ### Telemetry (all Node.js apps)
@@ -154,6 +154,8 @@ differs.
 | `CURRENT_AFFAIRS_V2_ENABLED`      | optional override                                      | `false` (unused) | `true`            | Override: set to `false` to skip Sonar Pro under AI mode.                     |
 | `CRON_CURRENT_AFFAIRS_REFRESH`    | when V1 or V2 enabled                                  | `0 6 * * *`      | `0 6 * * *`       | Daily refresh at 06:00 IST.                                                   |
 | `CRON_MEDIA_JOB_POLLER`           | `MEDIA_BACKEND=replicate`                              | `*/30 * * * * *` | `*/30 * * * * *`  | Every 30 seconds; polls in-flight video jobs against Replicate.               |
+| `VIDEO_MAX_ATTEMPTS`              | optional override                                      | `8`              | `8`               | A3 ceiling: video attempts per post before it fails for good.                 |
+| `VIDEO_RETRY_WINDOW_HOURS`        | optional override                                      | `24`             | `24`              | A3 ceiling: no new video attempt starts this long after the first.            |
 
 Optional provider-portability keys (no behavior change unless code is changed to switch providers): `OPENAI_API_KEY`, `GOOGLE_API_KEY` -- declared in factory but unused in default chain.
 

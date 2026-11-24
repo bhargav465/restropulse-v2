@@ -4,7 +4,8 @@ import { vi, describe, it, expect, beforeEach, Mock } from 'vitest';
 
 const mockToArray = vi.fn();
 const mockSort = vi.fn<any>(() => ({ toArray: mockToArray }));
-const mockFind = vi.fn<any>(() => ({ sort: mockSort }));
+const mockStaleToArray = vi.fn(async () => [] as any[]);
+const mockFind = vi.fn<any>(() => ({ sort: mockSort, toArray: mockStaleToArray }));
 const mockFindOne = vi.fn();
 const mockFindOneAndUpdate = vi.fn();
 const mockUpdateOne = vi.fn();
@@ -19,8 +20,10 @@ const mockPostsCollection = {
 
 const mockRestFindOne = vi.fn();
 const mockRestaurantsCollection = {
-    findOne: mockRestFindOne
+    findOne: mockRestFindOne,
+    updateOne: vi.fn(async () => ({ modifiedCount: 1 }))
 };
+const mockPublishFailuresCollection = { insertOne: vi.fn(async () => ({ insertedId: 'f1' })) };
 
 const mockPublishPost = vi.fn();
 const mockSchedule = vi.fn();
@@ -34,7 +37,8 @@ vi.mock('@restropulse/db', async (importOriginal) => {
     return {
         ...actual,
         getPostsCollection: mockGetPostsCollection,
-        getRestaurantsCollection: mockGetRestaurantsCollection
+        getRestaurantsCollection: mockGetRestaurantsCollection,
+        getPublishFailuresCollection: vi.fn(() => mockPublishFailuresCollection)
     };
 });
 
@@ -301,7 +305,7 @@ describe('Publishing Cron Service', () => {
 
             const stats = await runPublishingJob();
 
-            expect(stats).toEqual({ published: 0, failed: 0, skipped: 0, missed: 0 });
+            expect(stats).toEqual({ published: 0, failed: 0, skipped: 0, missed: 0, interrupted: 0 });
         });
 
         it('should process multiple posts', async () => {
@@ -382,7 +386,7 @@ describe('Publishing Cron Service', () => {
 
             const stats = await triggerManualPublish();
 
-            expect(stats).toEqual({ published: 0, failed: 0, skipped: 0, missed: 0 });
+            expect(stats).toEqual({ published: 0, failed: 0, skipped: 0, missed: 0, interrupted: 0 });
         });
     });
 });

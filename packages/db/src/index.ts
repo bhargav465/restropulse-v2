@@ -17,6 +17,7 @@ export {
   getCostEventsCollection,
   getCurrentAffairsCacheCollection,
   getMediaJobsCollection,
+  getPublishFailuresCollection,
   getSessionsCollection,
   getOtpChallengesCollection,
   getOauthSessionsCollection,

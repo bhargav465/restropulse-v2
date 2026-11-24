@@ -1,7 +1,8 @@
 {
-  "_comment": "Floors, not targets. Set to the measured value at reset time and ratcheted up as suites grow; CI fails a PR that drops a workspace below its floor. New code in Lane A/B must ship with >=85% on its own files regardless of the floor. web: measured 68.75/60.01/58.64 on 2026-10-04 (baxeltech-staging @ c070aa2). api: measured 70.93/54.82/61.95 in the first CI run on 2026-11-01 (PR #6, includes the P0-4 middleware). content-engine: still the original 85 floor; reset to its measured value once its suite runs green in CI.",
+  "_comment": "Floors, not targets. Set to the measured value at reset time and ratcheted up as suites grow; CI fails a PR that drops a workspace below its floor. New code in Lane A/B must ship with >=85% on its own files regardless of the floor. web: measured 68.75/60.01/58.64 on 2026-10-04 (baxeltech-staging @ c070aa2). api: measured 70.93/54.82/61.95 in the first CI run on 2026-11-01 (PR #6, includes the P0-4 middleware). content-engine: measured 92.68/85.56/86.11 in CI on 2026-11-24 (PR #9); the 85 floor holds. intelligence-worker: measured 77.69/74.28/69.76 in CI on 2026-11-24 (PR #11). publisher: measures packages/publishing/src (the code the publisher runs), 88.98/72.76/96.61 in CI on 2026-11-24 (PR #11).",
   "@restropulse/api":            { "lines": 70, "branches": 54, "functions": 61 },
   "@restropulse/web":            { "lines": 68, "branches": 59, "functions": 58 },
-  "@restropulse/publisher":      { "lines": 0,  "branches": 0,  "functions": 0  },
-  "@restropulse/content-engine": { "lines": 85, "branches": 85, "functions": 85 }
+  "@restropulse/publisher":      { "lines": 88, "branches": 72, "functions": 96 },
+  "@restropulse/content-engine": { "lines": 85, "branches": 85, "functions": 85 },
+  "@restropulse/intelligence-worker": { "lines": 77, "branches": 74, "functions": 69 }
 }
