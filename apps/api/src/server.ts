@@ -27,6 +27,9 @@ import accountRoutes from './routes/account.js';
 import intelligenceRoutes from './routes/intelligence.js';
 import graderRoutes from './routes/grader.js';
 import adminCmsRoutes from './routes/admin-cms.js';
+import adminOrdersRoutes from './routes/admin-orders.js';
+import storefrontRoutes from './routes/storefront.js';
+import paymentWebhookRoutes from './routes/payment-webhooks.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
 import { createReadinessHandler } from './routes/health.js';
@@ -165,6 +168,7 @@ app.use(cors({
 }));
 // Razorpay webhook needs raw body for signature verification
 app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/razorpay/orders', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -208,6 +212,10 @@ app.use('/api/config', configRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/admin/cms', adminCmsRoutes);
+app.use('/api/admin/orders', adminOrdersRoutes);
+// Public ordering API for restaurant sites (guest checkout, tracking).
+app.use('/api/storefront', storefrontRoutes);
+app.use('/api/webhooks/razorpay/orders', paymentWebhookRoutes);
 // Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);
 

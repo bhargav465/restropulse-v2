@@ -9,7 +9,10 @@ import { resetDemoCms, cmsAPI as demo } from '../../demo-api-cms';
 
 // Drive the screens through the in-memory demo twin so they exercise real
 // state changes without a backend.
-vi.mock('../../api', async () => ({ cmsAPI: (await import('../../demo-api-cms')).cmsAPI }));
+vi.mock('../../api', async () => ({
+    cmsAPI: (await import('../../demo-api-cms')).cmsAPI,
+    ordersAPI: (await import('../../demo-api-orders')).ordersAPI,
+}));
 
 beforeEach(() => {
     resetDemoCms();

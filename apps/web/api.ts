@@ -7,9 +7,11 @@ import type {
 import type {
     MenuCategory, OrderingMenuItem, MenuItemAvailability, MenuItemVariant, MenuItemAddon,
     Offer, OfferReward, OfferScope, OfferSchedule, OfferStatus, StorefrontContent,
+    Order, OrderStatus, RestaurantOrderingSettings,
 } from '@restropulse/shared';
 import { intelligenceAPI as demoIntelligenceAPI } from './demo-api-intelligence';
 import { cmsAPI as demoCmsAPI } from './demo-api-cms';
+import { ordersAPI as demoOrdersAPI } from './demo-api-orders';
 import { isDemoMode } from './lib/demo';
 import { browserEvents } from '@restropulse/telemetry/browser';
 import { getApiUrl } from './utils/env';
@@ -1036,3 +1038,51 @@ const realCmsAPI = {
 // keeps the two surfaces identical.
 export const cmsAPI: typeof realCmsAPI = isDemoMode() ? (demoCmsAPI as typeof realCmsAPI) : realCmsAPI;
 export { realCmsAPI };
+
+// ============================================
+// Online orders (Phase 2 M2) -- /api/admin/orders
+// ============================================
+
+/** An order as the dashboard sees it (the customer's tracking token stays server-side). */
+export type AdminOrder = Omit<Order, 'trackingToken' | 'idempotencyKey'>;
+
+export interface OrderFeed {
+    orders: AdminOrder[];
+    /** Server clock at read time; pass back as `since` on the next poll. */
+    serverTime: string;
+}
+
+export interface OrderingSettingsView {
+    slug: string | null;
+    suggestedSlug: string;
+    ordering: RestaurantOrderingSettings;
+    onlinePaymentsAvailable: boolean;
+}
+
+export type RefundOutcome = 'none' | 'requested' | 'failed';
+
+const realOrdersAPI = {
+    /** status: 'active' (kitchen), 'all', or comma-separated statuses. */
+    getFeed: async (params: { status?: string; since?: string; limit?: number } = {}): Promise<OrderFeed> => {
+        const q = new URLSearchParams();
+        if (params.status) q.set('status', params.status);
+        if (params.since) q.set('since', params.since);
+        if (params.limit) q.set('limit', String(params.limit));
+        const qs = q.toString();
+        return (await fetchAPI<ApiResponse<OrderFeed>>(`/admin/orders${qs ? `?${qs}` : ''}`)).data!;
+    },
+    getOrder: async (id: string): Promise<AdminOrder> =>
+        (await fetchAPI<ApiResponse<AdminOrder>>(`/admin/orders/${id}`)).data!,
+    setStatus: async (id: string, to: OrderStatus, note?: string): Promise<AdminOrder> =>
+        (await fetchAPI<ApiResponse<AdminOrder>>(`/admin/orders/${id}/status`, cmsJson('POST', { to, ...(note ? { note } : {}) }))).data!,
+    cancel: async (id: string, reason: string, refund = true): Promise<{ order: AdminOrder; refund: RefundOutcome }> =>
+        (await fetchAPI<ApiResponse<{ order: AdminOrder; refund: RefundOutcome }>>(`/admin/orders/${id}/cancel`, cmsJson('POST', { reason, refund }))).data!,
+    getSettings: async (): Promise<OrderingSettingsView> =>
+        (await fetchAPI<ApiResponse<OrderingSettingsView>>('/admin/orders/settings')).data!,
+    saveSettings: async (input: { slug?: string; ordering: RestaurantOrderingSettings }): Promise<OrderingSettingsView> =>
+        (await fetchAPI<ApiResponse<OrderingSettingsView>>('/admin/orders/settings', cmsJson('PUT', input))).data!,
+};
+
+// Demo twin: in-memory [SAMPLE] orders that move when the demo merchant acts.
+export const ordersAPI: typeof realOrdersAPI = isDemoMode() ? (demoOrdersAPI as typeof realOrdersAPI) : realOrdersAPI;
+export { realOrdersAPI };

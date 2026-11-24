@@ -52,4 +52,10 @@ describe('PUT /api/restaurant/:id menu guard', () => {
         expect(updateRestaurant).toHaveBeenCalledWith('r1', { cuisine: 'Thai' });
         expect(findRestaurantById).not.toHaveBeenCalled();
     });
+
+    test('never accepts slug or ordering through the generic update', async () => {
+        await request(app).put('/api/restaurant/r1').set('Authorization', auth)
+            .send({ slug: 'someone-else', ordering: { storeOpen: true }, cuisine: 'Thai' });
+        expect(updateRestaurant).toHaveBeenCalledWith('r1', { cuisine: 'Thai' });
+    });
 });

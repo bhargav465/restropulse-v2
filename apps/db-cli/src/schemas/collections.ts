@@ -37,6 +37,8 @@ export const COLLECTIONS: CollectionSchema[] = [
         name: 'restaurants',
         indexes: [
             { spec: { 'location.lat': 1, 'location.lng': 1 } },
+            // Public ordering-site handle (Phase 2 M2); only restaurants that set one.
+            { spec: { slug: 1 }, options: { unique: true, partialFilterExpression: { slug: { $type: 'string' } } } },
         ],
         validator: {
             $jsonSchema: {
@@ -593,6 +595,32 @@ export const COLLECTIONS: CollectionSchema[] = [
         name: 'storefront_content',
         indexes: [
             { spec: { restaurantId: 1 }, options: { unique: true } },
+        ],
+    },
+    // ----- Online orders + payments (Phase 2 M2). Mirrors ORDER_INDEXES in packages/db/src/orders.ts. -----
+    {
+        name: 'orders',
+        indexes: [
+            { spec: { restaurantId: 1, createdAt: -1 } },
+            { spec: { restaurantId: 1, status: 1, createdAt: -1 } },
+            { spec: { orderNumber: 1 }, options: { unique: true } },
+            { spec: { trackingToken: 1 }, options: { unique: true } },
+            { spec: { restaurantId: 1, idempotencyKey: 1 }, options: { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } } },
+        ],
+    },
+    {
+        name: 'payments',
+        indexes: [
+            { spec: { providerOrderId: 1 }, options: { unique: true } },
+            { spec: { restaurantId: 1, orderId: 1, createdAt: -1 } },
+            { spec: { providerPaymentId: 1 }, options: { sparse: true } },
+        ],
+    },
+    {
+        name: 'payment_webhook_events',
+        indexes: [
+            { spec: { eventId: 1 }, options: { unique: true } },
+            { spec: { receivedAt: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60 } },
         ],
     },
     // ----- Public Grader (Lead Generation) -----

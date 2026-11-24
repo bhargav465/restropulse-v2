@@ -129,12 +129,29 @@ export async function createRazorpayOrder(
     amountPaise: number,
     receipt: string,
     currency: string = 'INR',
+    notes?: Record<string, string>,
 ): Promise<{ id: string; amount: number; currency: string; status: string }> {
-    return razorpayRequest('/orders', 'POST', {
+    const body: Record<string, unknown> = {
         amount: amountPaise,
         currency,
         receipt,
-    });
+    };
+    if (notes && Object.keys(notes).length > 0) body.notes = notes;
+    return razorpayRequest('/orders', 'POST', body);
+}
+
+/**
+ * Refund a captured payment in full (amount omitted) or in part (PAISE).
+ * Razorpay processes refunds asynchronously; `refund.processed` arrives by webhook.
+ */
+export async function refundRazorpayPayment(
+    paymentId: string,
+    opts: { amountPaise?: number; notes?: Record<string, string> } = {},
+): Promise<{ id: string; status: string; amount: number }> {
+    const body: Record<string, unknown> = {};
+    if (opts.amountPaise !== undefined) body.amount = opts.amountPaise;
+    if (opts.notes && Object.keys(opts.notes).length > 0) body.notes = opts.notes;
+    return razorpayRequest(`/payments/${encodeURIComponent(paymentId)}/refund`, 'POST', body);
 }
 
 /**
