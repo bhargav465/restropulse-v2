@@ -159,6 +159,11 @@ export function getMediaJobsCollection(): Collection {
   return getDB().collection('mediaJobs');
 }
 
+/** Dead-letter record of every post that failed to publish for good. */
+export function getPublishFailuresCollection(): Collection {
+  return getDB().collection('publishFailures');
+}
+
 // ----- Helpers -----
 
 /**
@@ -196,7 +201,10 @@ export function toApiFormat<T extends Document>(doc: WithId<T> | null): (Omit<T,
       pageName: instagramCredentials.pageName,
       connectedAt: instagramCredentials.connectedAt,
       tokenStatus,
-      needsReauthorization: tokenStatus === 'expired',
+      // Set by the publisher when Meta rejects the token or a permission
+      // (see classifyMetaError); cleared when the merchant reconnects, since
+      // the OAuth callback replaces instagramCredentials wholesale.
+      needsReauthorization: tokenStatus === 'expired' || Boolean(instagramCredentials.reauthRequiredAt),
     };
   }
 

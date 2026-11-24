@@ -6,6 +6,7 @@ import { setupCommand } from './commands/setup.js';
 import { validateCommand } from './commands/validate.js';
 import { seedCommand } from './commands/seed.js';
 import { resetCommand } from './commands/reset.js';
+import { migrateCommand } from './commands/migrate.js';
 import { razorpaySetupCommand } from './commands/razorpay-setup.js';
 import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
@@ -71,6 +72,12 @@ program
     .description('Drop all collections and recreate database with indexes and defaults (10s safety delay)')
     .option('--allow-missing-razorpay', 'Bypass Razorpay plan ID completeness check (not recommended)')
     .action(resetCommand);
+
+program
+    .command('migrate')
+    .description('Run a named one-off data/index migration (run without a name to list them)')
+    .argument('[migration]', 'Migration name, e.g. unique-post-slot-index')
+    .action((migration?: string) => migrateCommand({ migration: migration ?? '' }));
 
 program
     .command('razorpay-setup')

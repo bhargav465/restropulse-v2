@@ -146,13 +146,17 @@ jobs:
         uses: ./.github/actions/mongo-binary
 
       - name: Run tests
-        run: npx turbo test --filter=@restropulse/publisher
+        run: npx turbo test:coverage --filter=@restropulse/publisher
         env:
           NODE_ENV: test
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      # Coverage is excluded for publisher: its src/ is a thin process entry
-      # point (worker.ts + instrument.ts) with no business logic to measure.
-      # All meaningful logic lives in @restropulse/publishing and is covered there.
+
+      # The publisher suite is what exercises @restropulse/publishing, so its
+      # coverage report is scoped to packages/publishing/src (see
+      # apps/publisher/vitest.config.ts) and gated here.
+      - name: Check coverage
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-coverage.mjs @restropulse/publisher apps/publisher/coverage/lcov.info
 
   test-content-engine:
     name: Test Content Engine
@@ -198,11 +202,13 @@ jobs:
         uses: ./.github/actions/mongo-binary
 
       - name: Run tests
-        run: npx turbo test --filter=@restropulse/intelligence-worker
+        run: npx turbo test:coverage --filter=@restropulse/intelligence-worker
         env:
           NODE_ENV: test
-      # Coverage excluded (like publisher): src/ is worker cron wiring; the
-      # meaningful logic is covered by the 32 unit tests run above.
+
+      - name: Check coverage
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-coverage.mjs @restropulse/intelligence-worker apps/intelligence-worker/coverage/lcov.info
 
   test-sites:
     name: Test Sites

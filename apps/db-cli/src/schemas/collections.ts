@@ -131,6 +131,18 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { scheduledFor: 1 } },
             { spec: { postedAt: -1 } },
             { spec: { restaurantId: 1, status: 1 } },
+            // One post per (cycle slot, platform). Unique so concurrent
+            // rolling-window ticks cannot materialise the same slot twice;
+            // partial so adhoc posts (no cycleId) are not constrained.
+            // Existing databases: run the unique-post-slot-index migration.
+            {
+                spec: { cycleId: 1, scheduledFor: 1, platform: 1 },
+                options: {
+                    name: 'cycleId_1_scheduledFor_1_platform_1',
+                    unique: true,
+                    partialFilterExpression: { cycleId: { $type: 'string' } },
+                },
+            },
         ],
         validator: {
             $jsonSchema: {
@@ -164,6 +176,16 @@ export const COLLECTIONS: CollectionSchema[] = [
                 },
             },
         },
+    },
+    {
+        // Dead-letter log of posts that failed to publish for good (written by
+        // the publisher). Kept 90 days for support and failure-rate alerts.
+        name: 'publishFailures',
+        indexes: [
+            { spec: { restaurantId: 1, createdAt: -1 } },
+            { spec: { failureClass: 1, createdAt: -1 } },
+            { spec: { createdAt: 1 }, options: { expireAfterSeconds: 90 * 24 * 60 * 60 } },
+        ],
     },
     {
         name: 'strategyCycles',
