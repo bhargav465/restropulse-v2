@@ -31,8 +31,11 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   client = await MongoClient.connect(mongod.getUri());
   setDB(client.db(DB_NAME));
-  // Mirror the compound index the migration will create so upsert races resolve deterministically.
-  await client.db(DB_NAME).collection('posts').createIndex({ cycleId: 1, scheduledFor: 1, platform: 1 });
+  // Mirror the unique partial index (db-cli migration unique-post-slot-index) so upsert races resolve deterministically.
+  await client.db(DB_NAME).collection('posts').createIndex(
+    { cycleId: 1, scheduledFor: 1, platform: 1 },
+    { unique: true, partialFilterExpression: { cycleId: { $type: 'string' } } },
+  );
 }, 60000);
 
 afterAll(async () => {
@@ -212,6 +215,45 @@ describe('processRollingWindow()', () => {
     const posts = await db.collection('posts').find({ cycleId: cycleId.toString() }).toArray();
     expect(posts).toHaveLength(2);
     expect(posts.map(p => p.platform).sort()).toEqual(['FACEBOOK', 'INSTAGRAM']);
+  });
+
+  it('stays race-safe across repeated bursts of concurrent ticks', async () => {
+    // The single 3-tick race above was flaky before the unique index: an
+    // upsert alone lets two ticks both insert. Repeat a wider burst so a
+    // regression shows up reliably rather than once in a while.
+    const db = client.db(DB_NAME);
+    await seedAutoContentRestaurant('r3b');
+    await db.collection('contentStrategies').insertOne({
+      _id: new ObjectId(),
+      restaurantId: 'r3b',
+      postsPerWeek: 7,
+      bestTime: '10:00',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    for (let round = 0; round < 10; round++) {
+      const cycleId = new ObjectId();
+      await db.collection('strategyCycles').insertOne({
+        _id: cycleId,
+        status: 'ACTIVE',
+        restaurantId: 'r3b',
+        startDate: isoFromNow(-6 * 60 * 60 * 1000),
+        endDate: isoFromNow(14 * 24 * 60 * 60 * 1000),
+        plannedPosts: [{ category: 'Food & Menu', count: 1 }],
+        period: `Burst ${round}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const results = await Promise.all(Array.from({ length: 6 }, () => processRollingWindow()));
+
+      expect(results.every(r => r.failed === 0)).toBe(true);
+      const posts = await db.collection('posts').find({ cycleId: cycleId.toString() }).toArray();
+      expect(posts).toHaveLength(2);
+
+      await db.collection('strategyCycles').updateOne({ _id: cycleId }, { $set: { status: 'HISTORY' } });
+    }
   });
 
   it('activates an APPROVED cycle whose startDate has arrived and creates post stubs', async () => {
