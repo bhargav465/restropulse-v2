@@ -164,6 +164,16 @@ export const COLLECTIONS: CollectionSchema[] = [
         },
     },
     {
+        // Dead-letter log of posts that failed to publish for good (written by
+        // the publisher). Kept 90 days for support and failure-rate alerts.
+        name: 'publishFailures',
+        indexes: [
+            { spec: { restaurantId: 1, createdAt: -1 } },
+            { spec: { failureClass: 1, createdAt: -1 } },
+            { spec: { createdAt: 1 }, options: { expireAfterSeconds: 90 * 24 * 60 * 60 } },
+        ],
+    },
+    {
         name: 'strategyCycles',
         indexes: [
             { spec: { restaurantId: 1 } },
@@ -545,16 +555,6 @@ export const COLLECTIONS: CollectionSchema[] = [
         // Holds e.g. trialDays (free-trial length). No indexes needed.
         name: 'settings',
         indexes: [],
-    },
-    {
-        // Dead-letter log of posts that failed to publish for good (written by
-        // the publisher). Kept 90 days for support and failure-rate alerts.
-        name: 'publishFailures',
-        indexes: [
-            { spec: { restaurantId: 1, createdAt: -1 } },
-            { spec: { failureClass: 1, createdAt: -1 } },
-            { spec: { createdAt: 1 }, options: { expireAfterSeconds: 90 * 24 * 60 * 60 } },
-        ],
     },
     // ----- Public Grader (Lead Generation) -----
     {
