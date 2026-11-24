@@ -154,6 +154,8 @@ differs.
 | `CURRENT_AFFAIRS_V2_ENABLED`      | optional override                                      | `false` (unused) | `true`            | Override: set to `false` to skip Sonar Pro under AI mode.                     |
 | `CRON_CURRENT_AFFAIRS_REFRESH`    | when V1 or V2 enabled                                  | `0 6 * * *`      | `0 6 * * *`       | Daily refresh at 06:00 IST.                                                   |
 | `CRON_MEDIA_JOB_POLLER`           | `MEDIA_BACKEND=replicate`                              | `*/30 * * * * *` | `*/30 * * * * *`  | Every 30 seconds; polls in-flight video jobs against Replicate.               |
+| `VIDEO_MAX_ATTEMPTS`              | optional override                                      | `8`              | `8`               | A3 ceiling: video attempts per post before it fails for good.                 |
+| `VIDEO_RETRY_WINDOW_HOURS`        | optional override                                      | `24`             | `24`              | A3 ceiling: no new video attempt starts this long after the first.            |
 
 Optional provider-portability keys (no behavior change unless code is changed to switch providers): `OPENAI_API_KEY`, `GOOGLE_API_KEY` -- declared in factory but unused in default chain.
 
