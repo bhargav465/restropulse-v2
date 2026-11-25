@@ -62,12 +62,33 @@ jobs:
       - name: Build db-cli dependencies
         run: npx turbo build --filter=@restropulse/db-cli^...
 
+      # The IDs may be stored as Actions variables or as secrets; either works.
+      # This step reports only whether each one is set, never its value.
+      - name: Check Azure login settings
+        env:
+          VAR_CLIENT: ${{ vars.AZURE_CLIENT_ID }}
+          VAR_TENANT: ${{ vars.AZURE_TENANT_ID }}
+          VAR_SUB: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          SECRET_CLIENT: ${{ secrets.AZURE_CLIENT_ID }}
+          SECRET_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+          SECRET_SUB: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          missing=0
+          for name in CLIENT TENANT SUB; do
+            v="VAR_$name"; s="SECRET_$name"
+            if [ -n "${!v}" ]; then echo "$name: set as a variable"
+            elif [ -n "${!s}" ]; then echo "$name: set as a secret"
+            else echo "::error::$name is not set as a variable or a secret for the '${{ inputs.environment }}' environment or the repository"; missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Login to Azure
         uses: azure/login@v3
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Run migration
         working-directory: apps/db-cli
