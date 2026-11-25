@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createDeliveryRegistry, createMockProvider, createSelfProvider } from '@restropulse/delivery';
+import { buildDeliveryRegistry, createDeliveryRegistry, createMockProvider, createSelfProvider } from '@restropulse/delivery';
 import type { DeliveryStore } from '@restropulse/shared';
 import { createDispatchLoop } from '../src/loop';
 import { loadWorkerConfig } from '../src/config';
@@ -97,6 +97,27 @@ describe('dispatch loop', () => {
     release();
     await stopping;
     expect(stopped).toBe(true);
+  });
+});
+
+// The worker shares one App Service with the API, and startup.sh stops every
+// process when any one exits, so it must idle (not exit) with no partner set up.
+describe('with no delivery partner configured', () => {
+  it('keeps running passes and asks no partner for news', async () => {
+    const bare = buildDeliveryRegistry({});
+    expect(bare.list().map((p) => p.id)).toEqual(['self']);
+    const timers: Array<() => void> = [];
+    const setTimer = vi.fn((fn: () => void) => { timers.push(fn); return timers.length; });
+    const store = fakeStore();
+    const loop = createDispatchLoop({ store, registry: bare }, { intervalMs: 1000, pollEveryMs: 0, setTimer, clearTimer: vi.fn() });
+    loop.start();
+    for (let i = 0; i < 3; i += 1) {
+      timers[i]();
+      await vi.waitFor(() => expect(setTimer).toHaveBeenCalledTimes(i + 2));
+    }
+    expect(store.claimDueJob).toHaveBeenCalledTimes(3);
+    expect(store.findLiveShipments).not.toHaveBeenCalled();
+    await loop.stop();
   });
 });
 

@@ -8,9 +8,10 @@ set -euo pipefail
 #   api  -- curl /health, verify {"status":"ok"}; then /health/ready must be
 #           200 (MongoDB reachable from the deployed app)
 #   web  -- curl /, verify HTTP 200 with <div id="root">
+#   sites -- curl /healthz on the restaurant sites host, verify body is `ok`
 
-SERVICE="${1:?Usage: smoke-test.sh <api|web> <base-url>}"
-BASE_URL="${2:?Usage: smoke-test.sh <api|web> <base-url>}"
+SERVICE="${1:?Usage: smoke-test.sh <api|web|sites> <base-url>}"
+BASE_URL="${2:?Usage: smoke-test.sh <api|web|sites> <base-url>}"
 EXPECTED_GIT_SHA="${EXPECTED_GIT_SHA:-}"
 
 MAX_RETRIES=5
@@ -142,9 +143,29 @@ case "$SERVICE" in
     fi
     echo "Web smoke test passed."
     ;;
+  sites)
+    echo "Smoke testing Sites at ${BASE_URL}/healthz ..."
+    RESPONSE=""
+    for attempt in $(seq 1 "$BOOT_RETRIES"); do
+      if RESPONSE=$(request "${BASE_URL}/healthz" 2>/dev/null); then
+        break
+      fi
+      echo "Sites health not ready yet (attempt ${attempt}/${BOOT_RETRIES})..."
+      if [ "$attempt" -eq "$BOOT_RETRIES" ]; then
+        echo "Sites health check failed after ${BOOT_RETRIES} attempts."
+        exit 1
+      fi
+      sleep "$BOOT_RETRY_DELAY"
+    done
+    if [ "$(printf '%s' "$RESPONSE" | tr -d '[:space:]')" != "ok" ]; then
+      echo "Sites health check failed. Expected 'ok', got: $RESPONSE"
+      exit 1
+    fi
+    echo "Sites health check passed."
+    ;;
   *)
     echo "Unknown service: $SERVICE"
-    echo "Usage: smoke-test.sh <api|web> <base-url>"
+    echo "Usage: smoke-test.sh <api|web|sites> <base-url>"
     exit 1
     ;;
 esac
