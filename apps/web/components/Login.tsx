@@ -4,6 +4,7 @@ import { initRecaptcha, sendOTP, verifyOTP } from '../firebase';
 import { RecaptchaVerifier } from 'firebase/auth';
 import { getFirebaseApiKey } from '../utils/env';
 import { getClientConfig } from '../utils/client-config';
+import { isDemoMode } from '../lib/demo';
 
 interface LoginProps {
     onLogin: (firebaseIdToken: string) => Promise<void>;
@@ -359,7 +360,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
                         </button>
 
                         <p className="text-center text-xs text-slate-500">
-                            We'll send a 6-digit verification code to your phone
+                            {isDemoMode()
+                                ? 'Demo preview: enter any 10-digit number. The code fills in by itself.'
+                                : "We'll send a 6-digit verification code to your phone"}
                         </p>
                     </div>
                 ) : (

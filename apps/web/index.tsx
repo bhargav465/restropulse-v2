@@ -2,9 +2,14 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import DemoBadge from './components/DemoBadge';
 import { initBrowserTelemetry } from '@restropulse/telemetry/browser';
 import { initClientConfig, getClientConfig } from './utils/client-config';
 import { initFirebase } from './firebase';
+import { installDemoBackend } from './demo-backend';
+
+// Demo builds answer API calls from sample data (no-op otherwise).
+installDemoBackend();
 
 async function boot(): Promise<void> {
     try {
@@ -33,6 +38,7 @@ async function boot(): Promise<void> {
     root.render(
         <React.StrictMode>
             <App />
+            <DemoBadge />
         </React.StrictMode>
     );
 }
