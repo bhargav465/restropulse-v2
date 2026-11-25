@@ -421,8 +421,12 @@ Grader scans also keep a per-process daily circuit breaker (500/day in productio
 | `apps/publisher` | Same App Service process group (Linux startup script) | Bundled with API deploy | Promoted via slot swap | $0 extra |
 | `apps/content-engine` | Same App Service process group (Linux startup script) | Bundled with API deploy | Promoted via slot swap | $0 extra |
 | `apps/intelligence-worker` | Same App Service process group (Linux startup script) | Bundled with API deploy | Promoted via slot swap | $0 extra |
+| `apps/dispatch-worker` | Same App Service process group (Linux startup script) | Bundled with API deploy | Promoted via slot swap | $0 extra |
+| `apps/sites` | Own App Service (`restropulse-sites`, Linux Node 22) | Deploy bundle to `staging` slot | Slot swap: staging -> production | one more plan or shared plan |
 
-Linux App Service does not run Windows-style WebJobs (`App_Data/jobs/**`). The deployed package includes `startup.sh`, and App Service starts all four processes (`api`, `publisher`, `content-engine`, `intelligence-worker`) via `bash startup.sh`.
+Linux App Service does not run Windows-style WebJobs (`App_Data/jobs/**`). The deployed package includes `startup.sh`, and App Service starts all five processes (`api`, `publisher`, `content-engine`, `intelligence-worker`, `dispatch-worker`) via `bash startup.sh`. `startup.sh` uses `wait -n`, so any one process exiting restarts the whole app; the dispatch worker needs only `MONGODB_URI` and idles (books nothing but self-delivery) when no delivery partner is configured.
+
+Health check paths are set by the deploy workflows on the slot they deploy: `/health` for the API App Service (liveness only; `/health/ready` pings MongoDB and is used by the smoke test, not by App Service) and `/healthz` for the sites App Service.
 
 There is no separate staging Azure resource group. All resources share `restropulse-prod-rg`. Staging isolation is achieved via:
 - App Service: the `staging` deployment slot (`restropulse-prod-api-staging.azurewebsites.net`) with slot-sticky settings (separate DB, secrets, NODE_ENV)
@@ -461,8 +465,10 @@ Authentication uses OIDC (Workload Identity Federation) -- no long-lived credent
 
 | Environment | Protection | Variables (not secrets) |
 |-------------|-----------|-------------------------|
-| `staging` | None (auto-deploy) | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_WEBAPP_NAME_PROD`, `AZURE_RESOURCE_GROUP`, `STAGING_API_URL`, `STAGING_WEB_URL`, `AZURE_SWA_NAME` |
-| `production` | Required reviewer(s) | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_WEBAPP_NAME_PROD`, `AZURE_RESOURCE_GROUP`, `PRODUCTION_API_URL`, `PRODUCTION_WEB_URL`, `AZURE_SWA_NAME` |
+| `staging` | None (auto-deploy) | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_WEBAPP_NAME_PROD`, `AZURE_RESOURCE_GROUP`, `STAGING_API_URL`, `STAGING_WEB_URL`, `AZURE_SWA_NAME`, `STAGING_SITES_URL` |
+| `production` | Required reviewer(s) | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_WEBAPP_NAME_PROD`, `AZURE_RESOURCE_GROUP`, `PRODUCTION_API_URL`, `PRODUCTION_WEB_URL`, `AZURE_SWA_NAME`, `PRODUCTION_SITES_URL`, plus `STAGING_API_URL` and `STAGING_SITES_URL` (the production sites job writes the staging slot's settings before the swap) |
+
+`AZURE_SITES_WEBAPP_NAME` must be a **repository** variable (Settings -> Secrets and variables -> Actions -> Variables), not an environment variable: the sites jobs read it in their job-level `if`, which runs before the environment is loaded. While it is empty the sites deploy and smoke jobs are skipped and the rest of both workflows runs as before.
 
 Both environments share the same `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_WEBAPP_NAME_PROD` values -- there is one App Registration and one App Service. The workflows use `slot-name: staging` to target the staging slot; the production deploy uses `az webapp deployment slot swap` rather than a separate app name.
 
@@ -471,6 +477,18 @@ To set up OIDC:
 2. Add a federated credential for each environment: entity type "Environment", repo `baxeltech/restropulse`, environment `staging` / `production`
 3. Grant the service principal `Contributor` on `restropulse-prod-rg` and `Static Web Apps Contributor` on `restropulse-prod-web`
 4. Set environment variables in each GitHub environment (already configured -- see table above)
+
+### Sites host (`apps/sites`) -- one-time setup
+
+The deploy workflows ship `apps/sites` once this exists (owner, in Azure and GitHub):
+
+1. Create a Linux App Service `restropulse-sites` (runtime Node 22 LTS) in `restropulse-prod-rg`, plus a deployment slot `staging`. The existing App Service plan can host it if it has room.
+2. Make sure the GitHub Actions service principal can deploy to it (it already has `Contributor` on `restropulse-prod-rg`, which covers a new app in that group).
+3. Set the variables: repository variable `AZURE_SITES_WEBAPP_NAME=restropulse-sites`; `STAGING_SITES_URL` (the staging slot's https URL) and `PRODUCTION_SITES_URL` (e.g. `https://sites.restropulse.in`), no trailing slash. Optional: `STAGING_SITES_ROOT_DOMAIN` / `PRODUCTION_SITES_ROOT_DOMAIN` for `<slug>.<root>` wildcard hosts.
+4. Point Cloudflare for SaaS's fallback origin at the sites App Service (ADR 0002) and add the public hostnames to the App Service.
+5. When the edge is wired, set `SITES_EDGE_SECRET` on each slot yourself (slot-sticky, ideally a Key Vault reference); the workflows do not manage it.
+
+The workflows set, slot-sticky on each slot: `NODE_ENV`, `API_URL` and `PUBLIC_API_URL` (= `*_API_URL`), `SITES_BASE_URL` (= `*_SITES_URL`), `WEBSITE_RUN_FROM_PACKAGE=1`, `SCM_DO_BUILD_DURING_DEPLOYMENT=false`, the `APP_*` deploy markers, startup command `node apps/sites/dist/main.js`, and health check path `/healthz`. The smoke test (`scripts/smoke-test.sh sites <url>`) expects `GET /healthz` to return `ok`.
 
 ### Rollback
 

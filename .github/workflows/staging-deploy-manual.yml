@@ -22,6 +22,8 @@ jobs:
       publisher: ${{ steps.changes.outputs.publisher }}
       content-engine: ${{ steps.changes.outputs.content-engine }}
       intelligence-worker: ${{ steps.changes.outputs.intelligence-worker }}
+      sites: ${{ steps.changes.outputs.sites }}
+      delivery: ${{ steps.changes.outputs.delivery }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -169,7 +171,8 @@ jobs:
       needs.detect-changes.outputs.api == 'true' ||
       needs.detect-changes.outputs.publisher == 'true' ||
       needs.detect-changes.outputs.content-engine == 'true' ||
-      needs.detect-changes.outputs.intelligence-worker == 'true'
+      needs.detect-changes.outputs.intelligence-worker == 'true' ||
+      needs.detect-changes.outputs.delivery == 'true'
     runs-on: ubuntu-latest
     environment: staging
     permissions:
@@ -203,6 +206,7 @@ jobs:
           @restropulse/publisher
           @restropulse/content-engine
           @restropulse/intelligence-worker
+          @restropulse/dispatch-worker
           --out-dir=pruned
 
       - name: Install pruned dependencies
@@ -218,7 +222,7 @@ jobs:
               cp -r "packages/$pkg_name/dist/." "$pkg_dir/dist/"
             fi
           done
-          for app in api publisher content-engine intelligence-worker; do
+          for app in api publisher content-engine intelligence-worker dispatch-worker; do
             cp -r "apps/$app/dist/." "pruned/apps/$app/dist/"
           done
 
@@ -270,6 +274,7 @@ jobs:
           start_process "publisher" "node ./apps/publisher/dist/worker.js"
           start_process "content-engine" "node ./apps/content-engine/dist/worker.js"
           start_process "intelligence-worker" "node ./apps/intelligence-worker/dist/worker.js"
+          start_process "dispatch-worker" "node ./apps/dispatch-worker/dist/worker.js"
           start_process "api" "node ./apps/api/dist/server.js"
 
           wait -n "${pids[@]}"
@@ -349,7 +354,8 @@ jobs:
           rm -rf pruned/node_modules/@restropulse/api \
                  pruned/node_modules/@restropulse/publisher \
                  pruned/node_modules/@restropulse/content-engine \
-                 pruned/node_modules/@restropulse/intelligence-worker
+                 pruned/node_modules/@restropulse/intelligence-worker \
+                 pruned/node_modules/@restropulse/dispatch-worker
           cd pruned && zip -r ../api-deploy.zip . && cd ..
           API_BUNDLE_SHA256=$(sha256sum api-deploy.zip | awk '{print $1}')
           DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -376,6 +382,137 @@ jobs:
             --slot staging \
             --startup-file "bash startup.sh" \
             --always-on true
+          # Liveness only: /health/ready pings MongoDB, and a DB blip must not
+          # make App Service recycle the instance.
+          az webapp config set \
+            --name ${{ vars.AZURE_WEBAPP_NAME_PROD }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --generic-configurations '{"healthCheckPath":"/health"}'
+
+  # apps/sites runs on its own App Service (restropulse-sites). Skipped, not
+  # failed, until the repository variable AZURE_SITES_WEBAPP_NAME is set.
+  build-and-deploy-sites-staging:
+    name: Build & Deploy Sites (Staging)
+    needs: detect-changes
+    if: >-
+      vars.AZURE_SITES_WEBAPP_NAME != '' &&
+      (inputs.force || needs.detect-changes.outputs.sites == 'true')
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build sites
+        run: npx turbo build --filter=@restropulse/sites
+        env:
+          NODE_ENV: production
+
+      - name: Prune for sites deployment
+        run: npx turbo prune @restropulse/sites --out-dir=pruned
+
+      - name: Install pruned dependencies
+        run: |
+          npm ci --prefix pruned --omit=dev --ignore-scripts
+          echo "pruned/node_modules package count: $(ls pruned/node_modules | wc -l)"
+
+      - name: Copy dist outputs into pruned tree
+        run: |
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            if [ -d "packages/$pkg_name/dist" ]; then
+              cp -r "packages/$pkg_name/dist/." "$pkg_dir/dist/"
+            fi
+          done
+          mkdir -p pruned/apps/sites/dist
+          cp -r apps/sites/dist/. pruned/apps/sites/dist/
+
+      - name: Materialize workspace packages into node_modules
+        run: |
+          mkdir -p pruned/node_modules/@restropulse
+          for pkg_dir in pruned/packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            target="pruned/node_modules/@restropulse/$pkg_name"
+            rm -rf "$target"
+            cp -r "$pkg_dir" "$target"
+          done
+
+      - name: Check sites variables
+        run: |
+          missing=0
+          for pair in "STAGING_API_URL=${{ vars.STAGING_API_URL }}" "STAGING_SITES_URL=${{ vars.STAGING_SITES_URL }}"; do
+            if [ -z "${pair#*=}" ]; then
+              echo "::error::Repository/environment variable ${pair%%=*} is not set."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Deploy to Azure App Service (staging slot)
+        run: |
+          rm -rf pruned/node_modules/@restropulse/sites
+          cd pruned && zip -r ../sites-deploy.zip . && cd ..
+          SITES_BUNDLE_SHA256=$(sha256sum sites-deploy.zip | awk '{print $1}')
+          DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          settings=(
+            NODE_ENV=staging
+            API_URL="${{ vars.STAGING_API_URL }}"
+            PUBLIC_API_URL="${{ vars.STAGING_API_URL }}"
+            SITES_BASE_URL="${{ vars.STAGING_SITES_URL }}"
+            WEBSITE_RUN_FROM_PACKAGE=1
+            WEBSITE_NODE_DEFAULT_VERSION="~22"
+            SCM_DO_BUILD_DURING_DEPLOYMENT=false
+            APP_GIT_SHA="${{ github.sha }}"
+            APP_DEPLOY_RUN_ID="${{ github.run_id }}"
+            APP_DEPLOYED_AT="$DEPLOYED_AT"
+            APP_ARTIFACT_SHA256="$SITES_BUNDLE_SHA256"
+          )
+          # Optional: wildcard root for <slug>.<root>; left alone when unset.
+          if [ -n "${{ vars.STAGING_SITES_ROOT_DOMAIN }}" ]; then
+            settings+=(SITES_ROOT_DOMAIN="${{ vars.STAGING_SITES_ROOT_DOMAIN }}")
+          fi
+
+          az webapp config appsettings set \
+            --name ${{ vars.AZURE_SITES_WEBAPP_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --slot-settings "${settings[@]}"
+          az webapp deploy \
+            --name ${{ vars.AZURE_SITES_WEBAPP_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --src-path sites-deploy.zip \
+            --type zip \
+            --clean true \
+            --async false
+          az webapp config set \
+            --name ${{ vars.AZURE_SITES_WEBAPP_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --startup-file "node apps/sites/dist/main.js" \
+            --always-on true
+          az webapp config set \
+            --name ${{ vars.AZURE_SITES_WEBAPP_NAME }} \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --slot staging \
+            --generic-configurations '{"healthCheckPath":"/healthz"}'
 
   smoke-test-api:
     name: Smoke Test API
@@ -411,6 +548,21 @@ jobs:
         env:
           EXPECT_NOINDEX: "true"
           EXPECTED_GIT_SHA: ${{ github.sha }}
+
+  smoke-test-sites:
+    name: Smoke Test Sites
+    needs: build-and-deploy-sites-staging
+    if: needs.build-and-deploy-sites-staging.result == 'success'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/smoke-test.sh
+
+      - name: Smoke test Sites
+        run: bash scripts/smoke-test.sh sites "${{ vars.STAGING_SITES_URL }}"
 
   integration-smoke-staging:
     name: Integration Smoke (KV Staging)
@@ -449,8 +601,17 @@ jobs:
 
   tag-staging:
     name: Tag Staging
-    needs: [integration-smoke-staging]
-    if: needs.integration-smoke-staging.result == 'success'
+    needs: [integration-smoke-staging, build-and-deploy-sites-staging, smoke-test-sites]
+    # Sites jobs are skipped until AZURE_SITES_WEBAPP_NAME is set (or when
+    # nothing under apps/sites changed); a skipped sites job must not block the
+    # tag, but a failed deploy or smoke test must.
+    if: >-
+      !cancelled() &&
+      needs.integration-smoke-staging.result == 'success' &&
+      (needs.build-and-deploy-sites-staging.result == 'success' ||
+       needs.build-and-deploy-sites-staging.result == 'skipped') &&
+      (needs.smoke-test-sites.result == 'success' ||
+       needs.smoke-test-sites.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -244,7 +244,7 @@ Already exists after B1: menu CRUD + CSV import, content draft/publish/rollback 
 
 ## 6. Deployment & CI additions
 
-- New Azure: App Service `restropulse-sites` (staging slot + prod), App Service/WebJob `dispatch-worker`, Key Vault secrets `shadowfax-*`, `rapido-*`, `cloudflare-*`; wildcard DNS `*.restropulse.in` -> Cloudflare; Cloudflare for SaaS fallback origin -> sites App Service.
+- New Azure: App Service `restropulse-sites` (staging slot + prod; deploy jobs in both workflows, skipped until the repo variable `AZURE_SITES_WEBAPP_NAME` is set -- setup steps in `docs/INFRASTRUCTURE.md` "Sites host"), `dispatch-worker` (runs as a fifth process in the API App Service's `startup.sh`, no new resource), Key Vault secrets `shadowfax-*`, `rapido-*`, `cloudflare-*`; wildcard DNS `*.restropulse.in` -> Cloudflare; Cloudflare for SaaS fallback origin -> sites App Service.
 - CI: `sites` and `dispatch-worker` jobs in `ci.yml` and both deploy workflows; smoke test hits `/r/demo` and one custom host via `Host:` header.
 - Alerts (App Insights): publish failure rate, dispatch dead-letters, webhook signature failures, Replicate/Anthropic daily spend.
 
