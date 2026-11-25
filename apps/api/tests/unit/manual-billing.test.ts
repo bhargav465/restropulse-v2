@@ -8,7 +8,8 @@ const mockIncrementCouponRedemptions = vi.fn();
 const mockCreateCouponRedemption = vi.fn();
 const mockFindUserByRestaurantId = vi.fn();
 
-vi.mock('@restropulse/db', () => ({
+vi.mock('@restropulse/db', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@restropulse/db')>()),
     findCouponByCode: mockFindCouponByCode,
     hasRestaurantRedeemedCoupon: mockHasRestaurantRedeemedCoupon,
     incrementCouponRedemptions: mockIncrementCouponRedemptions,
