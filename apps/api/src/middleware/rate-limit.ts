@@ -166,8 +166,8 @@ export function createRateLimiter(opts: LimiterOptions): RequestHandler {
     });
 }
 
-/** Paths that must never be throttled: payment-provider webhooks retry on 429. */
-const UNLIMITED_PATHS = ['/api/subscriptions/webhook', '/api/webhooks/'];
+/** Paths that must never be throttled: partner webhooks (delivery) retry on 429. */
+const UNLIMITED_PATHS = ['/api/webhooks/'];
 
 /**
  * Global per-IP budget for every /api route.

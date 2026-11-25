@@ -3,11 +3,11 @@
  *
  * Ensures every restaurant with an active subscription has a StrategyCycle
  * for their current billing period. Runs on a cron schedule so cycles are
- * created reliably regardless of whether Razorpay webhooks fired or were missed.
+ * created reliably whenever a plan is switched on or renewed.
  *
  * The billing period dates (currentPeriodStart / currentPeriodEnd) are stored
- * on the Subscription document by the webhook handlers, so this processor
- * only needs to read them — no Razorpay API calls required.
+ * on the Subscription document when the team activates a plan, so this
+ * processor only needs to read them.
  */
 
 import {

@@ -29,23 +29,6 @@ export async function findInvoiceById(id: string) {
     return toApiFormat(doc);
 }
 
-export async function findInvoiceByRazorpayId(razorpayInvoiceId: string) {
-    const doc = await getInvoicesCollection().findOne({ razorpayInvoiceId });
-    return toApiFormat(doc);
-}
-
-export async function findInvoiceByPaymentId(razorpayPaymentId: string) {
-    const doc = await getInvoicesCollection().findOne({ razorpayPaymentId });
-    return toApiFormat(doc);
-}
-
-export async function findInvoicesByRazorpaySubscriptionId(razorpaySubscriptionId: string) {
-    const docs = await getInvoicesCollection()
-        .find({ razorpaySubscriptionId })
-        .toArray();
-    return toApiFormatArray(docs);
-}
-
 export async function updateInvoice(id: string, updates: Record<string, unknown>) {
     await getInvoicesCollection().updateOne(
         { _id: toObjectId(id) as any },

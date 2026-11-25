@@ -678,9 +678,22 @@ describe('API Service', () => {
             );
         });
 
+        it('should withdraw a pending plan request', async () => {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true, data: { withdrawn: true } }),
+            });
+
+            await expect(subscriptionAPI.withdrawRequest()).resolves.toEqual({ withdrawn: true });
+            expect(mockFetch).toHaveBeenCalledWith(
+                expect.stringContaining('/subscriptions/withdraw-request'),
+                expect.objectContaining({ method: 'POST' }),
+            );
+        });
+
         it('has no gateway checkout, verify or credit purchase calls', () => {
             expect(Object.keys(subscriptionAPI).sort()).toEqual(
-                ['cancel', 'changePlan', 'getCurrent', 'getPlans', 'reactivate', 'subscribe'],
+                ['cancel', 'changePlan', 'getCurrent', 'getPlans', 'reactivate', 'subscribe', 'withdrawRequest'],
             );
         });
     });

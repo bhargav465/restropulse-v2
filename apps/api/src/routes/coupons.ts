@@ -10,7 +10,6 @@ import { ApiResponse, Coupon } from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
-import { createRazorpayOffer } from '../services/razorpay.js';
 import { createLogger } from '@restropulse/telemetry/server';
 
 const log = createLogger('coupons');
@@ -45,21 +44,6 @@ router.post('/', requireAuth, requireRole('ADMIN'), handle(async (req: Request, 
         return res.status(409).json({ success: false, error: 'Coupon code already exists' });
     }
 
-    // Sync to Razorpay as an Offer (optional, may fail if Razorpay not configured)
-    let razorpayOfferId: string | undefined;
-    try {
-        const offer = await createRazorpayOffer({
-            name: normalizedCode,
-            paymentMethod: 'card',
-            discountType: type.toLowerCase() as 'percentage' | 'flat',
-            discountValue: value,
-            maxBillingCycles,
-        });
-        razorpayOfferId = offer.id;
-    } catch (error) {
-        log.info({ err: (error as Error).message }, 'Razorpay offer creation skipped');
-    }
-
     const coupon = await createCoupon({
         code: normalizedCode,
         type,
@@ -73,7 +57,6 @@ router.post('/', requireAuth, requireRole('ADMIN'), handle(async (req: Request, 
         validFrom: new Date(validFrom),
         validUntil: validUntil ? new Date(validUntil) : undefined,
         status: 'ACTIVE',
-        razorpayOfferId,
         createdBy: req.user!.userId,
     });
 

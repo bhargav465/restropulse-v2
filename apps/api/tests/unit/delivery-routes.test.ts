@@ -106,7 +106,7 @@ function order(over: Partial<Order> = {}): Order {
     return {
         id: 'o1', restaurantId: 'r1', orderNumber: 'RP-ABC234', trackingToken: 't'.repeat(24), orderType: 'delivery', items: [],
         totals: { subtotal: 400, discount: 0, deliveryFee: 30, deliveryDiscount: 0, tax: 20, total: 450 },
-        status: 'READY', statusHistory: [], paymentMethod: 'cash', paymentStatus: 'not_required',
+        status: 'READY', statusHistory: [], paymentMethod: 'cash',
         customerName: 'Asha', customerPhone: '+919800000000', address: { line1: '12 MG Road', pincode: '560001' },
         createdAt: '', updatedAt: '', ...over,
     };

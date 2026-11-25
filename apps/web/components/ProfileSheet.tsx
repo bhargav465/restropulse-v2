@@ -535,28 +535,13 @@ const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose, onLogout, 
         }
     };
 
-    /**
-     * Withdraw the pending plan request. /cancel withdraws it; on an active plan
-     * /cancel also schedules the plan to end, so (unless the owner had already
-     * cancelled) /reactivate undoes that and the owner stays on the current plan.
-     */
+    /** Withdraw the pending plan request. The current plan, if any, is left as it is. */
     const handleWithdrawRequest = async () => {
         if (isWithdrawingRequest) return;
         const pendingName = subscription?.pendingPlanSnapshot?.name ?? 'the new plan';
-        const keepActivePlan = hasActivePlan(subscription) && !subscription?.cancelAtPeriodEnd;
         setIsWithdrawingRequest(true);
         try {
-            await subscriptionAPI.cancel();
-            if (keepActivePlan) {
-                try {
-                    await subscriptionAPI.reactivate();
-                } catch (err: any) {
-                    setShowWithdrawConfirm(false);
-                    showActionError(`Your request for ${pendingName} was withdrawn, but your current plan is now set to end at the end of its paid period. Tap Reactivate to keep it.`);
-                    await loadSubscriptionData();
-                    return;
-                }
-            }
+            await subscriptionAPI.withdrawRequest();
             setShowWithdrawConfirm(false);
             showActionSuccess(`Your request for ${pendingName} was withdrawn.`);
             await loadSubscriptionData();

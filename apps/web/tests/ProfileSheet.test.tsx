@@ -60,6 +60,7 @@ vi.mock('../api', () => ({
         changePlan: vi.fn(),
         reactivate: vi.fn(),
         cancel: vi.fn(),
+        withdrawRequest: vi.fn().mockResolvedValue({ withdrawn: true }),
     },
     couponAPI: {
         validate: vi.fn(),
@@ -2233,32 +2234,30 @@ describe('ProfileSheet Component', () => {
         // Confirm dialog first; nothing is called yet
         expect(await screen.findByText('Withdraw your request for Starter?')).toBeInTheDocument();
         expect(screen.getByText("The RestroPulse team won't switch you to Starter. You stay on Growth.")).toBeInTheDocument();
-        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+        expect(subscriptionAPI.withdrawRequest).not.toHaveBeenCalled();
 
         // "Keep request" closes the dialog without calling anything
         fireEvent.click(screen.getByRole('button', { name: 'Keep request' }));
         expect(screen.queryByText('Withdraw your request for Starter?')).not.toBeInTheDocument();
-        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+        expect(subscriptionAPI.withdrawRequest).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
         await screen.findByText('Withdraw your request for Starter?');
         // The dialog's confirm button is the last "Withdraw request" button
         fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
 
-        // /cancel withdraws the request (and would schedule the plan to end), so
-        // /reactivate undoes the scheduled end: the owner stays on Growth.
+        // Only the request goes; the Growth plan is not touched.
         await waitFor(() => {
-            expect(subscriptionAPI.cancel).toHaveBeenCalledTimes(1);
-            expect(subscriptionAPI.reactivate).toHaveBeenCalledTimes(1);
+            expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
             expect(screen.getByText('Your request for Starter was withdrawn.')).toBeInTheDocument();
         });
-        expect(vi.mocked(subscriptionAPI.cancel).mock.invocationCallOrder[0])
-            .toBeLessThan(vi.mocked(subscriptionAPI.reactivate).mock.invocationCallOrder[0]);
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+        expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
         expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
         expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
     });
 
-    it('withdraws a pending request on a plan already set to end without undoing that cancellation', async () => {
+    it('withdraws a pending request on a plan already set to end and leaves that cancellation alone', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 100,
@@ -2281,39 +2280,14 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
 
         await waitFor(() => expect(screen.getByText('Your request for Starter was withdrawn.')).toBeInTheDocument());
-        expect(subscriptionAPI.cancel).toHaveBeenCalledTimes(1);
+        expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
         expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
-    });
-
-    it('tells the owner how to keep their plan if undoing the scheduled end fails after withdrawing', async () => {
-        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: {
-                id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 100,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
-                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
-                currentPeriodEnd: '2026-06-01T00:00:00.000Z',
-            },
-            usage: null,
-        });
-        vi.mocked(subscriptionAPI.reactivate).mockRejectedValue(new Error('boom'));
-
-        render(<ProfileSheet {...defaultProps} />);
-        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-
-        fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
-
-        fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
-        await screen.findByText('Withdraw your request for Starter?');
-        fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
-
-        await waitFor(() => expect(screen.getByText(/Your request for Starter was withdrawn, but your current plan is now set to end/)).toBeInTheDocument());
-        expect(screen.getByText(/Tap Reactivate to keep it/)).toBeInTheDocument();
     });
 
     // --- Gap 1 + Gap 2: CREATED status label and billing cycle filter ---
 
-    it('shows a pending request for an owner with no active plan and withdraws it with cancel only', async () => {
+    it('shows a pending request for an owner with no active plan and withdraws it', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0,
@@ -2324,7 +2298,6 @@ describe('ProfileSheet Component', () => {
             },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.cancel).mockResolvedValue({ success: true, message: 'Plan request withdrawn' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2346,8 +2319,8 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
 
         await waitFor(() => expect(screen.getByText('Your request for Growth was withdrawn.')).toBeInTheDocument());
-        expect(subscriptionAPI.cancel).toHaveBeenCalledTimes(1);
-        expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
+        expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
     });
 
     it('shows the error when withdrawing a request fails', async () => {
@@ -2355,7 +2328,7 @@ describe('ProfileSheet Component', () => {
             subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] } },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.cancel).mockRejectedValue(new Error('Could not withdraw the request'));
+        vi.mocked(subscriptionAPI.withdrawRequest).mockRejectedValueOnce(new Error('Could not withdraw the request'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());

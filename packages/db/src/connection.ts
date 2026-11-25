@@ -127,10 +127,6 @@ export function getCouponRedemptionsCollection(): Collection {
   return getDB().collection('couponRedemptions');
 }
 
-export function getCreditPurchasesCollection(): Collection {
-  return getDB().collection('creditPurchases');
-}
-
 export function getCreditPacksCollection(): Collection {
   return getDB().collection('creditPacks');
 }

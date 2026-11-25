@@ -2,8 +2,8 @@
  * Public storefront API (Phase 2, M2) -- mounted at /api/storefront
  *
  * Unauthenticated, keyed by the restaurant's slug. Customers check out as
- * guests (name + phone); the order's tracking token is their proof of
- * ownership for payment verify, retry and tracking.
+ * guests (name + phone) and pay in cash at the counter, at the table or on
+ * delivery; the order's tracking token is their proof of ownership for tracking.
  * ASSUMPTION: no customer accounts in v1 (the Vercel line's customers
  * collection is not ported); a returning-customer login can sit on top later.
  *
@@ -11,15 +11,12 @@
  *   GET  /:slug/menu                     catalog + live site offers
  *   POST /:slug/quote                    price a cart (no order created)
  *   POST /:slug/orders                   checkout; Idempotency-Key header honoured
- *   POST /:slug/orders/:id/payment/verify  Razorpay Checkout handler result
- *   POST /:slug/orders/:id/payment/retry   new payment attempt after a failure
  *   GET  /:slug/orders/:id?token=        tracking
  */
 
 import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import {
-    findLatestPaymentForOrder,
     findMenuCategories,
     findMenuItems,
     findOrderById,
@@ -34,20 +31,15 @@ import { createLogger } from '@restropulse/telemetry/server';
 import { handle } from '../middleware/async-handler.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 import { validateBody } from '../middleware/validate.js';
-import { isRazorpayConfigured, verifyPaymentSignature } from '../services/razorpay.js';
 import {
     CheckoutBody,
     QuoteBody,
-    TokenBody,
-    VerifyPaymentBody,
     readIdempotencyKey,
 } from '../services/orders/schemas.js';
 import {
     checkout,
-    confirmPayment,
     OrderFlowError,
     priceCart,
-    retryPayment,
     tokenMatches,
     type CheckoutInput,
 } from '../services/orders/order-service.js';
@@ -98,7 +90,6 @@ function publicOrdering(restaurant: Restaurant) {
         },
         delivery: { flatFee: s.delivery.flatFee, minOrder: s.delivery.minOrder, ...(s.delivery.freeAbove !== undefined ? { freeAbove: s.delivery.freeAbove } : {}) },
         taxRatePercent: s.taxRatePercent,
-        payment: { online: isRazorpayConfigured(), cash: s.cashAccepted },
     };
 }
 
@@ -175,9 +166,8 @@ router.post('/:slug/orders', writeLimiter, validateBody(CheckoutBody), handle(as
             success: true,
             data: {
                 order: toPublicOrder(result.order),
-                // The customer keeps this to track and pay; it is shown once, here.
+                // The customer keeps this to track the order; it is shown once, here.
                 trackingToken: result.order.trackingToken,
-                ...(result.payment ? { payment: result.payment } : {}),
             },
         });
     } catch (err) {
@@ -196,40 +186,6 @@ async function loadCustomerOrder(req: Request, res: Response, token: unknown) {
     }
     return order;
 }
-
-router.post('/:slug/orders/:id/payment/verify', writeLimiter, validateBody(VerifyPaymentBody), handle(async (req, res: Response<ApiResponse>) => {
-    const body = req.body as z.infer<typeof VerifyPaymentBody>;
-    const order = await loadCustomerOrder(req, res, body.token);
-    if (!order) return;
-
-    const payment = await findLatestPaymentForOrder(order.restaurantId, order.id);
-    let valid = false;
-    if (payment && payment.providerOrderId === body.razorpayOrderId) {
-        try {
-            valid = verifyPaymentSignature(body.razorpayOrderId, body.razorpayPaymentId, body.razorpaySignature);
-        } catch {
-            valid = false; // length mismatch or missing secret
-        }
-    }
-    if (!payment || !valid) {
-        log.warn({ orderId: order.id }, 'storefront payment verify rejected');
-        return res.status(400).json({ success: false, error: "We couldn't confirm this payment. If money left your account, it will be refunded automatically." });
-    }
-    const updated = await confirmPayment(payment, body.razorpayPaymentId, 'verify');
-    res.json({ success: true, data: { order: toPublicOrder(updated ?? order) } });
-}));
-
-router.post('/:slug/orders/:id/payment/retry', writeLimiter, validateBody(TokenBody), handle(async (req, res: Response<ApiResponse>) => {
-    const order = await loadCustomerOrder(req, res, (req.body as z.infer<typeof TokenBody>).token);
-    if (!order) return;
-    try {
-        const payment = await retryPayment(order);
-        const fresh = await findOrderById(order.restaurantId, order.id);
-        res.json({ success: true, data: { order: toPublicOrder(fresh ?? order), payment } });
-    } catch (err) {
-        if (!sendFlowError(res, err)) throw err;
-    }
-}));
 
 router.get('/:slug/orders/:id', handle(async (req, res: Response<ApiResponse>) => {
     const order = await loadCustomerOrder(req, res, req.query.token);

@@ -6,6 +6,7 @@ import {
   getSubscriptionsCollection,
   getPostsCollection,
   toApiFormat,
+  toApiFormatArray,
   toObjectId,
 } from './connection.js';
 import type { Subscription, PostType, Platform } from '@restropulse/shared';
@@ -14,6 +15,17 @@ export async function findActiveSubscription(restaurantId: string): Promise<Subs
   const col = getSubscriptionsCollection();
   const doc = await col.findOne({ restaurantId, endedAt: null });
   return toApiFormat(doc) as Subscription | null;
+}
+
+/** Live subscriptions with a plan request waiting for the team (manual billing), oldest first. */
+export async function findSubscriptionsWithPendingPlan(limit = 200): Promise<Subscription[]> {
+  const col = getSubscriptionsCollection();
+  const docs = await col
+    .find({ endedAt: null, pendingPlanSnapshot: { $type: 'object' } })
+    .sort({ planRequestedAt: 1, updatedAt: 1 })
+    .limit(limit)
+    .toArray();
+  return toApiFormatArray(docs) as Subscription[];
 }
 
 export async function createSubscription(sub: Omit<Subscription, 'id'>): Promise<Subscription> {
@@ -39,22 +51,6 @@ export async function updateSubscription(
     { returnDocument: 'after' },
   );
   return toApiFormat(result) as Subscription | null;
-}
-
-export async function findSubscriptionByRazorpayId(
-  razorpaySubscriptionId: string,
-): Promise<Subscription | null> {
-  const col = getSubscriptionsCollection();
-  const doc = await col.findOne({ razorpaySubscriptionId });
-  return toApiFormat(doc) as Subscription | null;
-}
-
-export async function findSubscriptionByPendingRazorpayId(
-  pendingRazorpaySubscriptionId: string,
-): Promise<Subscription | null> {
-  const col = getSubscriptionsCollection();
-  const doc = await col.findOne({ pendingRazorpaySubscriptionId, endedAt: null });
-  return toApiFormat(doc) as Subscription | null;
 }
 
 /**

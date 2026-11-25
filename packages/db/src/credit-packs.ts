@@ -4,12 +4,11 @@
 
 import {
   getCreditPacksCollection,
-  getCreditPurchasesCollection,
   toApiFormat,
   toApiFormatArray,
   toObjectId,
 } from './connection.js';
-import type { CreditPack, CreditPurchase } from '@restropulse/shared';
+import type { CreditPack } from '@restropulse/shared';
 
 export async function findActiveCreditPacks(): Promise<CreditPack[]> {
   const col = getCreditPacksCollection();
@@ -45,38 +44,4 @@ export async function updateCreditPack(
     { returnDocument: 'after' },
   );
   return toApiFormat(result) as CreditPack | null;
-}
-
-export async function createCreditPurchase(
-  purchase: Omit<CreditPurchase, 'id'>,
-): Promise<CreditPurchase> {
-  const col = getCreditPurchasesCollection();
-  const now = new Date();
-  const result = await col.insertOne({
-    ...purchase,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return { ...purchase, id: result.insertedId.toString() } as CreditPurchase;
-}
-
-export async function findCreditPurchaseByOrderId(
-  razorpayOrderId: string,
-): Promise<CreditPurchase | null> {
-  const col = getCreditPurchasesCollection();
-  const doc = await col.findOne({ razorpayOrderId });
-  return toApiFormat(doc) as CreditPurchase | null;
-}
-
-export async function updateCreditPurchase(
-  id: string,
-  updates: Partial<CreditPurchase>,
-): Promise<CreditPurchase | null> {
-  const col = getCreditPurchasesCollection();
-  const result = await col.findOneAndUpdate(
-    { _id: toObjectId(id) as any },
-    { $set: { ...updates, updatedAt: new Date() } },
-    { returnDocument: 'after' },
-  );
-  return toApiFormat(result) as CreditPurchase | null;
 }

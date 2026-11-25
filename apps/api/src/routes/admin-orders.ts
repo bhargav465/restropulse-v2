@@ -6,7 +6,7 @@
  *   PUT  /settings         save them (slug must be unique)
  *   GET  /:id              one order
  *   POST /:id/status       { to, note? }   validated against the status machine
- *   POST /:id/cancel       { reason, refund? }  refunds paid online orders by default
+ *   POST /:id/cancel       { reason }  (orders are paid in cash; nothing to refund)
  *
  * Auth: merchant JWT, OWNER or MANAGER (same as /api/admin/cms).
  */
@@ -33,7 +33,6 @@ import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
-import { isRazorpayConfigured } from '../services/razorpay.js';
 import { CancelBody, FeedQuery, OrderingSettingsBody, StatusBody } from '../services/orders/schemas.js';
 import { advanceOrder, cancelOrder, OrderFlowError } from '../services/orders/order-service.js';
 
@@ -87,7 +86,6 @@ function settingsView(restaurant: Restaurant) {
         slug: restaurant.slug ?? null,
         suggestedSlug: restaurant.slug ?? slugifyRestaurantName(restaurant.name ?? ''),
         ordering: resolveOrderingSettings(restaurant.ordering),
-        onlinePaymentsAvailable: isRazorpayConfigured(),
     };
 }
 
@@ -107,9 +105,6 @@ router.put('/settings', validateBody(OrderingSettingsBody), handle(async (req, r
         if (!slug) return res.status(400).json({ success: false, error: 'Choose a web address before opening for orders.' });
         if (!o.delivery.enabled && !o.pickup.enabled && !o.dineIn.enabled) {
             return res.status(400).json({ success: false, error: 'Turn on delivery, pickup or dine-in before opening for orders.' });
-        }
-        if (!o.cashAccepted && !isRazorpayConfigured()) {
-            return res.status(400).json({ success: false, error: "Online payments aren't set up yet. Accept cash to open for orders." });
         }
     }
     try {
@@ -157,8 +152,8 @@ router.post('/:id/cancel', validateBody(CancelBody), handle(async (req, res: Res
     if (!order) return;
     const body = req.body as z.infer<typeof CancelBody>;
     try {
-        const result = await cancelOrder(order, body.reason, body.refund ?? true);
-        res.json({ success: true, data: { order: strip(result.order), refund: result.refund } });
+        const cancelled = await cancelOrder(order, body.reason);
+        res.json({ success: true, data: { order: strip(cancelled) } });
     } catch (err) {
         if (!sendFlowError(res, err)) throw err;
     }

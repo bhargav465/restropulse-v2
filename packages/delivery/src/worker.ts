@@ -51,7 +51,7 @@ async function runDispatch(job: DeliveryJob, deps: WorkerDeps): Promise<string> 
   const now = deps.now ?? (() => new Date());
   const order = await store.findOrder(job.restaurantId, job.orderId);
   if (!order) return 'order_missing';
-  if (order.orderType !== 'delivery' || ['CANCELLED', 'COMPLETED', 'PENDING_PAYMENT', 'PAYMENT_FAILED'].includes(order.status)) return 'not_needed';
+  if (order.orderType !== 'delivery' || ['CANCELLED', 'COMPLETED'].includes(order.status)) return 'not_needed';
   const existing = await store.findShipmentForOrder(order.restaurantId, order.id);
   if (existing && !isTerminalShipment(existing.status)) return 'already_booked';
   const restaurant = await store.findRestaurant(order.restaurantId);

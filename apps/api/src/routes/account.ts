@@ -1,10 +1,9 @@
 import express, { Request, Response } from 'express';
-import { getDB, archiveAccount, deleteAccountData, findActiveSubscription, findUserById } from '@restropulse/db';
+import { getDB, archiveAccount, deleteAccountData } from '@restropulse/db';
 import type { ApiResponse } from '@restropulse/shared';
 import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
-import { cancelRazorpaySubscription, anonymizeRazorpayCustomer } from '../services/razorpay.js';
 import { createLogger } from '@restropulse/telemetry/server';
 
 const log = createLogger('account');
@@ -29,30 +28,7 @@ router.delete(
     // 1. Archive first (fail fast if this throws)
     await archiveAccount(db, userId, restaurantId ?? null, 'API', dbName, phone);
 
-    // 2. Cancel Razorpay subscription and anonymize customer -- failures must not block deletion
-    if (restaurantId) {
-      try {
-        const sub = await findActiveSubscription(restaurantId);
-        if (sub?.razorpaySubscriptionId) {
-          await cancelRazorpaySubscription(sub.razorpaySubscriptionId, false);
-          log.info({ razorpaySubscriptionId: sub.razorpaySubscriptionId }, 'Subscription cancelled');
-        }
-      } catch (err) {
-        log.warn({ err, restaurantId }, 'Razorpay cancellation failed -- continuing with deletion');
-      }
-    }
-
-    const userDoc = await findUserById(userId);
-    if (userDoc?.razorpayCustomerId) {
-      try {
-        await anonymizeRazorpayCustomer(userDoc.razorpayCustomerId);
-        log.info({ razorpayCustomerId: userDoc.razorpayCustomerId }, 'Razorpay customer anonymized');
-      } catch (err) {
-        log.warn({ err, razorpayCustomerId: userDoc.razorpayCustomerId }, 'Failed to anonymize Razorpay customer -- continuing with deletion');
-      }
-    }
-
-    // 3. Delete all records
+    // 2. Delete all records
     await deleteAccountData(db, userId, restaurantId ?? null);
 
     log.info({ userId, restaurantId }, 'Account deleted');

@@ -28,7 +28,6 @@ export {
   getSubscriptionsCollection,
   getCouponsCollection,
   getCouponRedemptionsCollection,
-  getCreditPurchasesCollection,
   getCreditPacksCollection,
   getInvoicesCollection,
   getSettingsCollection,

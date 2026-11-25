@@ -21,7 +21,6 @@ import { handle } from '../middleware/async-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/require-role.js';
 import { generateTokens } from '../services/jwt.js';
-import { createRazorpayCustomer, isRazorpayConfigured } from '../services/razorpay.js';
 import { createLogger } from '@restropulse/telemetry/server';
 
 const log = createLogger('restaurant');
@@ -82,19 +81,6 @@ router.post('/', requireAuth, handle(async (req: Request, res: Response<ApiRespo
         credits: 0,
         trialEndsAt,
     });
-
-    // Create Razorpay customer early so it's available for future subscriptions
-    if (isRazorpayConfigured()) {
-        const updatedUser = await findUserById(userId);
-        if (updatedUser?.email) {
-            try {
-                const rzpCustomer = await createRazorpayCustomer(updatedUser.name, updatedUser.email, updatedUser.phone);
-                await updateUser(userId, { razorpayCustomerId: rzpCustomer.id });
-            } catch (err) {
-                log.warn({ err, userId }, 'Failed to create Razorpay customer at onboarding — will retry at subscribe time');
-            }
-        }
-    }
 
     // Issue fresh tokens with the new restaurantId
     const tokens = generateTokens(userId, req.user!.phone, restaurant.id, 'OWNER');

@@ -73,7 +73,8 @@ export function buildQuoteRequest(order: Order, restaurant: Restaurant): QuoteRe
     pickup: { name: restaurant.name ?? 'Restaurant', ...(r.phone ? { phone: r.phone } : {}), ...(pickupAddress ? { address: pickupAddress } : {}) },
     drop: { name: order.customerName, phone: order.customerPhone, address: order.address },
     orderValue: order.totals.total,
-    collectCash: order.paymentMethod === 'cash' && order.paymentStatus !== 'paid',
+    // Every order is cash on delivery: the rider collects it.
+    collectCash: order.paymentMethod === 'cash',
   };
 }
 

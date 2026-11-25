@@ -561,6 +561,12 @@ export const subscriptionAPI = {
         return response.data!;
     },
 
+    /** Withdraw a pending plan request; the current plan (if any) is untouched. */
+    withdrawRequest: async (): Promise<{ withdrawn: true }> => {
+        const res = await fetchAPI<ApiResponse<{ withdrawn: true }>>('/subscriptions/withdraw-request', { method: 'POST' });
+        return res.data!;
+    },
+
     /** Undo a scheduled cancellation. */
     reactivate: async (): Promise<{ reactivated: true }> => {
         const res = await fetchAPI<ApiResponse<{ reactivated: true }>>(
