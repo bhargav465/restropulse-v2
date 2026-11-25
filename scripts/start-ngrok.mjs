@@ -188,18 +188,15 @@ if (configResult === null) {
 }
 log('ok', 'Auth token configured');
 
-// Print webhook URL
-const tunnelUrl = domain ? `https://${domain}` : `http://localhost:4040`;
-const webhookUrl = `${domain ? `https://${domain}` : '<ngrok-url>'}/api/subscriptions/webhook`;
-
+// Print the public tunnel URL
 console.log('');
 log('info', `Starting ngrok tunnel -> http://localhost:${apiPort}`);
 if (domain) {
-    log('info', `Webhook URL: ${webhookUrl}`);
-    log('info', 'Set this URL in: Razorpay Dashboard -> Settings -> Webhooks');
+    log('info', `Public URL: https://${domain}`);
+    log('info', `Delivery partner webhooks: https://${domain}/api/webhooks/delivery/<provider>`);
 } else {
     log('info', 'No NGROK_DOMAIN set — a random URL will be assigned.');
-    log('info', 'Find your webhook URL in the ngrok console output below.');
+    log('info', 'Find the public URL in the ngrok console output below.');
 }
 console.log('');
 

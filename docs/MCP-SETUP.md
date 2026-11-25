@@ -151,8 +151,8 @@ claude mcp list
 - No additional install required; npx fetches the package + browser on first
   use (Chromium is downloaded automatically).
 - Use to drive the running web app for E2E QA, bug repro, exploratory testing
-  of subscription/checkout flows, and any task that requires interacting with
-  rendered DOM, iframes (e.g., Razorpay checkout), or network requests.
+  of subscription-request and storefront checkout flows, and any task that
+  requires interacting with rendered DOM, iframes, or network requests.
 - Tool-routing rule: use `playwright` only for live app interaction. Never use
   it to read source files (use Filesystem tools) or to search code (use
   `codebase-rag`).

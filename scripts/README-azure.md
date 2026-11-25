@@ -156,9 +156,6 @@ Repeat for:
 - `encryption-key`
 - `instagram-app-id`
 - `instagram-app-secret`
-- `razorpay-key-id`
-- `razorpay-key-secret`
-- `razorpay-webhook-secret`
 - `firebase-service-account-key`
 
 ### 2. App settings already automated by the script

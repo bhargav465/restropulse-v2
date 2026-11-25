@@ -121,24 +121,6 @@ const ENV_METADATA = {
       format: 'e.g. restropulse-prod',
     },
     {
-      key: 'RAZORPAY_KEY_ID',
-      description: 'Razorpay API key ID',
-      required: false,
-      format: 'rzp_test_... (test) or rzp_live_... (production)',
-    },
-    {
-      key: 'RAZORPAY_KEY_SECRET',
-      description: 'Razorpay API key secret',
-      required: false,
-      format: 'from Razorpay Dashboard → Settings → API Keys',
-    },
-    {
-      key: 'RAZORPAY_WEBHOOK_SECRET',
-      description: 'Razorpay webhook signature secret',
-      required: false,
-      format: 'from Razorpay Dashboard → Settings → Webhooks',
-    },
-    {
       key: 'FEATURE_DELETE_ACCOUNT',
       description: 'Feature flag: enable account deletion UI',
       required: false,
@@ -229,12 +211,6 @@ const ENV_METADATA = {
       description: 'Google Maps Places API key — when absent, onboarding falls back to manual address entry',
       required: false,
       format: 'from Google Cloud Console → APIs & Services → Credentials',
-    },
-    {
-      key: 'VITE_RAZORPAY_KEY_ID',
-      description: 'Razorpay key for checkout — fetched from API at runtime if not set',
-      required: false,
-      format: 'rzp_test_... or rzp_live_...',
     },
     {
       key: 'VITE_APPINSIGHTS_CONNECTION_STRING',

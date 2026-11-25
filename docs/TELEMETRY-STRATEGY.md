@@ -63,10 +63,10 @@ collected, and which dashboard each signal feeds.
 | Signal | Sampled? | Volume | Dashboard | Example |
 |--------|----------|--------|-----------|---------|
 | **Business events** (customEvents) | Never | Low (~100/day) | Usage | `post.created`, `auth.login`, `subscription.activated` |
-| **Payment events** (customEvents) | Never | Low (~10/day) | Usage + Reliability | `payment.completed`, `webhook.received`, `credit.purchased` |
+| **Billing events** (customEvents) | Never | Low (~10/day) | Usage | `subscription.requested`, `subscription.activated`, `credits.added` (billing is manual; no payment gateway) |
 | **Exceptions** (exceptions) | Never | Low | Reliability | JS crash, unhandled rejection, API 500 |
 | **HTTP request traces** (requests) | Yes (10% prod) | High (~10K/day) | Performance | `GET /api/posts`, `POST /api/auth/firebase` |
-| **Dependency calls** (dependencies) | Yes (10% prod) | High | Performance | MongoDB queries, Meta API calls, Razorpay API |
+| **Dependency calls** (dependencies) | Yes (10% prod) | High | Performance | MongoDB queries, Meta API calls, delivery provider APIs |
 | **Custom metrics** (customMetrics) | Pre-aggregated | N/A | All three | `publish.duration_ms`, `http.request.duration_ms` |
 | **Client page views** (pageViews) | Never | Low (~500/day) | Usage | View transitions (DASHBOARD, STUDIO, etc.) |
 | **Client performance** (customMetrics) | Never | Low | Performance | LCP, FID, CLS, INP |
@@ -230,7 +230,7 @@ Must be called before any other imports in each app entrypoint. Uses the Azure
 Monitor OpenTelemetry distro which auto-instruments:
 - **Express** -- HTTP request spans with route, method, status
 - **MongoDB driver v6** -- Query spans with collection, operation
-- **Outbound HTTP/HTTPS** (axios) -- Dependency spans for Meta API, Razorpay
+- **Outbound HTTP/HTTPS** (axios) -- Dependency spans for Meta API, delivery providers
 - **pino logs** -- Bridged to Azure Monitor `traces` table (when configured)
 
 ```typescript
@@ -886,8 +886,8 @@ Purpose: Understand product adoption, feature usage, user journeys.
 | Posts created by type | `customEvents | where name == 'post.created' | summarize count() by tostring(customDimensions.postType)` | Custom event |
 | Posts published by platform | `customEvents | where name == 'post.published' | summarize count() by tostring(customDimensions.platform)` | Custom event |
 | Instagram connections | `customEvents | where name == 'instagram.connected' | summarize count() by bin(timestamp, 1d)` | Custom event |
-| Subscription activations | `customEvents | where name == 'subscription.activated' | summarize count() by tostring(customDimensions.plan)` | Custom event |
-| Payment completions | `customEvents | where name == 'payment.completed' | summarize count() by tostring(customDimensions.type)` | Custom event |
+| Subscription activations | `customEvents | where name == 'subscription.activated' | summarize count() by tostring(customDimensions.planSlug)` | Custom event |
+| Plan requests | `customEvents | where name == 'subscription.requested' | summarize count() by tostring(customDimensions.planSlug)` | Custom event |
 
 All of these use `customEvents` or `pageViews` which are **never sampled**.
 Counts are exact.
@@ -907,7 +907,7 @@ Purpose: Understand system health, latency, error rates, client-side crashes.
 | Publishing success rate | `customEvents | where name == 'post.published' or name == 'post.publish_failed' | summarize ...` | Always collected |
 | Cron job duration | `customMetrics | where name == 'cron.job.duration_ms' | summarize avg(value) by customDimensions.job_name` | Pre-aggregated |
 | Core Web Vitals (LCP/CLS/INP) | `customMetrics | where name in ('lcp', 'cls', 'inp') | summarize percentile(value, 75)` | Always collected |
-| Razorpay webhook latency | `requests | where name contains 'webhook' | summarize percentiles(duration, 50, 95)` | Auto-collected |
+| Delivery webhook latency | `requests | where name contains 'webhooks/delivery' | summarize percentiles(duration, 50, 95)` | Auto-collected |
 
 ### Dashboard 3: AI Cost
 
@@ -1111,7 +1111,7 @@ Create the entire package. No other files change yet.
 | `apps/api/src/routes/auth.ts` | 1 | **CRITICAL**: Remove phone+OTP logging (line 120). Replace with hashed phone debug log |
 | `apps/api/src/routes/integrations.ts` | 41 | Replace all `[DEBUG]` and `[OAuth]` prefixed logs with `createLogger('integrations')` |
 | `apps/api/src/routes/posts.ts` | 13 | Replace with `createLogger('routes/posts')` |
-| `apps/api/src/routes/subscriptions.ts` | 3 | Replace with `createLogger('routes/subscriptions')`. Add `trackEvent('payment.*')` for webhooks |
+| `apps/api/src/routes/subscriptions.ts` | 3 | Replace with `createLogger('routes/subscriptions')`. Track plan requests with `trackEvent('subscription.*')` |
 | `apps/api/src/routes/coupons.ts` | 1 | Replace with `createLogger('routes/coupons')` |
 | `apps/api/src/services/firebase-admin.ts` | 8 | Replace with `createLogger('firebase-admin')` |
 | `apps/api/package.json` | -- | Add `"@restropulse/telemetry": "*"` to dependencies |

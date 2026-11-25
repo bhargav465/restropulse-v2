@@ -373,7 +373,6 @@ export const COLLECTIONS: CollectionSchema[] = [
         name: 'subscriptions',
         indexes: [
             { spec: { restaurantId: 1 }, options: { unique: true, partialFilterExpression: { endedAt: null } } },
-            { spec: { razorpaySubscriptionId: 1 }, options: { unique: true, sparse: true } },
             { spec: { status: 1 } },
         ],
         validator: {
@@ -385,9 +384,12 @@ export const COLLECTIONS: CollectionSchema[] = [
                     status: { enum: ['NONE', 'CREATED', 'AUTHENTICATED', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'HALTED'] },
                     credits: { bsonType: 'int' },
                     billingCycle: { enum: ['MONTHLY', 'ANNUAL'] },
-                    razorpaySubscriptionId: { bsonType: 'string' },
-                    razorpayCustomerId: { bsonType: 'string' },
-                    couponCode: { bsonType: 'string' },
+                    // Manual billing: an owner's plan request waits here until a
+                    // platform admin activates it (cleared back to null afterwards).
+                    pendingPlanId: { bsonType: ['string', 'null'] },
+                    pendingPlanSnapshot: { bsonType: ['object', 'null'] },
+                    planRequestedAt: { bsonType: ['string', 'date', 'null'] },
+                    couponCode: { bsonType: ['string', 'null'] },
                     endedAt: { bsonType: ['string', 'null'] },
                     createdAt: { bsonType: 'date' },
                     updatedAt: { bsonType: 'date' },
@@ -430,29 +432,6 @@ export const COLLECTIONS: CollectionSchema[] = [
         ],
     },
     {
-        name: 'creditPurchases',
-        indexes: [
-            { spec: { restaurantId: 1 } },
-            { spec: { razorpayOrderId: 1 }, options: { unique: true } },
-        ],
-        validator: {
-            $jsonSchema: {
-                bsonType: 'object',
-                required: ['restaurantId', 'userId', 'status'],
-                properties: {
-                    restaurantId: { bsonType: 'string' },
-                    userId: { bsonType: 'string' },
-                    status: { enum: ['PENDING', 'PAID', 'FAILED'] },
-                    creditsAdded: { bsonType: 'int' },
-                    amountPaise: { bsonType: 'int' },
-                    razorpayOrderId: { bsonType: 'string' },
-                    createdAt: { bsonType: 'date' },
-                    updatedAt: { bsonType: 'date' },
-                },
-            },
-        },
-    },
-    {
         name: 'creditPacks',
         indexes: [
             { spec: { isActive: 1 } },
@@ -478,8 +457,6 @@ export const COLLECTIONS: CollectionSchema[] = [
         name: 'invoices',
         indexes: [
             { spec: { restaurantId: 1 } },
-            { spec: { razorpayInvoiceId: 1 }, options: { unique: true, sparse: true } },
-            { spec: { razorpayPaymentId: 1 }, options: { sparse: true } },
             { spec: { type: 1 } },
             { spec: { restaurantId: 1, createdAt: -1 } },
         ],
@@ -494,10 +471,6 @@ export const COLLECTIONS: CollectionSchema[] = [
                     currency: { bsonType: 'string' },
                     status: { bsonType: 'string' },
                     description: { bsonType: 'string' },
-                    razorpayInvoiceId: { bsonType: 'string' },
-                    razorpayPaymentId: { bsonType: 'string' },
-                    razorpaySubscriptionId: { bsonType: 'string' },
-                    razorpayOrderId: { bsonType: 'string' },
                     pdfUrl: { bsonType: 'string' },
                     createdAt: { bsonType: 'date' },
                     updatedAt: { bsonType: 'date' },
@@ -597,7 +570,7 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { restaurantId: 1 }, options: { unique: true } },
         ],
     },
-    // ----- Online orders + payments (Phase 2 M2). Mirrors ORDER_INDEXES in packages/db/src/orders.ts. -----
+    // ----- Online orders (Phase 2 M2, cash only). Mirrors ORDER_INDEXES in packages/db/src/orders.ts. -----
     {
         name: 'orders',
         indexes: [
@@ -606,21 +579,6 @@ export const COLLECTIONS: CollectionSchema[] = [
             { spec: { orderNumber: 1 }, options: { unique: true } },
             { spec: { trackingToken: 1 }, options: { unique: true } },
             { spec: { restaurantId: 1, idempotencyKey: 1 }, options: { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } } },
-        ],
-    },
-    {
-        name: 'payments',
-        indexes: [
-            { spec: { providerOrderId: 1 }, options: { unique: true } },
-            { spec: { restaurantId: 1, orderId: 1, createdAt: -1 } },
-            { spec: { providerPaymentId: 1 }, options: { sparse: true } },
-        ],
-    },
-    {
-        name: 'payment_webhook_events',
-        indexes: [
-            { spec: { eventId: 1 }, options: { unique: true } },
-            { spec: { receivedAt: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60 } },
         ],
     },
     // ----- Phase 2 M3: restaurant websites (custom domains) -----

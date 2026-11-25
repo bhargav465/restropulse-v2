@@ -1,3 +1,5 @@
+> Historical: Razorpay billing was removed in November 2026; subscriptions are now activated manually by a platform admin.
+
 # Subscription Bug Report — 2026-04-25
 
 End-to-end browser sweep via Playwright MCP against the local dev environment

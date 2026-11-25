@@ -31,7 +31,7 @@ You receive a description of: the goal, what has been tried, and the current sym
 - All server-side logging via `@restropulse/telemetry/server` -- mocked in test setups
 - Publishing cron lives in `packages/publishing/src/publishing-cron.ts` (shared by api + publisher)
 - Meta API tokens stored AES-256-CBC encrypted: `iv:ciphertext` format
-- Razorpay webhooks verified via HMAC-SHA256 `X-Razorpay-Signature` header
+- No payment gateway: subscriptions are activated by a platform admin (`/api/platform-admin/billing`), storefront orders are cash only; the only inbound webhooks are delivery-provider webhooks (`/api/webhooks/delivery/:provider`)
 
 ## Constraints
 

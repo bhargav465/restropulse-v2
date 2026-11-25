@@ -7,7 +7,6 @@ import { validateCommand } from './commands/validate.js';
 import { seedCommand } from './commands/seed.js';
 import { resetCommand } from './commands/reset.js';
 import { migrateCommand } from './commands/migrate.js';
-import { razorpaySetupCommand } from './commands/razorpay-setup.js';
 import { deleteAccountCommand } from './commands/delete-account.js';
 import { acquireRestaurantsCommand } from './commands/acquire-restaurants.js';
 import {
@@ -64,27 +63,18 @@ program
     .command('seed')
     .description('Seed database with sample data')
     .option('--clean', 'Clear existing data before seeding')
-    .option('--allow-missing-razorpay', 'Bypass Razorpay plan ID completeness check (not recommended)')
     .action(seedCommand);
 
 program
     .command('reset')
     .description('Drop all collections and recreate database with indexes and defaults (10s safety delay)')
-    .option('--allow-missing-razorpay', 'Bypass Razorpay plan ID completeness check (not recommended)')
-    .action(resetCommand);
+    .action(() => resetCommand());
 
 program
     .command('migrate')
     .description('Run a named one-off data/index migration (run without a name to list them)')
     .argument('[migration]', 'Migration name, e.g. unique-post-slot-index')
     .action((migration?: string) => migrateCommand({ migration: migration ?? '' }));
-
-program
-    .command('razorpay-setup')
-    .description('Create Razorpay subscription plans and write plan IDs back to MongoDB')
-    .option('--dry-run', 'Preview what would be created without making API calls or DB writes')
-    .option('--force', 'Overwrite existing Razorpay plan IDs in MongoDB')
-    .action(razorpaySetupCommand);
 
 program
     .command('delete-account')

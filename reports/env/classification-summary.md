@@ -5,7 +5,7 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 
 ## Canonical active keys grouped by owner/component
 
-### api (9)
+### api (8)
 - `BACKEND_URL` (required)
 - `CORS_ORIGIN`
 - `FEATURE_DELETE_ACCOUNT`
@@ -14,7 +14,6 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 - `FRONTEND_URL` (required)
 - `GOOGLE_MAPS_API_KEY`
 - `JWT_SECRET` (required)
-- `RAZORPAY_WEBHOOK_SECRET`
 
 ### content-engine (6)
 - `ASSET_SERVER_PORT`
@@ -35,7 +34,7 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 - `NGROK_AUTH_TOKEN`
 - `NGROK_DOMAIN`
 
-### shared (14)
+### shared (12)
 - `ANTHROPIC_API_KEY`
 - `APPLICATIONINSIGHTS_CONNECTION_STRING`
 - `ASSET_SERVER_BASE_URL`
@@ -48,8 +47,6 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 - `MONGODB_URI` (required)
 - `NODE_ENV`
 - `PORT`
-- `RAZORPAY_KEY_ID`
-- `RAZORPAY_KEY_SECRET`
 
 ### tests (1)
 - `INSTAGRAM_TEST_ACCESS_TOKEN`
@@ -71,7 +68,7 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 - `VITE_INSTAGRAM_APP_ID`
 - `VITE_INSTAGRAM_REDIRECT_URI`
 
-## Orphan keys (used but undeclared) with interpretation (31)
+## Orphan keys (used but undeclared) with interpretation (30)
 
 ### Deploy metadata, likely injected at deploy/runtime
 - `APP_ARTIFACT_SHA256`, `APP_DEPLOYED_AT`, `APP_DEPLOY_RUN_ID`, `APP_GIT_SHA`
@@ -94,8 +91,8 @@ Generated inventory timestamp: `2026-08-09T07:15:57.021Z`
 - Interpretation: Firebase bootstrap uses these names in code/tests; declarations currently only cover adjacent variants.
 
 ### Frontend undeclared build keys
-- `VITE_DEMO_MODE`, `VITE_RAZORPAY_KEY_ID`
-- Interpretation: web build reads these keys, but they are not present in tracked web env declarations.
+- `VITE_DEMO_MODE`
+- Interpretation: web build reads this key, but it is not present in tracked web env declarations.
 
 ## Workflow-only keys (10)
 - `AZURE_CLIENT_ID`
@@ -126,5 +123,5 @@ Interpretation: these appear only in GitHub workflow files and are not runtime a
 2. Prioritize validation for:
    - `SECRETS_BACKEND`, `AZURE_KEY_VAULT_URL`, `AZURE_KEY_VAULT_KEY_PREFIX` (secrets loading path)
    - cron keys and schedule flags (worker behavior impact)
-   - `VITE_DEMO_MODE`, `VITE_RAZORPAY_KEY_ID` (frontend build-time behavior)
+   - `VITE_DEMO_MODE` (frontend build-time behavior)
    - `FIREBASE_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` (auth/bootstrap behavior)

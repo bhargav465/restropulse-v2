@@ -152,10 +152,11 @@ The app uses state-based routing (`currentView: ViewState` in `apps/web/App.tsx`
 | `/api/posts/*`                   | Post CRUD, publishing, generation  |
 | `/api/strategy/*`               | Content strategy and cycles        |
 | `/api/integrations/instagram/*` | OAuth, account management, GDPR    |
-| `/api/subscriptions/*`          | Plans, subscribe, cancel, webhooks, credits |
+| `/api/subscriptions/*`          | Plans, current plan, plan requests (subscribe, change-plan, withdraw-request), cancel, reactivate |
+| `/api/platform-admin/billing/*` | Plan requests, plan activation, credit grants (ADMIN) |
 | `/api/coupons/*`                | Coupon CRUD, validation (admin)    |
 | `/api/credit-packs/*`           | Credit pack CRUD (admin)           |
-| `/api/invoices/*`               | Invoice listing, detail, PDF       |
+| `/api/invoices/*`               | Invoice listing and detail (read only) |
 | `/health`                        | Health check                       |
 
 ### apps/publisher -- Publishing Worker
@@ -283,9 +284,9 @@ Shared MongoDB connection layer with collection helpers:
 | users.ts                | `findUserByPhone()`, `findUserByFirebaseUid()` |
 | account-managers.ts     | `getAccountManagersByCity()`, `getAccountManagersByCityAndZone()` |
 | subscription-plans.ts   | `findCurrentPlans()`, `findPlanBySlug()`, `findPlanById()`, `createPlan()`, `versionPlan()` |
-| subscriptions.ts        | `findActiveSubscription()`, `createSubscription()`, `updateSubscription()`, `deductCredits()`, `addCredits()` |
+| subscriptions.ts        | `findActiveSubscription()`, `findSubscriptionsWithPendingPlan()`, `createSubscription()`, `updateSubscription()`, `deductCredits()`, `addCredits()` |
 | coupons.ts              | `findCouponByCode()`, `createCoupon()`, `updateCoupon()`, `createCouponRedemption()` |
-| credit-packs.ts         | `findActiveCreditPacks()`, `findCreditPackById()`, `createCreditPurchase()` |
+| credit-packs.ts         | `findActiveCreditPacks()`, `findCreditPackById()`, `createCreditPack()`, `updateCreditPack()` |
 | invoices.ts             | `createInvoice()`, `findInvoicesByRestaurant()`, `findInvoiceById()`, `updateInvoice()` |
 
 `setDB()` enables test injection with `mongodb-memory-server`.
@@ -347,6 +348,10 @@ Shared publishing layer used by both `apps/api` and `apps/publisher`. Key export
 
 ### Subscription & Billing Flow
 
+Billing is manual: there is no payment gateway. The owner requests a plan in the app,
+payment is arranged directly with RestroPulse outside the app, and a platform admin
+(role `ADMIN`) switches the plan on.
+
 #### Subscription document lifecycle
 
 Every restaurant has exactly **one** subscription document in MongoDB. The collection
@@ -359,82 +364,62 @@ Onboarding (POST /api/restaurant)
     v
  NONE  <-- no active plan; onboarding grants a no-card free trial (trialEndsAt = now + settings.trialDays)
     |
-    | POST /api/subscriptions/subscribe
+    | POST /api/subscriptions/subscribe  (owner request: pendingPlanSnapshot + planRequestedAt, optional coupon)
+    |   - POST /api/subscriptions/withdraw-request drops the request
+    |
+    | POST /api/platform-admin/billing/restaurants/:restaurantId/activate  (admin, 1-36 months)
     v
- CREATED  <-- Razorpay subscription created, awaiting payment
+ ACTIVE  <-- plan switched on for currentPeriodStart..currentPeriodEnd
     |
-    | webhook: subscription.authenticated
-    v
- AUTHENTICATED  <-- payment method confirmed, first charge pending
+    +---> cancelAtPeriodEnd=true  <-- POST /api/subscriptions/cancel; undone by POST /reactivate
     |
-    | webhook: subscription.charged
-    v
- ACTIVE  <-- recurring billing active
+    +---> period over             <-- entitlement ends MANUAL_BILLING_GRACE_DAYS (3) after
+    |                                 currentPeriodEnd unless an admin renews; the owner can request again
     |
-    +---> PAST_DUE   <-- payment failed, retrying
-    |
-    +---> HALTED     <-- Razorpay halted after max retries
-    |
-    +---> CANCELLED  <-- user cancelled (at period end or immediately)
-              |
-              | POST /api/subscriptions/subscribe (re-subscribe)
-              v
-           CREATED  <-- same document updated, new Razorpay subscription ID
+    +---> CANCELLED               <-- cancel with no paid period set
 ```
 
-Because only one document exists per restaurant, the subscribe route **updates** the
-existing document (via `updateSubscription`) rather than inserting a new one whenever
-`findActiveSubscription` returns a record. A fresh `insertOne` is only used if no
-document exists at all (which should not occur in normal operation after onboarding).
+Because only one document exists per restaurant, plan requests and activations always
+**update** the existing document (via `updateSubscription`). `CREATED`, `AUTHENTICATED`,
+`PAST_DUE` and `HALTED` remain in the `SubscriptionStatus` type for older documents but
+nothing sets them now.
 
-#### Razorpay customer lifecycle
-
-A Razorpay customer record is created eagerly during onboarding and its ID stored as
-`user.razorpayCustomerId`. Razorpay has no delete API; on account deletion the customer
-PII is anonymized via `PATCH /v1/customers/:id` (name set to "Deleted User", email and
-contact cleared). The record is retained by Razorpay for their compliance obligations.
-
-If the onboarding customer-create call fails (network blip, Razorpay downtime), the
-customer may exist in Razorpay but the ID is not stored in our DB. The subscribe route
-detects this when creation returns "Customer already exists" and recovers the ID by
-calling `GET /v1/customers?contact=:phone` then backfills `razorpayCustomerId`.
-
-#### First-time subscribe (new user)
+#### Requesting and activating a plan
 
 ```
 1. Onboarding creates subscription document: status=NONE, credits=0, trialEndsAt=now+settings.trialDays (no-card free trial granting full feature access)
-2. Onboarding creates Razorpay customer; stores ID in user.razorpayCustomerId
-3. User selects plan + billing cycle on the frontend
-4. POST /api/subscriptions/subscribe
-   a. Validates plan slug and billing cycle
-   b. Validates and resolves coupon (if provided)
-   c. Checks for existing active subscription (ACTIVE/PAST_DUE/CREATED/AUTHENTICATED -> 409)
-   d. Resolves or recovers Razorpay customer ID
-   e. Creates Razorpay Subscription via POST /v1/subscriptions
-   f. Updates the NONE document to status=CREATED with new razorpaySubscriptionId
-5. Frontend opens Razorpay checkout with subscriptionId + keyId
-6. User completes payment
-7. Razorpay webhook: subscription.authenticated -> status=AUTHENTICATED
-8. Razorpay webhook: subscription.charged -> status=ACTIVE, credits topped up, invoice created
+2. Owner picks a plan on the frontend
+3. POST /api/subscriptions/subscribe { planSlug, couponCode? }
+   a. Validates the plan slug and the coupon (if provided)
+   b. Rejects with 409 if a live paid plan exists (use change-plan instead)
+   c. Stores the request: pendingPlanId, pendingPlanSnapshot, planRequestedAt, couponCode
+   (an owner on a plan uses POST /api/subscriptions/change-plan { planSlug } instead; coupons do not carry over)
+4. RestroPulse arranges payment with the restaurant directly
+5. Admin: GET /api/platform-admin/billing/requests lists waiting requests, oldest first
+6. Admin: POST /api/platform-admin/billing/restaurants/:restaurantId/activate { planSlug?, months? }
+   a. Uses planSlug, else the requested plan, else the current plan (renewal)
+   b. Renewing the same plan before its period ends extends from currentPeriodEnd; otherwise starts now
+   c. Sets status=ACTIVE, the new period, clears the request and cancelAtPeriodEnd
+   d. Applies and records the owner's coupon only if it was for this plan and is still valid
 ```
 
-#### Re-subscribe after cancellation or halt
-
-```
-1. Existing document has status=CANCELLED or HALTED
-2. POST /api/subscriptions/subscribe (same flow as above)
-   -- steps a-e identical --
-   f. Updates the existing document to status=CREATED (no INSERT; unique index preserved)
-3. Frontend/payment flow continues identically
-```
+Entitlement (`getEntitlement` in `@restropulse/shared`) treats an ACTIVE plan as live
+until `currentPeriodEnd` plus `MANUAL_BILLING_GRACE_DAYS`, or while the free trial runs.
 
 #### Credit system
 
 ```
 6. Post creation checks plan limits via enforcePlanLimits middleware
 7. If over weekly limit: deducts from unified credit balance (IMAGE=1, CAROUSEL=3, REEL=5)
-8. Credit packs purchasable via Razorpay Orders (one-time payments)
+8. Credits are added by a platform admin: POST /api/platform-admin/billing/restaurants/:restaurantId/credits { credits }
+   (credit packs are a price list only; there is no in-app purchase)
 ```
+
+### Storefront orders
+
+Orders placed on a restaurant's website are cash only: cash on delivery, pay at the
+counter for pickup, pay at the table for dine-in. A placed order goes straight to
+`RECEIVED`; there is no online payment, refund or payment webhook.
 
 ## Security
 
@@ -442,9 +427,9 @@ calling `GET /v1/customers?contact=:phone` then backfills `razorpayCustomerId`.
 - **JWT**: Access tokens (15min), refresh tokens (7 days), signed with `JWT_SECRET`
 - **OAuth CSRF**: Random state tokens with 10-minute expiry
 - **Facebook Webhooks**: HMAC-SHA256 signed request verification using App Secret
-- **Razorpay Webhooks**: HMAC-SHA256 signature verification using Webhook Secret
+- **Delivery webhooks**: `/api/webhooks/delivery/:provider`, raw body with per-provider signature verification
 - **CORS**: Restricted to configured `FRONTEND_URL` + API origin
-- **Role-based access**: ADMIN role required for coupon/credit-pack management
+- **Role-based access**: ADMIN role required for coupon/credit-pack management and platform billing (`/api/platform-admin/billing`)
 
 ## MongoDB Collections
 

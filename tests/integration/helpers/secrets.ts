@@ -7,7 +7,7 @@ const ROOT = resolve(process.cwd());
 // 1. process.env — CI secrets injected by the workflow, or SECRETS_BACKEND=azure-kv hydration below
 // 2. tests/integration/.env.integration — optional local overrides
 // 3. apps/content-engine/.env — AI backend keys
-// 4. apps/api/.env             — auth, payments, Meta keys
+// 4. apps/api/.env             — auth, Meta keys
 // 5. apps/publisher/.env       — encryption, Instagram keys
 config({ path: resolve(ROOT, 'tests/integration/.env.integration'), override: false });
 config({ path: resolve(ROOT, 'apps/content-engine/.env'), override: false });

@@ -15,9 +15,6 @@
 #     --instagram-app-secret "..." \
 #     --instagram-redirect-uri "https://<staging-api>/api/integrations/instagram/callback" \
 #     --firebase-service-account-key '{"type":"service_account",...}' \
-#     --razorpay-key-id "..." \
-#     --razorpay-key-secret "..." \
-#     --razorpay-webhook-secret "..." \
 #     --google-maps-api-key "..." \
 #     --anthropic-api-key "..." \
 #     --media-storage-connection-string "DefaultEndpointsProtocol=https;AccountName=..." \
@@ -64,9 +61,6 @@ INSTAGRAM_APP_ID=""
 INSTAGRAM_APP_SECRET=""
 INSTAGRAM_REDIRECT_URI=""
 FIREBASE_SERVICE_ACCOUNT_KEY=""
-RAZORPAY_KEY_ID=""
-RAZORPAY_KEY_SECRET=""
-RAZORPAY_WEBHOOK_SECRET=""
 GOOGLE_MAPS_API_KEY=""
 ANTHROPIC_API_KEY=""
 MEDIA_STORAGE_CONNECTION_STRING=""
@@ -100,9 +94,6 @@ while [[ $# -gt 0 ]]; do
     --instagram-app-secret)       INSTAGRAM_APP_SECRET="$2";       shift 2 ;;
     --instagram-redirect-uri)     INSTAGRAM_REDIRECT_URI="$2";     shift 2 ;;
     --firebase-service-account-key) FIREBASE_SERVICE_ACCOUNT_KEY="$2"; shift 2 ;;
-    --razorpay-key-id)            RAZORPAY_KEY_ID="$2";            shift 2 ;;
-    --razorpay-key-secret)        RAZORPAY_KEY_SECRET="$2";        shift 2 ;;
-    --razorpay-webhook-secret)    RAZORPAY_WEBHOOK_SECRET="$2";    shift 2 ;;
     --google-maps-api-key)        GOOGLE_MAPS_API_KEY="$2";        shift 2 ;;
     --anthropic-api-key)          ANTHROPIC_API_KEY="$2";          shift 2 ;;
     --media-storage-connection-string) MEDIA_STORAGE_CONNECTION_STRING="$2"; shift 2 ;;
@@ -267,18 +258,6 @@ log_info "--- Key Vault secrets ---"
 [[ -n "$FIREBASE_SERVICE_ACCOUNT_KEY" ]] \
   && kv_and_appsetting "${KV_PREFIX}-firebase-service-account-key" "FIREBASE_SERVICE_ACCOUNT_KEY" "$FIREBASE_SERVICE_ACCOUNT_KEY" \
   || log_skip "FIREBASE_SERVICE_ACCOUNT_KEY (not provided)"
-
-[[ -n "$RAZORPAY_KEY_ID" ]] \
-  && kv_and_appsetting "${KV_PREFIX}-razorpay-key-id" "RAZORPAY_KEY_ID" "$RAZORPAY_KEY_ID" \
-  || log_skip "RAZORPAY_KEY_ID (not provided)"
-
-[[ -n "$RAZORPAY_KEY_SECRET" ]] \
-  && kv_and_appsetting "${KV_PREFIX}-razorpay-key-secret" "RAZORPAY_KEY_SECRET" "$RAZORPAY_KEY_SECRET" \
-  || log_skip "RAZORPAY_KEY_SECRET (not provided)"
-
-[[ -n "$RAZORPAY_WEBHOOK_SECRET" ]] \
-  && kv_and_appsetting "${KV_PREFIX}-razorpay-webhook-secret" "RAZORPAY_WEBHOOK_SECRET" "$RAZORPAY_WEBHOOK_SECRET" \
-  || log_skip "RAZORPAY_WEBHOOK_SECRET (not provided)"
 
 # Restaurant Intelligence server-side keys (api). Absent -> scan 503s gracefully.
 [[ -n "$GOOGLE_MAPS_API_KEY" ]] \

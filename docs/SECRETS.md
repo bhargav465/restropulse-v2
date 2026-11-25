@@ -1,6 +1,6 @@
 # RestroPulse Secrets Setup Guide
 
-This document is the single reference for every secret, API key, and credential the RestroPulse workspace needs. It covers both the long-standing services (Firebase, Razorpay, Meta, Azure) and the AI-backend keys added during the content-engine AI rollout (Anthropic, Replicate, Perplexity, Google Calendar).
+This document is the single reference for every secret, API key, and credential the RestroPulse workspace needs. It covers both the long-standing services (Firebase, Meta, Azure) and the AI-backend keys added during the content-engine AI rollout (Anthropic, Replicate, Perplexity, Google Calendar).
 
 For each secret, this guide describes:
 - What it is used for and which app(s) need it
@@ -22,7 +22,7 @@ The provider is selected at service startup via `createSecretsProvider(process.e
 ## Per-service secret scope
 
 Each service only loads its own secrets. Source of truth: `packages/secrets/src/manifest.ts`.
-- `getAppSecretKeys('api')` -- JWT, Instagram, Razorpay, Firebase, MongoDB, ENCRYPTION_KEY, GOOGLE_MAPS_API_KEY, ANTHROPIC_API_KEY
+- `getAppSecretKeys('api')` -- JWT, Instagram, Firebase, MongoDB, ENCRYPTION_KEY, GOOGLE_MAPS_API_KEY, ANTHROPIC_API_KEY
 - `getAppSecretKeys('content-engine')` -- Anthropic, Replicate, Google Calendar, Perplexity, MongoDB
 - `getAppSecretKeys('publisher')` -- ENCRYPTION_KEY, Instagram, MongoDB
 - `getAppSecretKeys('db-cli')` -- MongoDB only
@@ -41,7 +41,6 @@ Each service only loads its own secrets. Source of truth: `packages/secrets/src/
 | `REPLICATE_API_TOKEN` | `replicate-api-token` |
 | `MEDIA_STORAGE_CONNECTION_STRING` | `media-storage-connection-string` |
 | `INSTAGRAM_APP_SECRET` | `instagram-app-secret` |
-| `RAZORPAY_KEY_SECRET` | `razorpay-key-secret` |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | `firebase-service-account-key` |
 
 With `AZURE_KEY_VAULT_KEY_PREFIX=dev`, all names get a `dev-` prefix.
@@ -243,32 +242,9 @@ INSTAGRAM_REDIRECT_FRONTEND_URL=http://localhost:3000
 
 ---
 
-## 4. Razorpay — `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` + `RAZORPAY_WEBHOOK_SECRET`
+## 4. Billing — no secrets
 
-**What:** subscription billing, one-time credit purchases, coupon offers, invoice generation. Optional in dev (the service throws clearly when called without config); required in prod.
-
-**Steps:**
-1. Sign in to **https://dashboard.razorpay.com/**.
-2. **Account & Settings → API Keys**.
-3. Switch to **Test Mode** for dev. Click **Generate Test Key**. A modal shows `Key Id` and `Key Secret` — copy both. The secret is shown ONCE.
-4. For Webhook: **Account & Settings → Webhooks → Add new webhook**. URL: your ngrok tunnel URL + `/api/subscriptions/webhook` (use `npm run ngrok` to get a tunnel). Select events: `subscription.authenticated`, `subscription.activated`, `subscription.charged`, `subscription.pending`, `subscription.halted`, `subscription.cancelled`. Razorpay generates a signing secret — copy it.
-
-**Format:** `Key Id` is `rzp_test_*` (test) or `rzp_live_*` (prod); `Key Secret` is 24-32 chars; `Webhook Secret` is operator-set (e.g., a 32-char random string).
-
-**Save (apps/api/.env):**
-```
-RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx
-RAZORPAY_KEY_SECRET=YourSecretFromRazorpayDashboard
-RAZORPAY_WEBHOOK_SECRET=YourWebhookSigningSecret
-```
-
-**Save (apps/web/.env, for the checkout SDK):**
-```
-VITE_RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxx
-```
-(Web only needs the public Key ID; the Key Secret stays server-side.)
-
-**Test:** create a test subscription via the API. Razorpay's dashboard → "Subscriptions" tab should list it.
+**What:** there is no payment gateway, so billing needs no keys or webhook secrets. Owners request a plan in the app, payment is arranged directly with RestroPulse, and a platform admin (role `ADMIN`) activates the plan or adds credits through `/api/platform-admin/billing`. Storefront orders are cash only.
 
 ---
 
@@ -473,7 +449,6 @@ The full required-settings list mirrors the local `.env` files but with environm
 | `ENCRYPTION_KEY`                           | per-slot              | Generated once per environment; never reuse across env.            |
 | `JWT_SECRET`                               | per-slot              | Same per-environment rule.                                         |
 | `INSTAGRAM_APP_ID` / `_SECRET`             | per-slot              | One Meta app per environment is recommended.                       |
-| `RAZORPAY_KEY_ID` / `_SECRET` / `_WEBHOOK` | per-slot              | Test keys for staging; live keys for production.                   |
 | `FIREBASE_SERVICE_ACCOUNT`                 | per-slot              | JSON pasted as a single string.                                    |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING`    | per-slot              | One App Insights resource per slot or shared.                      |
 | `CONTENT_GENERATOR_BACKEND`                | per-slot              | `placeholder` until promoted; `ai` once rolled out.                |
@@ -561,10 +536,6 @@ In order, get every secret you need locally:
 - [ ] `INSTAGRAM_APP_ID` + `INSTAGRAM_APP_SECRET` → `apps/api/.env`, `apps/publisher/.env`
 - [ ] `INSTAGRAM_REDIRECT_URI` + `INSTAGRAM_REDIRECT_FRONTEND_URL` → `apps/api/.env`
 
-### Required for billing (optional in dev)
-- [ ] Razorpay test keys → `apps/api/.env` + `VITE_RAZORPAY_KEY_ID` to `apps/web/.env`
-- [ ] Razorpay webhook → ngrok tunnel + `RAZORPAY_WEBHOOK_SECRET`
-
 ### Optional
 - [ ] Google Maps API key (autocomplete fallback if absent) → `VITE_GOOGLE_MAPS_API_KEY` in `apps/web/.env`
 - [ ] Application Insights connection string → all 3 server .env files + `VITE_APPINSIGHTS_CONNECTION_STRING` in `apps/web/.env`
@@ -583,5 +554,5 @@ In order, get every secret you need locally:
 - **Never commit `.env` files**: every `apps/*/.env` is gitignored. The repo's `.gitignore` enforces this; do not bypass.
 - **`VITE_*` is public**: anything prefixed `VITE_` is baked into the browser bundle. Do not put server-only secrets there.
 - **Rotate on suspicion**: if any key leaks (committed by accident, shared in chat, etc.) — rotate it via the provider dashboard immediately. The local `.env` is the easiest mitigation; production rotation requires App Service config update + worker redeploy.
-- **Separate dev/staging/prod credentials**: Anthropic, Perplexity, Replicate, Razorpay, Meta — every external service should have separate keys per environment so a leaked dev key can't impact production cost or data.
+- **Separate dev/staging/prod credentials**: Anthropic, Perplexity, Replicate, Meta — every external service should have separate keys per environment so a leaked dev key can't impact production cost or data.
 - **Azure App Service settings are NOT versioned**: changes are immediate and don't go through PR review. Treat them as production deploys.

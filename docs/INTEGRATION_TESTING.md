@@ -74,5 +74,4 @@ Each environment needs all secrets from the suite registry below.
 | `replicate-image` | `ai/replicate.test.ts` | REPLICATE_API_TOKEN |
 | `google-calendar` | `ai/google-calendar.test.ts` | GOOGLE_CALENDAR_API_KEY |
 | `perplexity` | `ai/perplexity.test.ts` | PERPLEXITY_API_KEY |
-| `razorpay` | `payments/razorpay.test.ts` | RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET |
 | `publishing-encryption` | `publishing/token-encryption.test.ts` | ENCRYPTION_KEY |
