@@ -33,6 +33,7 @@ import type {
     ZomatoManualInput,
 } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
+import { currentDemoRestaurantId, DEFAULT_DEMO_RESTAURANT_ID, demoProfile } from './lib/demo-restaurants';
 
 // --- local helpers (kept standalone so this module needs no backend) ---
 const delay = (ms = 180): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -47,7 +48,7 @@ let demoNotificationsSeenAt: Date | null = null;
 const demoActionProgress = new Map<string, number[]>([['demo-intel-report-0', [1, 2, 4]]]);
 const intelFixtures = () => import('./lib/demo-fixtures-intelligence');
 
-export const intelligenceAPI = {
+const baseIntelligenceAPI = {
     draftReply: async (review: { text: string; rating: number; author?: string }): Promise<{ reply: string; stance: 'apology' | 'thanks' | 'clarify' }> => {
         await delay(700);
         notifyDemoBackendAction();
@@ -293,6 +294,50 @@ export const intelligenceAPI = {
         return { captured: 2 + state.watchlist.length };
     },
 };
+
+/**
+ * The Intelligence fixtures describe one sample report. When the demo is
+ * signed in as another sample restaurant, show that report under its own
+ * name, area and city.
+ */
+function localize<T>(value: T, swap: Array<[string, string]>): T {
+    if (typeof value === 'string') {
+        let out: string = value;
+        for (const [from, to] of swap) out = out.split(from).join(to);
+        return out as unknown as T;
+    }
+    if (Array.isArray(value)) return value.map((v) => localize(v, swap)) as unknown as T;
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) out[k] = localize(v, swap);
+        return out as T;
+    }
+    return value;
+}
+
+function swapsForCurrentRestaurant(): Array<[string, string]> {
+    const id = currentDemoRestaurantId();
+    if (id === DEFAULT_DEMO_RESTAURANT_ID) return [];
+    const p = demoProfile(id);
+    return [
+        ['[SAMPLE] RestroPulse Demo Kitchen', p.name],
+        ['[SAMPLE] Demo Kitchen', p.name],
+        ['Indiranagar', p.area],
+        ['Bengaluru', p.city],
+    ];
+}
+
+type Api = typeof baseIntelligenceAPI;
+export const intelligenceAPI = Object.fromEntries(
+    Object.entries(baseIntelligenceAPI).map(([key, fn]) => [
+        key,
+        async (...args: unknown[]) => {
+            const result = await (fn as (...a: unknown[]) => Promise<unknown>)(...args);
+            const swap = swapsForCurrentRestaurant();
+            return swap.length ? localize(result, swap) : result;
+        },
+    ]),
+) as Api;
 
 // ----- In-memory intelligence dashboard state (lazy; built once per session) -----
 type IntelDashboardModule = typeof import('./lib/demo-fixtures-intelligence-dashboard');

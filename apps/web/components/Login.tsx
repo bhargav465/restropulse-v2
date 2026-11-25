@@ -5,6 +5,7 @@ import { RecaptchaVerifier } from 'firebase/auth';
 import { getFirebaseApiKey } from '../utils/env';
 import { getClientConfig } from '../utils/client-config';
 import { isDemoMode } from '../lib/demo';
+import { DEMO_RESTAURANTS } from '../lib/demo-restaurants';
 
 interface LoginProps {
     onLogin: (firebaseIdToken: string) => Promise<void>;
@@ -361,9 +362,28 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
 
                         <p className="text-center text-xs text-slate-500">
                             {isDemoMode()
-                                ? 'Demo preview: enter any 10-digit number. The code fills in by itself.'
+                                ? 'Demo preview: pick a sample restaurant below, or enter any 10-digit number. The code fills in by itself.'
                                 : "We'll send a 6-digit verification code to your phone"}
                         </p>
+
+                        {isDemoMode() && (
+                            <div className="space-y-2" aria-label="Sample restaurants">
+                                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Sign in as a sample restaurant</p>
+                                {DEMO_RESTAURANTS.map((r) => (
+                                    <button
+                                        key={r.id}
+                                        type="button"
+                                        onClick={() => { setPhone(r.loginPhone); setError(null); }}
+                                        aria-label={`Use ${r.name.replace('[SAMPLE] ', '')}`}
+                                        className={`w-full text-left rounded-xl border px-3 py-2 transition-colors ${phone === r.loginPhone ? 'border-orange-500 bg-slate-800' : 'border-slate-700 bg-slate-800/60 hover:border-slate-500'}`}
+                                    >
+                                        <span className="block text-sm font-semibold text-white">{r.name.replace('[SAMPLE] ', '')} <span className="font-normal text-slate-400">· {r.city}</span></span>
+                                        <span className="block text-xs text-slate-400">{r.cuisine}. {r.blurb}</span>
+                                        <span className="block text-xs text-slate-500">Number: {r.loginPhone.replace(/(\d{5})(\d{5})/, '$1 $2')}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ) : (
                     /* OTP Verification Step */

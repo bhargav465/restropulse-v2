@@ -12,6 +12,7 @@ import { canTransitionShipment, isTerminalShipment, orderPathTo, orderStatusForS
 import type { OrderRiderView, OwnRiderStep } from './api';
 import { ordersAPI as demoOrders } from './demo-api-orders';
 import { notifyDemoBackendAction } from './lib/demo';
+import { currentDemoRestaurantId, DEFAULT_DEMO_RESTAURANT_ID, demoProfile, perRestaurant } from './lib/demo-restaurants';
 
 const delay = (ms = 120): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -29,14 +30,21 @@ interface DemoDeliveryState {
     seq: number;
 }
 
-let state: DemoDeliveryState;
+// One rider setup per sample restaurant; the signed-in one is served.
+const store = perRestaurant((id): DemoDeliveryState => ({
+    settings: id === DEFAULT_DEMO_RESTAURANT_ID
+        ? resolveDeliverySettings({ dispatchEnabled: true, providers: ['mock', 'self'] })
+        : clone(demoProfile(id).delivery),
+    shipments: [],
+    seq: 0,
+}));
+const S = store.get;
 
 export function resetDemoDelivery(): void {
-    state = { settings: resolveDeliverySettings({ dispatchEnabled: true, providers: ['mock', 'self'] }), shipments: [], seq: 0 };
+    store.reset();
 }
-resetDemoDelivery();
 
-const latest = (orderId: string) => [...state.shipments].reverse().find((s) => s.orderId === orderId) ?? null;
+const latest = (orderId: string) => [...S().shipments].reverse().find((s) => s.orderId === orderId) ?? null;
 const view = (orderId: string, extra: Partial<OrderRiderView> = {}): OrderRiderView => ({ shipment: clone(latest(orderId)), queued: null, lastError: null, ...extra });
 
 async function deliveryOrder(orderId: string) {
@@ -61,14 +69,14 @@ function move(s: Shipment, to: ShipmentStatus, source: 'provider' | 'restaurant'
 function book(orderId: string, provider: 'self' | 'mock'): Shipment {
     const now = new Date().toISOString();
     const s: Shipment = {
-        id: `demo-ship-${++state.seq}`, restaurantId: 'demo-r1', orderId, provider,
-        providerShipmentId: `${provider}_${orderId}_${state.seq}`, status: 'BOOKED',
+        id: `demo-ship-${++S().seq}`, restaurantId: currentDemoRestaurantId(), orderId, provider,
+        providerShipmentId: `${provider}_${orderId}_${S().seq}`, status: 'BOOKED',
         carrier: provider === 'self' ? 'Own rider' : 'Mock Rider Co',
         ...(provider === 'mock' ? { fee: 45, etaMinutes: 30 } : {}),
         events: [{ status: 'BOOKED', at: now, source: 'dispatcher', note: provider === 'self' ? 'Your own riders' : 'Booked with mock' }],
         createdAt: now, updatedAt: now,
     };
-    state.shipments.push(s);
+    S().shipments.push(s);
     return s;
 }
 
@@ -82,15 +90,15 @@ async function bookable(orderId: string) {
 export const deliveryAPI = {
     getSettings: async () => {
         await delay();
-        return { settings: clone(state.settings), providers: clone(PROVIDERS) };
+        return { settings: clone(S().settings), providers: clone(PROVIDERS) };
     },
     saveSettings: async (settings: RestaurantDeliverySettings) => {
         await delay();
         const missing = settings.providers.find((p) => !PROVIDERS.some((x) => x.id === p));
         if (missing) throw new Error(`${missing} isn't available yet.`);
-        state.settings = resolveDeliverySettings(settings);
+        S().settings = resolveDeliverySettings(settings);
         notifyDemoBackendAction();
-        return { settings: clone(state.settings), providers: clone(PROVIDERS) };
+        return { settings: clone(S().settings), providers: clone(PROVIDERS) };
     },
     getRider: async (orderId: string): Promise<OrderRiderView> => {
         await delay();
@@ -106,7 +114,7 @@ export const deliveryAPI = {
     findRider: async (orderId: string): Promise<OrderRiderView> => {
         await delay();
         await bookable(orderId);
-        book(orderId, state.settings.providers.includes('mock') ? 'mock' : 'self');
+        book(orderId, S().settings.providers.includes('mock') ? 'mock' : 'self');
         notifyDemoBackendAction();
         return view(orderId);
     },
@@ -137,4 +145,4 @@ export const deliveryAPI = {
     },
 };
 
-export const _demoDeliveryState = (): Readonly<DemoDeliveryState> => state;
+export const _demoDeliveryState = (): Readonly<DemoDeliveryState> => S();

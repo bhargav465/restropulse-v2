@@ -17,6 +17,7 @@ import type {
     SubscriptionPlan, User,
 } from '@restropulse/shared';
 import { isDemoMode, notifyDemoBackendAction } from './lib/demo';
+import { buildMenu, demoProfile, demoRestaurantForPhone, perRestaurant, type DemoRestaurantProfile } from './lib/demo-restaurants';
 
 const RID = 'demo-r1';
 const DEMO_OTP = '123456';
@@ -45,12 +46,14 @@ interface DemoBackendState {
     cycles: StrategyCycle[];
 }
 
-function buildState(phone = '+919876543210'): DemoBackendState {
+function buildState(id: string): DemoBackendState {
+    if (id !== RID) return buildFromProfile(demoProfile(id));
+    const profile = demoProfile(RID);
     const user: User = {
         id: 'demo-user-1',
-        name: '[SAMPLE] Demo Owner',
+        name: profile.ownerName,
         email: 'owner@demo-kitchen.example',
-        phone,
+        phone: `+91${profile.loginPhone}`,
         role: 'OWNER',
         emailVerified: true,
         restaurantId: RID,
@@ -124,7 +127,57 @@ function buildState(phone = '+919876543210'): DemoBackendState {
     return { user, restaurant, posts, strategy, cycles };
 }
 
-let state: DemoBackendState = buildState();
+
+function buildFromProfile(p: DemoRestaurantProfile): DemoBackendState {
+    const user: User = {
+        id: `${p.id}-owner`, name: p.ownerName, email: `owner@${p.instagramHandle.replace(/_/g, '-')}.example`,
+        phone: `+91${p.loginPhone}`, role: 'OWNER', emailVerified: true, restaurantId: p.id,
+    };
+    const { categories, items } = buildMenu(p);
+    const restaurant: Restaurant = {
+        id: p.id, name: p.name, cuisine: p.cuisine, description: p.description,
+        phone: p.content.contact?.phone, priceRange: 'mid-range',
+        location: { address: p.address, lat: p.lat, lng: p.lng, mapUrl: '' },
+        accountManager: { name: '[SAMPLE] Account Manager', phone: '+91 80 0000 0001', email: 'manager@restropulse.example', avatar: '' },
+        integrations: { instagram: true },
+        instagramConnection: { connected: true, username: p.instagramHandle, pageName: p.name, tokenStatus: 'valid' },
+        activeOffers: [...p.activeOffers], chefSpecials: [...p.chefSpecials],
+        menuLastUpdated: iso(-2), menuSource: 'catalog',
+        ...(p.slug ? { slug: p.slug } : {}),
+        ...(p.content.hours?.length ? { operatingHours: { weekday_text: p.content.hours.map((h) => (h.closed ? `${h.day}: Closed` : `${h.day}: ${h.open} - ${h.close}`)) } } : {}),
+        serviceOptions: { delivery: p.ordering.delivery.enabled, dineIn: p.ordering.dineIn.enabled, takeout: p.ordering.pickup.enabled },
+        menu: items.map((it) => ({
+            id: it.id, category: categories.find((c) => c.id === it.categoryId)?.name ?? '', name: it.name, price: it.price,
+            isVeg: it.isVeg, isBestSeller: it.isBestSeller, isAvailable: it.availability === 'in_stock',
+        })),
+        sourceCity: p.city,
+        autoContentEnabled: false,
+    };
+    const posts: Post[] = p.posts.map((post, i) => ({
+        id: `${p.id}-post-${i + 1}`, type: post.type, status: post.status, platform: post.platform, restaurantId: p.id,
+        thumbnail: thumb(post.label, post.hue), caption: post.caption,
+        ...(post.status === 'POSTED' ? { postedAt: iso(post.dayOffset, post.hour) } : { scheduledFor: iso(post.dayOffset, post.hour) }),
+        ...(post.stats ? { stats: post.stats } : {}),
+    }));
+    const strategy: ContentStrategy = {
+        id: `${p.id}-strategy`, restaurantId: p.id, postsPerWeek: 3,
+        focusCategories: ['CHEFS_PICK', 'OFFER_SPOTLIGHT'], bestTime: '7:00 PM', nextScheduledDate: iso(1, 19), theme: p.strategyTheme,
+    };
+    const cycles: StrategyCycle[] = [
+        { id: `${p.id}-cycle-1`, restaurantId: p.id, period: 'This week', startDate: iso(-2, 0), endDate: iso(5, 0), status: 'ACTIVE',
+          summary: `${p.strategyTheme}.`, plannedPosts: [{ category: 'CHEFS_PICK', count: 2 }, { category: 'OFFER_SPOTLIGHT', count: 1 }],
+          focus: [...p.strategyFocus] },
+        { id: `${p.id}-cycle-2`, restaurantId: p.id, period: 'Next week', startDate: iso(5, 0), endDate: iso(12, 0), status: 'PENDING_APPROVAL',
+          summary: `[SAMPLE] Keep the momentum: ${p.strategyFocus.join(' and ').toLowerCase()}.`,
+          plannedPosts: [{ category: 'CHEFS_PICK', count: 1 }, { category: 'BEHIND_THE_SCENES', count: 1 }, { category: 'OFFER_SPOTLIGHT', count: 1 }],
+          focus: [...p.strategyFocus] },
+    ];
+    return { user, restaurant, posts, strategy, cycles };
+}
+
+// One account per sample restaurant; the signed-in one (rp_restaurant_id) is served.
+const store = perRestaurant(buildState);
+const S = store.get;
 
 const features: FeatureFlags = {
     deleteAccount: false,
@@ -139,7 +192,7 @@ const features: FeatureFlags = {
 
 function subscription(): { subscription: Subscription; usage: Record<string, never>; entitlement: EntitlementState } {
     return {
-        subscription: { id: 'demo-sub-1', restaurantId: RID, status: 'NONE', credits: 20, trialEndsAt: iso(14, 0) },
+        subscription: { id: 'demo-sub-1', restaurantId: S().restaurant.id, status: 'NONE', credits: 20, trialEndsAt: iso(14, 0) },
         usage: {},
         entitlement: { entitled: true, inTrial: true, activePlan: false, trialEndsAt: iso(14, 0), trialDaysLeft: 14 },
     };
@@ -177,14 +230,16 @@ const routes: Array<[string, RegExp, Handler]> = [
     }],
     ['POST', /^\/auth\/verify-otp$/, (_m, body) => {
         if (body?.otp !== DEMO_OTP) return err(400, `Demo preview: use code ${DEMO_OTP}.`);
-        state = buildState(typeof body?.phone === 'string' ? body.phone : undefined);
-        return { body: { success: true, user: state.user, token: 'demo-token', refreshToken: 'demo-refresh-token' } };
+        // The number picks the sample restaurant; the client then stores its id as rp_restaurant_id.
+        const profile = demoRestaurantForPhone(typeof body?.phone === 'string' ? body.phone : '');
+        const user = { ...store.peek(profile.id).user, phone: body.phone };
+        return { body: { success: true, user, token: 'demo-token', refreshToken: 'demo-refresh-token' } };
     }],
-    ['POST', /^\/auth\/(login|firebase)$/, () => ({ body: { success: true, user: state.user, token: 'demo-token', refreshToken: 'demo-refresh-token' } })],
-    ['GET', /^\/auth\/session$/, () => ({ body: { success: true, user: state.user } })],
+    ['POST', /^\/auth\/(login|firebase)$/, () => ({ body: { success: true, user: S().user, token: 'demo-token', refreshToken: 'demo-refresh-token' } })],
+    ['GET', /^\/auth\/session$/, () => ({ body: { success: true, user: S().user } })],
     ['POST', /^\/auth\/refresh$/, () => ({ body: { success: true, token: 'demo-token' } })],
     ['POST', /^\/auth\/logout$/, () => ok()],
-    ['POST', /^\/auth\/verify-email$/, () => { state.user = { ...state.user, emailVerified: true }; return ok(); }],
+    ['POST', /^\/auth\/verify-email$/, () => { S().user = { ...S().user, emailVerified: true }; return ok(); }],
 
     // --- config / billing ----------------------------------------------------
     ['GET', /^\/config\/features$/, () => ok(features)],
@@ -205,106 +260,106 @@ const routes: Array<[string, RegExp, Handler]> = [
     })],
     ['PATCH', /^\/restaurant\/([^/]+)\/(offers|specials)$/, (m, body) => {
         const key = m[2] === 'offers' ? 'activeOffers' : 'chefSpecials';
-        const list = [...(state.restaurant[key] ?? [])];
+        const list = [...(S().restaurant[key] ?? [])];
         if (body?.action === 'ADD' && typeof body.payload === 'string') list.push(body.payload);
         if (body?.action === 'DELETE' && typeof body.payload === 'number') list.splice(body.payload, 1);
-        state.restaurant = { ...state.restaurant, [key]: list };
-        return ok(state.restaurant);
+        S().restaurant = { ...S().restaurant, [key]: list };
+        return ok(S().restaurant);
     }],
     ['PATCH', /^\/restaurant\/([^/]+)\/menu$/, () => {
-        state.restaurant = { ...state.restaurant, menuLastUpdated: new Date().toISOString() };
-        return ok(state.restaurant);
+        S().restaurant = { ...S().restaurant, menuLastUpdated: new Date().toISOString() };
+        return ok(S().restaurant);
     }],
-    ['GET', /^\/restaurant\/([^/]+)$/, () => ok(state.restaurant)],
+    ['GET', /^\/restaurant\/([^/]+)$/, () => ok(S().restaurant)],
     ['PUT', /^\/restaurant\/([^/]+)$/, (_m, body) => {
-        state.restaurant = { ...state.restaurant, ...(body ?? {}), id: RID };
-        return ok(state.restaurant);
+        S().restaurant = { ...S().restaurant, ...(body ?? {}), id: S().restaurant.id };
+        return ok(S().restaurant);
     }],
-    ['POST', /^\/restaurant$/, () => ({ body: { success: true, data: { restaurant: state.restaurant, token: 'demo-token', refreshToken: 'demo-refresh-token' } } })],
+    ['POST', /^\/restaurant$/, () => ({ body: { success: true, data: { restaurant: S().restaurant, token: 'demo-token', refreshToken: 'demo-refresh-token' } } })],
 
     // --- posts -------------------------------------------------------------------
-    ['GET', /^\/posts$/, () => ok(state.posts)],
+    ['GET', /^\/posts$/, () => ok(S().posts)],
     ['POST', /^\/posts\/generate$/, (_m, body) => {
         const platforms: Platform[] = Array.isArray(body?.platforms) && body.platforms.length ? body.platforms : ['INSTAGRAM'];
         const concept = typeof body?.concept === 'string' && body.concept.trim() ? body.concept.trim() : 'today\'s special';
         const groupId = `demo-group-${Date.now()}`;
         const created: Post[] = platforms.map((platform, i) => ({
             id: `demo-post-${Date.now()}-${i}`, groupId, type: body?.type ?? 'IMAGE', status: 'PENDING_APPROVAL', platform,
-            restaurantId: RID, isAdhoc: true, thumbnail: thumb('New post', 280 + i * 30),
+            restaurantId: S().restaurant.id, isAdhoc: true, thumbnail: thumb('New post', 280 + i * 30),
             caption: `[SAMPLE] A caption written for "${concept}". In the live app this is written by AI from your menu and offers.`,
             scheduledFor: typeof body?.scheduledFor === 'string' ? body.scheduledFor : iso(1, 19),
         }));
-        state.posts = [...created, ...state.posts];
+        S().posts = [...created, ...S().posts];
         return ok(created);
     }],
     ['POST', /^\/posts\/([^/]+)\/publish$/, (m) => {
-        const post = state.posts.find((p) => p.id === m[1]);
+        const post = S().posts.find((p) => p.id === m[1]);
         if (!post) return err(404, 'Post not found');
         Object.assign(post, { status: 'POSTED', postedAt: new Date().toISOString() });
         return ok(post);
     }],
     ['GET', /^\/posts\/([^/]+)\/download$/, () => err(400, 'Downloads are turned off in the demo preview.')],
     ['GET', /^\/posts\/([^/]+)$/, (m) => {
-        const post = state.posts.find((p) => p.id === m[1]);
+        const post = S().posts.find((p) => p.id === m[1]);
         return post ? ok(post) : err(404, 'Post not found');
     }],
     ['PUT', /^\/posts\/([^/]+)$/, (m, body) => {
-        const post = state.posts.find((p) => p.id === m[1]);
+        const post = S().posts.find((p) => p.id === m[1]);
         if (!post) return err(404, 'Post not found');
         Object.assign(post, body ?? {}, { id: post.id });
         return ok(post);
     }],
     ['PATCH', /^\/posts\/([^/]+)$/, (m, body) => {
-        const post = state.posts.find((p) => p.id === m[1]);
+        const post = S().posts.find((p) => p.id === m[1]);
         if (!post) return err(404, 'Post not found');
         Object.assign(post, body ?? {}, { id: post.id });
         return ok(post);
     }],
     ['DELETE', /^\/posts\/([^/]+)$/, (m) => {
-        state.posts = state.posts.filter((p) => p.id !== m[1]);
+        S().posts = S().posts.filter((p) => p.id !== m[1]);
         return ok();
     }],
     ['POST', /^\/posts$/, (_m, body) => {
         const post: Post = {
-            id: `demo-post-${Date.now()}`, type: 'IMAGE', status: 'PENDING_CONTENT', platform: 'INSTAGRAM', restaurantId: RID,
+            id: `demo-post-${Date.now()}`, type: 'IMAGE', status: 'PENDING_CONTENT', platform: 'INSTAGRAM', restaurantId: S().restaurant.id,
             thumbnail: thumb('New post', 280), caption: '', isAdhoc: true, ...(body ?? {}),
         };
-        state.posts = [post, ...state.posts];
+        S().posts = [post, ...S().posts];
         return ok(post);
     }],
 
     // --- strategy ----------------------------------------------------------------
-    ['GET', /^\/strategy$/, () => ok({ ...state.strategy, suggestCreateCycle: false })],
-    ['PUT', /^\/strategy$/, (_m, body) => { state.strategy = { ...state.strategy, ...(body ?? {}) }; return ok(state.strategy); }],
-    ['GET', /^\/strategy\/cycles$/, () => ok(state.cycles)],
+    ['GET', /^\/strategy$/, () => ok({ ...S().strategy, suggestCreateCycle: false })],
+    ['PUT', /^\/strategy$/, (_m, body) => { S().strategy = { ...S().strategy, ...(body ?? {}) }; return ok(S().strategy); }],
+    ['GET', /^\/strategy\/cycles$/, () => ok(S().cycles)],
     ['GET', /^\/strategy\/cycles\/([^/]+)$/, (m) => {
-        const cycle = state.cycles.find((c) => c.id === m[1]);
+        const cycle = S().cycles.find((c) => c.id === m[1]);
         return cycle ? ok(cycle) : err(404, 'Cycle not found');
     }],
     ['PUT', /^\/strategy\/cycles\/([^/]+)$/, (m, body) => {
-        const cycle = state.cycles.find((c) => c.id === m[1]);
+        const cycle = S().cycles.find((c) => c.id === m[1]);
         if (!cycle) return err(404, 'Cycle not found');
         Object.assign(cycle, body ?? {}, { id: cycle.id });
         return ok(cycle);
     }],
     ['POST', /^\/strategy\/cycles$/, (_m, body) => {
-        const cycle = { ...(body ?? {}), id: `demo-cycle-${Date.now()}`, restaurantId: RID } as StrategyCycle;
-        state.cycles = [...state.cycles, cycle];
+        const cycle = { ...(body ?? {}), id: `demo-cycle-${Date.now()}`, restaurantId: S().restaurant.id } as StrategyCycle;
+        S().cycles = [...S().cycles, cycle];
         return ok(cycle);
     }],
 
     // --- integrations ------------------------------------------------------------
     ['GET', /^\/integrations\/config$/, () => ok({ instagram: { configured: true } })],
-    ['GET', /^\/integrations\/instagram\/status\/([^/]+)$/, () => ok(state.restaurant.instagramConnection ?? { connected: false })],
-    ['GET', /^\/integrations\/instagram\/profile\/([^/]+)$/, () => ok(state.restaurant.integrations.instagram
+    ['GET', /^\/integrations\/instagram\/status\/([^/]+)$/, () => ok(S().restaurant.instagramConnection ?? { connected: false })],
+    ['GET', /^\/integrations\/instagram\/profile\/([^/]+)$/, () => ok(S().restaurant.integrations.instagram
         ? { username: 'demo_kitchen_sample', name: '[SAMPLE] RestroPulse Demo Kitchen', followers_count: 2480, media_count: 86 }
         : null)],
     ['GET', /^\/integrations\/instagram\//, () => err(400, 'Connecting Instagram is turned off in the demo preview.')],
-    ['POST', /^\/integrations\/instagram\/validate\/([^/]+)$/, () => ok({ valid: state.restaurant.integrations.instagram, needsReauthorization: false })],
+    ['POST', /^\/integrations\/instagram\/validate\/([^/]+)$/, () => ok({ valid: S().restaurant.integrations.instagram, needsReauthorization: false })],
     ['POST', /^\/integrations\/instagram\/refresh\/([^/]+)$/, () => ok()],
     ['POST', /^\/integrations\//, () => err(400, 'Connecting Instagram is turned off in the demo preview.')],
     ['DELETE', /^\/integrations\/instagram\/disconnect\/([^/]+)$/, () => {
-        state.restaurant = { ...state.restaurant, integrations: { instagram: false }, instagramConnection: { connected: false } };
+        S().restaurant = { ...S().restaurant, integrations: { instagram: false }, instagramConnection: { connected: false } };
         return ok();
     }],
 ];
@@ -335,7 +390,7 @@ export async function handleDemoRequest(path: string, method: string, body: unkn
             return handler(m, body, method);
         }
     }
-    // Unknown route: a harmless empty answer so a screen shows its empty state
+    // Unknown route: a harmless empty answer so a screen shows its empty S()
     // instead of a network error. Logged so gaps are easy to spot.
     console.info(`[demo] no sample data for ${method} ${pathname}`);
     writeNotice(method);
@@ -368,7 +423,7 @@ export function installDemoBackend(): void {
     };
 }
 
-/** Test hook: back to the first sample state. */
+/** Test hook: back to the first sample S(). */
 export function resetDemoBackend(): void {
-    state = buildState();
+    store.reset();
 }

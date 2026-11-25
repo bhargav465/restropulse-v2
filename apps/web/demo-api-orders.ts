@@ -11,6 +11,10 @@ import {
 } from '@restropulse/shared';
 import type { AdminOrder, OrderFeed, OrderingSettingsView, RefundOutcome } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
+import { buildOrders, currentDemoRestaurantId, demoProfile, perRestaurant } from './lib/demo-restaurants';
+
+const suggestSlug = (): string => demoProfile(currentDemoRestaurantId()).name.replace(/\[SAMPLE\]/, '').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'demo-kitchen';
 
 const RID = 'demo-r1';
 const delay = (ms = 120): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -38,7 +42,11 @@ function order(id: string, n: string, status: OrderStatus, over: Partial<AdminOr
     };
 }
 
-function seed(): DemoOrdersState {
+function seed(id: string): DemoOrdersState {
+    if (id !== RID) {
+        const p = demoProfile(id);
+        return { slug: p.slug, ordering: clone(p.ordering), orders: buildOrders(p) };
+    }
     return {
         slug: 'demo-kitchen',
         ordering: {
@@ -67,15 +75,17 @@ function seed(): DemoOrdersState {
     };
 }
 
-let state: DemoOrdersState = seed();
+// One set of orders per sample restaurant; the signed-in one is served.
+const store = perRestaurant(seed);
+const S = store.get;
 
 /** Test helper: restore the seed data. */
 export function resetDemoOrders(): void {
-    state = seed();
+    store.reset();
 }
 
 function find(id: string): AdminOrder {
-    const o = state.orders.find((x) => x.id === id);
+    const o = S().orders.find((x) => x.id === id);
     if (!o) throw new Error('Order not found');
     return o;
 }
@@ -87,13 +97,13 @@ function move(o: AdminOrder, to: OrderStatus, note?: string, extra: Partial<Admi
 }
 
 function settingsView(): OrderingSettingsView {
-    return { slug: state.slug, suggestedSlug: state.slug ?? 'demo-kitchen', ordering: clone(state.ordering), onlinePaymentsAvailable: true };
+    return { slug: S().slug, suggestedSlug: S().slug ?? suggestSlug(), ordering: clone(S().ordering), onlinePaymentsAvailable: true };
 }
 
 export const ordersAPI = {
     getFeed: async (params: { status?: string; since?: string; limit?: number } = {}): Promise<OrderFeed> => {
         await delay();
-        let list = state.orders;
+        let list = S().orders;
         if (params.status === 'active') list = list.filter((o) => ACTIVE_ORDER_STATUSES.includes(o.status));
         else if (params.status && params.status !== 'all') {
             const wanted = params.status.split(',').map((s) => s.trim().toUpperCase()).filter(isOrderStatus);
@@ -135,14 +145,14 @@ export const ordersAPI = {
         if (slug !== undefined && !isValidRestaurantSlug(slug)) {
             throw new Error('Use 3 to 48 lowercase letters, numbers and single hyphens for the web address.');
         }
-        if (input.ordering.storeOpen && !(slug ?? state.slug)) throw new Error('Choose a web address before opening for orders.');
-        state.ordering = resolveOrderingSettings(clone(input.ordering));
-        if (slug !== undefined) state.slug = slug;
+        if (input.ordering.storeOpen && !(slug ?? S().slug)) throw new Error('Choose a web address before opening for orders.');
+        S().ordering = resolveOrderingSettings(clone(input.ordering));
+        if (slug !== undefined) S().slug = slug;
         notifyDemoBackendAction();
         return settingsView();
     },
 };
 
-/** Exposed for tests: the raw demo state (orders the twin will return). */
-export const _demoOrdersState = (): Readonly<DemoOrdersState> => state;
+/** Exposed for tests: the raw demo S() (orders the twin will return). */
+export const _demoOrdersState = (): Readonly<DemoOrdersState> => S();
 

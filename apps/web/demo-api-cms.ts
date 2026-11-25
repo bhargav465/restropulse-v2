@@ -11,6 +11,7 @@ import type {
 import { describeOffer, isOfferLive, normaliseOfferCode, publishStorefrontDraft, rollbackStorefront } from '@restropulse/shared';
 import type { CmsItemInput, CmsOfferInput, CmsOffer, CmsImportResult, CmsContentState, CmsPublishResult } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
+import { buildMenu, demoProfile, perRestaurant, type DemoRestaurantProfile } from './lib/demo-restaurants';
 
 const RID = 'demo-r1';
 const delay = (ms = 120): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -29,7 +30,8 @@ interface DemoState {
     versions: StorefrontVersionEntry[];
 }
 
-function seed(): DemoState {
+function seed(id: string): DemoState {
+    if (id !== RID) return seedFromProfile(demoProfile(id));
     const categories: MenuCategory[] = [
         { id: 'demo-cat-1', restaurantId: RID, name: '[SAMPLE] Starters', sortOrder: 1 },
         { id: 'demo-cat-2', restaurantId: RID, name: '[SAMPLE] Mains', sortOrder: 2 },
@@ -76,11 +78,21 @@ function seed(): DemoState {
     return { categories, items, offers, draft: clone(draft), ...first };
 }
 
-let state = seed();
+function seedFromProfile(p: DemoRestaurantProfile): DemoState {
+    const { categories, items } = buildMenu(p);
+    const draft = clone(p.content);
+    if (!p.contentPublished) return { categories, items, offers: clone(p.offers), draft, versions: [] };
+    const first = publishStorefrontDraft({ draft, versions: [] }, new Date('2026-11-01T09:00:00Z'));
+    return { categories, items, offers: clone(p.offers), draft: clone(draft), ...first };
+}
+
+// One catalog per sample restaurant; the signed-in one is served.
+const store = perRestaurant(seed);
+const S = store.get;
 
 /** Test hook: restore the sample catalog. */
 export function resetDemoCms(): void {
-    state = seed();
+    store.reset();
 }
 
 const withSummary = (offer: Offer): CmsOffer => ({ ...clone(offer), summary: describeOffer(offer), live: isOfferLive(offer) });
@@ -99,34 +111,34 @@ function mergeSchedule(base: OfferSchedule, patch: CmsOfferInput['schedule'] = {
 export const cmsAPI = {
     getCategories: async (): Promise<MenuCategory[]> => {
         await delay();
-        return clone([...state.categories].sort((a, b) => a.sortOrder - b.sortOrder));
+        return clone([...S().categories].sort((a, b) => a.sortOrder - b.sortOrder));
     },
     createCategory: async (input: { name: string; description?: string }): Promise<MenuCategory> => {
         await delay();
         notifyDemoBackendAction();
-        const category: MenuCategory = { id: nextId('demo-cat'), restaurantId: RID, ...input, sortOrder: state.categories.length + 1 };
-        state.categories.push(category);
+        const category: MenuCategory = { id: nextId('demo-cat'), restaurantId: RID, ...input, sortOrder: S().categories.length + 1 };
+        S().categories.push(category);
         return clone(category);
     },
     updateCategory: async (id: string, input: { name?: string; description?: string }): Promise<MenuCategory> => {
         await delay();
         notifyDemoBackendAction();
-        const category = state.categories.find((c) => c.id === id);
+        const category = S().categories.find((c) => c.id === id);
         if (!category) throw notFound('Category');
         Object.assign(category, input);
         return clone(category);
     },
     deleteCategory: async (id: string): Promise<void> => {
         await delay();
-        if (state.items.some((i) => i.categoryId === id)) throw new Error('Move or delete the items in this category first.');
+        if (S().items.some((i) => i.categoryId === id)) throw new Error('Move or delete the items in this category first.');
         notifyDemoBackendAction();
-        state.categories = state.categories.filter((c) => c.id !== id);
+        S().categories = S().categories.filter((c) => c.id !== id);
     },
     reorderCategories: async (orderedIds: string[]): Promise<MenuCategory[]> => {
         await delay();
         notifyDemoBackendAction();
         orderedIds.forEach((id, i) => {
-            const c = state.categories.find((x) => x.id === id);
+            const c = S().categories.find((x) => x.id === id);
             if (c) c.sortOrder = i + 1;
         });
         return cmsAPI.getCategories();
@@ -134,11 +146,11 @@ export const cmsAPI = {
 
     getItems: async (): Promise<OrderingMenuItem[]> => {
         await delay();
-        return clone(state.items);
+        return clone(S().items);
     },
     createItem: async (input: CmsItemInput): Promise<OrderingMenuItem> => {
         await delay();
-        if (state.items.some((i) => i.name === input.name)) throw new Error(`An item called "${input.name}" already exists.`);
+        if (S().items.some((i) => i.name === input.name)) throw new Error(`An item called "${input.name}" already exists.`);
         notifyDemoBackendAction();
         const item: OrderingMenuItem = {
             id: nextId('demo-item'), restaurantId: RID, isVeg: false, availability: 'in_stock', sortOrder: 0, images: [],
@@ -146,12 +158,12 @@ export const cmsAPI = {
             variants: (input.variants ?? []).map((v) => ({ ...v, id: v.id ?? nextId('v') })),
             addons: (input.addons ?? []).map((a) => ({ ...a, id: a.id ?? nextId('a') })),
         };
-        state.items.push(item);
+        S().items.push(item);
         return clone(item);
     },
     updateItem: async (id: string, input: Partial<CmsItemInput>): Promise<OrderingMenuItem> => {
         await delay();
-        const item = state.items.find((i) => i.id === id);
+        const item = S().items.find((i) => i.id === id);
         if (!item) throw notFound('Menu item');
         notifyDemoBackendAction();
         const { variants, addons, ...rest } = input;
@@ -166,7 +178,7 @@ export const cmsAPI = {
     deleteItem: async (id: string): Promise<void> => {
         await delay();
         notifyDemoBackendAction();
-        state.items = state.items.filter((i) => i.id !== id);
+        S().items = S().items.filter((i) => i.id !== id);
     },
     importCsv: async (csv: string): Promise<CmsImportResult> => {
         await delay(300);
@@ -189,17 +201,17 @@ export const cmsAPI = {
                 result.errors.push({ row: index + 2, message: 'Needs a category, a name and a price.' });
                 return;
             }
-            let category = state.categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
+            let category = S().categories.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
             if (!category) {
-                category = { id: nextId('demo-cat'), restaurantId: RID, name: categoryName, sortOrder: state.categories.length + 1 };
-                state.categories.push(category);
+                category = { id: nextId('demo-cat'), restaurantId: RID, name: categoryName, sortOrder: S().categories.length + 1 };
+                S().categories.push(category);
             }
-            const existing = state.items.find((i) => i.name === name);
+            const existing = S().items.find((i) => i.name === name);
             if (existing) {
                 Object.assign(existing, { price, categoryId: category.id });
                 result.updated++;
             } else {
-                state.items.push({
+                S().items.push({
                     id: nextId('demo-item'), restaurantId: RID, categoryId: category.id, name, price, isVeg: false,
                     availability: 'in_stock', sortOrder: 0, images: [], variants: [], addons: [],
                 });
@@ -211,7 +223,7 @@ export const cmsAPI = {
 
     getOffers: async (includeArchived = false): Promise<CmsOffer[]> => {
         await delay();
-        return state.offers.filter((o) => includeArchived || o.status !== 'archived').map(withSummary);
+        return S().offers.filter((o) => includeArchived || o.status !== 'archived').map(withSummary);
     },
     createOffer: async (input: CmsOfferInput): Promise<CmsOffer> => {
         await delay();
@@ -229,12 +241,12 @@ export const cmsAPI = {
             promoteInContent: input.promoteInContent ?? true,
             status: input.status ?? 'draft',
         };
-        state.offers.push(offer);
+        S().offers.push(offer);
         return withSummary(offer);
     },
     updateOffer: async (id: string, input: Partial<CmsOfferInput>): Promise<CmsOffer> => {
         await delay();
-        const offer = state.offers.find((o) => o.id === id);
+        const offer = S().offers.find((o) => o.id === id);
         if (!offer) throw notFound('Offer');
         notifyDemoBackendAction();
         const { schedule, code, description, minOrderValue, bannerImage, ...rest } = input;
@@ -249,38 +261,38 @@ export const cmsAPI = {
     deleteOffer: async (id: string): Promise<void> => {
         await delay();
         notifyDemoBackendAction();
-        state.offers = state.offers.filter((o) => o.id !== id);
+        S().offers = S().offers.filter((o) => o.id !== id);
     },
 
     getContent: async (): Promise<CmsContentState> => {
         await delay();
         return {
-            draft: clone(state.draft),
-            published: state.published ? clone(state.published) : null,
-            publishedVersion: state.publishedVersion ?? null,
-            publishedAt: state.publishedAt ?? null,
-            versions: state.versions.map(({ version, publishedAt }) => ({ version, publishedAt })),
+            draft: clone(S().draft),
+            published: S().published ? clone(S().published!) : null,
+            publishedVersion: S().publishedVersion ?? null,
+            publishedAt: S().publishedAt ?? null,
+            versions: S().versions.map(({ version, publishedAt }) => ({ version, publishedAt })),
         };
     },
     saveDraft: async (draft: StorefrontContent): Promise<StorefrontContent> => {
         await delay();
         notifyDemoBackendAction();
-        state.draft = clone(draft);
-        return clone(state.draft);
+        S().draft = clone(draft);
+        return clone(S().draft);
     },
     publish: async (): Promise<CmsPublishResult> => {
         await delay();
         notifyDemoBackendAction();
-        const result = publishStorefrontDraft(state);
-        Object.assign(state, result);
+        const result = publishStorefrontDraft(S());
+        Object.assign(S(), result);
         return { publishedVersion: result.publishedVersion, publishedAt: result.publishedAt };
     },
     rollback: async (version: number): Promise<CmsPublishResult> => {
         await delay();
-        const result = rollbackStorefront(state, version);
+        const result = rollbackStorefront(S(), version);
         if (!result) throw notFound('That version');
         notifyDemoBackendAction();
-        Object.assign(state, result);
+        Object.assign(S(), result);
         return { publishedVersion: result.publishedVersion, publishedAt: result.publishedAt, restoredFrom: version };
     },
 };
