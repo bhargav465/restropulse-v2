@@ -1,0 +1,77 @@
+name: Preview admin demo on Vercel
+
+# Builds the merchant admin (apps/web) from this branch in demo mode
+# (VITE_DEMO_MODE=true: [SAMPLE] data in the browser, no API or database)
+# and deploys it as a Vercel PREVIEW of restropulse-admin. Never --prod,
+# no env vars are read or written on the Vercel project.
+
+on:
+  push:
+    branches: [preview/staging-demo]
+  workflow_dispatch:
+
+concurrency:
+  group: preview-demo-vercel
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_SCOPE: bhargavs-projects-2af70bcc
+
+jobs:
+  deploy-admin-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Load Vercel token
+        env:
+          BLOB: ${{ secrets.DEPLOYMENT }}
+          S_VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          emit() { [ -z "$2" ] && return 0; echo "::add-mask::$2"; printf '%s<<__EOV__\n%s\n__EOV__\n' "$1" "$2" >> "$GITHUB_ENV"; }
+          emit VERCEL_TOKEN "$S_VERCEL_TOKEN"
+          while IFS= read -r line; do
+            line="${line%$'\r'}"
+            case "$line" in VERCEL_TOKEN=*) emit VERCEL_TOKEN "${line#*=}";; esac
+          done <<< "$BLOB"
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+      - name: Build workspace packages
+        run: npx turbo build --filter=@restropulse/web^...
+      - name: Build admin (demo mode)
+        working-directory: apps/web
+        env:
+          VITE_DEMO_MODE: 'true'
+          VITE_ADMIN_SHELL: v2
+        run: npx vite build
+      - name: Deploy admin demo (preview)
+        run: |
+          [ -n "$VERCEL_TOKEN" ] || { echo "VERCEL_TOKEN missing"; exit 1; }
+          npm i -g vercel@latest
+          mkdir -p /tmp/deploy/restropulse-admin
+          cp -r apps/web/dist/. /tmp/deploy/restropulse-admin/
+          find /tmp/deploy/restropulse-admin -name '*.map' -delete
+          cat > /tmp/deploy/restropulse-admin/vercel.json <<'JSON'
+          {
+            "$schema": "https://openapi.vercel.sh/vercel.json",
+            "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+            "headers": [
+              { "source": "/(.*)", "headers": [
+                { "key": "X-Content-Type-Options", "value": "nosniff" },
+                { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+                { "key": "X-Robots-Tag", "value": "noindex" }
+              ] }
+            ]
+          }
+          JSON
+          cd /tmp/deploy/restropulse-admin
+          vercel link --yes --project restropulse-admin --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN"
+          URL=$(vercel deploy --yes --target preview --scope "$VERCEL_SCOPE" --token "$VERCEL_TOKEN" --meta source=staging-demo)
+          echo "Preview: $URL"
+          echo "Admin demo preview: $URL" >> "$GITHUB_STEP_SUMMARY"
