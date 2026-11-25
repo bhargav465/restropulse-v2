@@ -43,7 +43,7 @@ describe('helpers', () => {
     });
 
     it('validates the settings form', () => {
-        const form = toForm({ slug: null, suggestedSlug: 'demo-kitchen', onlinePaymentsAvailable: true, ordering: _demoOrdersState().ordering });
+        const form = toForm({ slug: null, suggestedSlug: 'demo-kitchen', ordering: _demoOrdersState().ordering });
         expect(form.slug).toBe('demo-kitchen');
         expect(fromForm(form)).toMatchObject({ slug: 'demo-kitchen', ordering: { delivery: { freeAbove: 800 } } });
         expect(fromForm({ ...form, freeAbove: '' })).toMatchObject({ ordering: { delivery: { enabled: true, flatFee: 40, minOrder: 200 } } });
@@ -68,10 +68,18 @@ describe('demo twin', () => {
         expect((await demo.setStatus('demo-ord-1', 'PREPARING', 'on it')).statusHistory.at(-1)).toMatchObject({ status: 'PREPARING', note: 'on it' });
     });
 
-    it('cancels with a refund only for paid online orders', async () => {
-        expect(await demo.cancel('demo-ord-3', 'x')).toMatchObject({ refund: 'requested', order: { paymentStatus: 'refund_pending' } });
-        expect((await demo.cancel('demo-ord-2', 'x')).refund).toBe('none');
+    it('cancels an open order with its reason, and only open ones', async () => {
+        const result = await demo.cancel('demo-ord-3', 'x');
+        expect(result).toEqual({ order: expect.objectContaining({ status: 'CANCELLED', cancelReason: 'x', paymentMethod: 'cash' }) });
+        expect(result.order).not.toHaveProperty('paymentStatus');
         await expect(demo.cancel('demo-ord-4', 'x')).rejects.toThrow('no longer be cancelled');
+    });
+
+    it('seeds only cash orders and settings without a cash toggle', async () => {
+        const { orders } = await demo.getFeed({ status: 'all' });
+        expect(orders.every((o) => o.paymentMethod === 'cash')).toBe(true);
+        expect(_demoOrdersState().ordering).not.toHaveProperty('cashAccepted');
+        expect(await demo.getSettings()).not.toHaveProperty('onlinePaymentsAvailable');
     });
 
     it('saves settings with the same slug rules', async () => {
@@ -104,32 +112,39 @@ describe('OrdersBoard', () => {
         await waitFor(() => expect(screen.queryByText('RP-DEMO03')).not.toBeInTheDocument());
     });
 
-    it('cancels a paid order with a refund and reports it', async () => {
+    it('shows where each order is paid in cash', async () => {
+        render(<OrdersBoard />);
+        await screen.findByText('RP-DEMO01');
+        expect(within(card('RP-DEMO01')).getByText(/Cash on delivery/)).toBeInTheDocument();
+        expect(within(card('RP-DEMO03')).getByText(/Cash at pickup/)).toBeInTheDocument();
+        expect(screen.queryByText(/Paid online|Refund/)).not.toBeInTheDocument();
+    });
+
+    it('cancels an order with a reason and reports it, with no refund step', async () => {
         render(<OrdersBoard />);
         await screen.findByText('RP-DEMO03');
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Cancel order' }));
         const confirm = within(card('RP-DEMO03')).getByRole('button', { name: 'Confirm cancel' });
         expect(confirm).toBeDisabled();
-        expect(within(card('RP-DEMO03')).getByRole('checkbox', { name: /Refund ₹441/ })).toBeChecked();
+        expect(within(card('RP-DEMO03')).queryByRole('checkbox')).not.toBeInTheDocument();
         fireEvent.change(within(card('RP-DEMO03')).getByLabelText('Reason'), { target: { value: 'Out of rice' } });
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Confirm cancel' }));
-        expect(await screen.findByRole('status')).toHaveTextContent('RP-DEMO03 cancelled. The refund is on its way');
+        expect(await screen.findByRole('status')).toHaveTextContent(/^RP-DEMO03 cancelled\.$/);
         expect(screen.queryByText('RP-DEMO03')).not.toBeInTheDocument();
     });
 
-    it('can keep an order, skip the refund, and explains a failed refund', async () => {
+    it('can keep an order, and cancels with just the reason', async () => {
         const cancel = vi.spyOn(demo, 'cancel');
         render(<OrdersBoard />);
         await screen.findByText('RP-DEMO03');
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Cancel order' }));
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Keep order' }));
+        expect(within(card('RP-DEMO03')).queryByLabelText('Reason')).not.toBeInTheDocument();
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Cancel order' }));
-        fireEvent.click(within(card('RP-DEMO03')).getByRole('checkbox', { name: /Refund/ }));
         fireEvent.change(within(card('RP-DEMO03')).getByLabelText('Reason'), { target: { value: 'Asked by guest' } });
-        cancel.mockResolvedValueOnce({ order: { ...(await demo.getOrder('demo-ord-3')), status: 'CANCELLED' }, refund: 'failed' });
         fireEvent.click(within(card('RP-DEMO03')).getByRole('button', { name: 'Confirm cancel' }));
-        expect(await screen.findByRole('status')).toHaveTextContent("refund didn't go through");
-        expect(cancel).toHaveBeenCalledWith('demo-ord-3', 'Asked by guest', false);
+        expect(await screen.findByRole('status')).toHaveTextContent('RP-DEMO03 cancelled.');
+        expect(cancel).toHaveBeenCalledWith('demo-ord-3', 'Asked by guest');
     });
 
     it('a cash order cancels without a refund option', async () => {
@@ -222,10 +237,11 @@ describe('OrderingSettings', () => {
         fireEvent.change(screen.getByLabelText('Minimum order (₹)'), { target: { value: '150' } });
         fireEvent.change(screen.getByLabelText('Free delivery above (₹)'), { target: { value: '' } });
         fireEvent.click(screen.getByRole('checkbox', { name: /Pickup/ }));
-        fireEvent.click(screen.getByRole('checkbox', { name: /Accept cash/ }));
+        expect(screen.queryByRole('checkbox', { name: /cash/i })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
         await screen.findByRole('status');
-        expect(_demoOrdersState().ordering).toMatchObject({ delivery: { flatFee: 30, minOrder: 150 }, pickup: { enabled: false }, cashAccepted: false });
+        expect(_demoOrdersState().ordering).toMatchObject({ delivery: { flatFee: 30, minOrder: 150 }, pickup: { enabled: false } });
+        expect(_demoOrdersState().ordering).not.toHaveProperty('cashAccepted');
         fireEvent.click(screen.getByRole('checkbox', { name: /Delivery/ }));
         expect(screen.queryByLabelText('Delivery fee (₹)')).not.toBeInTheDocument();
     });
@@ -242,10 +258,11 @@ describe('OrderingSettings', () => {
         await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('That web address is taken.'));
     });
 
-    it('explains when online payment is not set up, and load failures', async () => {
-        vi.spyOn(demo, 'getSettings').mockResolvedValueOnce({ slug: null, suggestedSlug: 'abc-def', onlinePaymentsAvailable: false, ordering: _demoOrdersState().ordering });
+    it('explains that customers pay in cash, and load failures', async () => {
+        vi.spyOn(demo, 'getSettings').mockResolvedValueOnce({ slug: null, suggestedSlug: 'abc-def', ordering: _demoOrdersState().ordering });
         const { unmount } = render(<OrderingSettings />);
-        expect(await screen.findByText(/Online payment isn't set up yet/)).toBeInTheDocument();
+        expect(await screen.findByText('Customers pay in cash at pickup, at the table or on delivery.')).toBeInTheDocument();
+        expect(screen.queryByText(/online payment/i)).not.toBeInTheDocument();
         expect(screen.getByLabelText('Web address')).toHaveValue('abc-def');
         unmount();
         vi.spyOn(demo, 'getSettings').mockRejectedValueOnce(new Error('Server error'));

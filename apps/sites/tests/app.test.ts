@@ -3,6 +3,10 @@ import { get } from './http.js';
 import { ApiUnavailableError, type ApiClient } from '../src/api-client.js';
 import { contentSecurityPolicy, createSitesApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { CASH_NOTE } from '../src/render/pages.js';
+
+/** The payment gateway that was removed; spelled as a pattern so the repo holds no mention of it. */
+const OLD_GATEWAY = /razor.?pay/i;
 import { sampleConfig, sampleMenu } from './fixtures.js';
 
 const config = loadConfig({
@@ -41,7 +45,7 @@ describe('preview at /r/<slug> on the sites host', () => {
         const csp = res.headers['content-security-policy'];
         const nonce = /'nonce-([^']+)'/.exec(csp)![1];
         expect(res.text).toContain(`nonce="${nonce}"`);
-        expect(csp).toContain('connect-src \'self\' https://api.restropulse.in https://*.razorpay.com');
+        expect(csp).toContain("connect-src 'self' https://api.restropulse.in;");
         expect(api.getMenu).toHaveBeenCalledWith('bawarchi');
     });
 
@@ -156,12 +160,22 @@ describe('assets and health', () => {
         expect(js.headers['content-type']).toMatch(/javascript/);
         expect(js.headers['cache-control']).toBe('public, max-age=3600');
         expect((await get(app, '/assets/site.css')).status).toBe(200);
+        expect(js.text).not.toMatch(OLD_GATEWAY);
         const missing = await get(app, '/assets/nope.js');
         expect(missing.status).toBe(404);
         expect(missing.text).toContain('Page not found');
     });
 
-    it('health check', async () => {
+    it('the script places cash orders only, with no payment gateway steps', async () => {
+        const js = (await get(app, '/assets/site.js')).text;
+        expect(js).toContain("body.paymentMethod = 'cash';");
+        expect(js).not.toMatch(/payment\/(verify|retry)/);
+        expect(js).not.toMatch(/PENDING_PAYMENT|PAYMENT_FAILED|data-pay-again/);
+        // The tracking page repeats the checkout's cash lines word for word.
+        for (const line of Object.values(CASH_NOTE)) expect(js).toContain(`'${line}'`);
+    });
+
+        it('health check', async () => {
         const res = await get(app, '/healthz');
         expect(res.text).toBe('ok');
     });
@@ -184,10 +198,22 @@ describe('config', () => {
         expect(() => loadConfig({ SITES_BASE_URL: 'nope' })).toThrow(/SITES_BASE_URL/);
     });
 
-    it('CSP allows only our API and Razorpay', () => {
+    it('CSP allows only our own scripts and API', () => {
         const csp = contentSecurityPolicy('abc', 'https://api.restropulse.in/');
-        expect(csp).toContain("script-src 'self' 'nonce-abc' https://checkout.razorpay.com");
+        expect(csp).toContain("script-src 'self' 'nonce-abc';");
+        expect(csp).toContain("connect-src 'self' https://api.restropulse.in;");
+        expect(csp).toContain("frame-src 'none'");
         expect(csp).toContain("default-src 'none'");
         expect(csp).toContain("frame-ancestors 'none'");
+    });
+
+    it('CSP no longer allows any payment gateway', async () => {
+        const csp = contentSecurityPolicy('abc', 'https://api.restropulse.in/');
+        expect(csp).not.toMatch(OLD_GATEWAY);
+        // Only 'self', the nonce and our API origin may appear as sources.
+        const hosts = csp.match(/https?:\/\/[^\s;]+/g) ?? [];
+        expect(hosts).toEqual(['https://api.restropulse.in']);
+        const served = (await get(app, '/r/bawarchi/', { 'Host': base })).headers['content-security-policy'];
+        expect(served).not.toMatch(OLD_GATEWAY);
     });
 });

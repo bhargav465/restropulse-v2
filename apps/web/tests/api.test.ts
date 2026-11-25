@@ -578,104 +578,110 @@ describe('API Service', () => {
             expect(result.usage).toBeDefined();
         });
 
-        it('should subscribe to a plan', async () => {
+        it('should request a plan (no checkout)', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({
                     success: true,
-                    data: { subscriptionId: 'sub_123', keyId: 'rzp_key' },
+                    data: { requested: true, planName: 'Starter' },
                 }),
             });
 
-            const result = await subscriptionAPI.subscribe('starter', 'MONTHLY');
-            expect(result.subscriptionId).toBe('sub_123');
-            expect(result.keyId).toBe('rzp_key');
-        });
-
-        it('should subscribe with coupon code', async () => {
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    success: true,
-                    data: { subscriptionId: 'sub_456', keyId: 'rzp_key' },
-                }),
-            });
-
-            const result = await subscriptionAPI.subscribe('growth', 'SAVE20');
-            expect(result.subscriptionId).toBe('sub_456');
+            const result = await subscriptionAPI.subscribe('starter');
+            expect(result).toEqual({ requested: true, planName: 'Starter' });
             expect(mockFetch).toHaveBeenCalledWith(
                 expect.stringContaining('/subscriptions/subscribe'),
                 expect.objectContaining({
                     method: 'POST',
-                    body: JSON.stringify({ planSlug: 'growth', billingCycle: 'MONTHLY', couponCode: 'SAVE20' }),
+                    body: JSON.stringify({ planSlug: 'starter' }),
                 })
             );
         });
 
-        it('should cancel subscription', async () => {
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({ success: true }),
-            });
-
-            await expect(subscriptionAPI.cancel()).resolves.not.toThrow();
-        });
-
-        it('should change plan (upgrade)', async () => {
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({ success: true, data: { effective: 'immediate', planName: 'Growth' } }),
-            });
-
-            const result = await subscriptionAPI.changePlan('growth', { mode: 'now' });
-            expect(result.effective).toBe('immediate');
-            expect(result.planName).toBe('Growth');
-        });
-
-        it('should change plan (downgrade)', async () => {
+        it('should request a plan with a coupon code', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({
                     success: true,
-                    data: { effective: 'cycle_end', planName: 'Starter', currentPeriodEnd: '2026-05-01T00:00:00.000Z' },
+                    data: { requested: true, planName: 'Growth' },
                 }),
             });
 
-            const result = await subscriptionAPI.changePlan('starter', { mode: 'cycle_end' });
-            expect(result.effective).toBe('cycle_end');
-            expect(result.currentPeriodEnd).toBeDefined();
+            const result = await subscriptionAPI.subscribe('growth', 'SAVE20');
+            expect(result.planName).toBe('Growth');
+            expect(mockFetch).toHaveBeenCalledWith(
+                expect.stringContaining('/subscriptions/subscribe'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({ planSlug: 'growth', couponCode: 'SAVE20' }),
+                })
+            );
+        });
+
+        it('should surface the 409 when a plan is already active', async () => {
+            mockFetch.mockResolvedValueOnce({
+                ok: false,
+                status: 409,
+                json: async () => ({ success: false, error: 'An active subscription already exists. Use change-plan to switch plans.' }),
+            });
+
+            await expect(subscriptionAPI.subscribe('growth')).rejects.toThrow('Use change-plan');
+        });
+
+        it('should cancel subscription / withdraw a request', async () => {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true, message: 'Plan request withdrawn' }),
+            });
+
+            await expect(subscriptionAPI.cancel()).resolves.toEqual({ success: true, message: 'Plan request withdrawn' });
+            expect(mockFetch).toHaveBeenCalledWith(
+                expect.stringContaining('/subscriptions/cancel'),
+                expect.objectContaining({ method: 'POST' }),
+            );
+        });
+
+        it('should request a plan change with only the plan slug', async () => {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true, data: { requested: true, planName: 'Growth' } }),
+            });
+
+            const result = await subscriptionAPI.changePlan('growth');
+            expect(result).toEqual({ requested: true, planName: 'Growth' });
+            expect(mockFetch).toHaveBeenCalledWith(
+                expect.stringContaining('/subscriptions/change-plan'),
+                expect.objectContaining({ method: 'POST', body: JSON.stringify({ planSlug: 'growth' }) }),
+            );
+        });
+
+        it('should report a no-op change to the current plan', async () => {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true, data: { requested: false, planName: 'Starter' } }),
+            });
+
+            const result = await subscriptionAPI.changePlan('starter');
+            expect(result.requested).toBe(false);
         });
 
         it('should reactivate subscription', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ success: true }),
+                json: async () => ({ success: true, data: { reactivated: true } }),
             });
 
-            await expect(subscriptionAPI.reactivate()).resolves.not.toThrow();
+            await expect(subscriptionAPI.reactivate()).resolves.toEqual({ reactivated: true });
+            expect(mockFetch).toHaveBeenCalledWith(
+                expect.stringContaining('/subscriptions/reactivate'),
+                expect.objectContaining({ method: 'POST' }),
+            );
         });
 
-        it('should purchase credits', async () => {
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    success: true,
-                    data: { orderId: 'ord_1', amount: 500, currency: 'INR', keyId: 'rzp_key', credits: 50 },
-                }),
-            });
-
-            const result = await subscriptionAPI.purchaseCredits('pack1');
-            expect(result.orderId).toBe('ord_1');
-            expect(result.credits).toBe(50);
-        });
-
-        it('should verify credits', async () => {
-            mockFetch.mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({ success: true }),
-            });
-
-            await expect(subscriptionAPI.verifyCredits('ord_1', 'pay_1', 'sig_1')).resolves.not.toThrow();
+        it('has no gateway checkout, verify or credit purchase calls', () => {
+            expect(Object.keys(subscriptionAPI).sort()).toEqual(
+                ['cancel', 'changePlan', 'getCurrent', 'getPlans', 'reactivate', 'subscribe'],
+            );
         });
     });
 

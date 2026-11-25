@@ -16,7 +16,6 @@ interface SettingsForm {
     freeAbove: string;
     pickupEnabled: boolean;
     dineInEnabled: boolean;
-    cashAccepted: boolean;
 }
 
 export const toForm = (view: OrderingSettingsView): SettingsForm => ({
@@ -29,7 +28,6 @@ export const toForm = (view: OrderingSettingsView): SettingsForm => ({
     freeAbove: view.ordering.delivery.freeAbove !== undefined ? String(view.ordering.delivery.freeAbove) : '',
     pickupEnabled: view.ordering.pickup.enabled,
     dineInEnabled: view.ordering.dineIn.enabled,
-    cashAccepted: view.ordering.cashAccepted,
 });
 
 /** Turn the form into the API body, or return an error message to show. */
@@ -58,7 +56,6 @@ export function fromForm(form: SettingsForm): { slug: string; ordering: Restaura
             },
             pickup: { enabled: form.pickupEnabled },
             dineIn: { enabled: form.dineInEnabled },
-            cashAccepted: form.cashAccepted,
         },
     };
 }
@@ -73,7 +70,7 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (v: boolean)
     </label>
 );
 
-/** Ordering settings: site address, open/closed, order types, delivery fee, tax and cash. */
+/** Ordering settings: site address, open/closed, order types, delivery fee and tax. Orders are paid in cash. */
 const OrderingSettings: React.FC = () => {
     const [view, setView] = useState<OrderingSettingsView | null>(null);
     const [form, setForm] = useState<SettingsForm | null>(null);
@@ -153,10 +150,7 @@ const OrderingSettings: React.FC = () => {
 
             <Card className="space-y-3">
                 <h3 className="text-sm font-bold text-[var(--rp-text)]">Payment and tax</h3>
-                <p className="text-sm text-[var(--rp-muted)]">
-                    {view.onlinePaymentsAvailable ? 'Online payment through Razorpay is on.' : "Online payment isn't set up yet, so only cash orders can be taken."}
-                </p>
-                <Toggle label="Accept cash" hint="Cash on delivery, or at the counter for pickup and dine-in." checked={form.cashAccepted} onChange={(v) => set('cashAccepted', v)} />
+                <p className="text-sm text-[var(--rp-muted)]">Customers pay in cash at pickup, at the table or on delivery.</p>
                 <label className="block text-sm text-[var(--rp-text)] sm:w-40">Tax (%)
                     <input className={inputClass} inputMode="decimal" value={form.taxRatePercent} onChange={(e) => set('taxRatePercent', e.target.value)} />
                 </label>

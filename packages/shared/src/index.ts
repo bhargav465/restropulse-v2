@@ -20,8 +20,6 @@ export type CouponType = 'PERCENTAGE' | 'FLAT';
 
 export type CouponStatus = 'ACTIVE' | 'DISABLED' | 'EXPIRED';
 
-export type CreditPurchaseStatus = 'PENDING' | 'PAID' | 'FAILED';
-
 export type InvoiceType = 'SUBSCRIPTION' | 'CREDIT_PURCHASE';
 
 export type PostType = 'IMAGE' | 'VIDEO' | 'CAROUSEL' | 'STORY' | 'REEL';
@@ -130,7 +128,6 @@ export interface User {
   firebaseUid?: string;
   emailVerified?: boolean;
   restaurantId: string;
-  razorpayCustomerId?: string;
 }
 
 export interface MenuItem {
@@ -367,7 +364,6 @@ export interface SubscriptionPlan {
   name: string;
   limits: PlanLimits;
   pricing: PlanPricing;
-  razorpayPlanIds: { monthly: string; annual: string };
   features: string[];
   createdAt?: string | Date;
   updatedAt?: string | Date;
@@ -380,8 +376,6 @@ export interface Subscription {
   planSnapshot?: SubscriptionPlan | null;
   billingCycle?: BillingCycle;
   status: SubscriptionStatus;
-  razorpaySubscriptionId?: string;
-  razorpayCustomerId?: string;
   currentPeriodStart?: string | Date;
   currentPeriodEnd?: string | Date;
   credits: number;
@@ -394,9 +388,14 @@ export interface Subscription {
   couponCode?: string;
   cancelledAt?: string | Date;
   cancelAtPeriodEnd?: boolean;
+  /**
+   * Billing is manual (no payment gateway): an owner's plan request is stored
+   * here until an admin confirms payment and activates it.
+   */
   pendingPlanId?: string;
   pendingPlanSnapshot?: SubscriptionPlan | null;
-  pendingRazorpaySubscriptionId?: string | null;
+  /** When the owner asked for pendingPlan (ISO). */
+  planRequestedAt?: string | null;
   endedAt?: string | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
@@ -416,7 +415,6 @@ export interface Coupon {
   validFrom: string | Date;
   validUntil?: string | Date;
   status: CouponStatus;
-  razorpayOfferId?: string;
   createdBy: string;
   createdAt?: string | Date;
   updatedAt?: string | Date;
@@ -438,6 +436,20 @@ export interface EntitlementState {
 
 const ENTITLEMENT_DAY_MS = 24 * 60 * 60 * 1000;
 const ENTITLEMENT_ACTIVE_STATUSES = new Set<SubscriptionStatus>(['ACTIVE', 'PAST_DUE']);
+/**
+ * Billing is manual, so nothing flips an unpaid plan off at the end of its
+ * period. An active plan stops entitling this long after currentPeriodEnd
+ * unless an admin renews it. ASSUMPTION: 3 days covers a late bank transfer.
+ */
+export const MANUAL_BILLING_GRACE_DAYS = 3;
+
+/** Whether an ACTIVE/PAST_DUE plan's paid period (plus grace) has run out. */
+export function isPlanPeriodOver(sub: Pick<Subscription, 'currentPeriodEnd'>, now: Date = new Date()): boolean {
+  if (!sub.currentPeriodEnd) return false;
+  const endMs = new Date(sub.currentPeriodEnd).getTime();
+  if (Number.isNaN(endMs)) return false;
+  return endMs + MANUAL_BILLING_GRACE_DAYS * ENTITLEMENT_DAY_MS <= now.getTime();
+}
 
 /**
  * Single source of truth for feature entitlement, shared by the API
@@ -449,7 +461,7 @@ export function getEntitlement(sub: Subscription | null | undefined, now: Date =
   if (!sub) {
     return { entitled: false, inTrial: false, activePlan: false, trialDaysLeft: 0 };
   }
-  const activePlan = ENTITLEMENT_ACTIVE_STATUSES.has(sub.status);
+  const activePlan = ENTITLEMENT_ACTIVE_STATUSES.has(sub.status) && !isPlanPeriodOver(sub, now);
   const trialEndsMs = sub.trialEndsAt ? new Date(sub.trialEndsAt).getTime() : 0;
   const inTrial = trialEndsMs > now.getTime();
   const trialDaysLeft = inTrial ? Math.ceil((trialEndsMs - now.getTime()) / ENTITLEMENT_DAY_MS) : 0;
@@ -477,20 +489,6 @@ export interface CouponRedemption {
   redeemedAt: string | Date;
 }
 
-export interface CreditPurchase {
-  id: string;
-  restaurantId: string;
-  userId: string;
-  creditPackId: string;
-  creditsAdded: number;
-  amountPaise: number;
-  razorpayOrderId: string;
-  razorpayPaymentId?: string;
-  status: CreditPurchaseStatus;
-  createdAt?: string | Date;
-  updatedAt?: string | Date;
-}
-
 export interface CreditPack {
   id: string;
   name: string;
@@ -507,10 +505,6 @@ export interface Invoice {
   id: string;
   restaurantId: string;
   type: InvoiceType;
-  razorpayInvoiceId?: string;
-  razorpayPaymentId?: string;
-  razorpaySubscriptionId?: string;
-  razorpayOrderId?: string;
   amountPaise: number;
   currency: string;
   status: string;
@@ -630,7 +624,6 @@ export interface ClientConfig {
   apiUrl: string;
   appUrl: string;
   googleMapsApiKey: string;
-  razorpayKeyId: string;
   appInsightsConnectionString: string;
   telemetrySampleRate: number;
   deployment?: {

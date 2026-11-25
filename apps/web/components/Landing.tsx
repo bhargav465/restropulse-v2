@@ -106,7 +106,7 @@ const Landing: React.FC<LandingProps> = ({ onStartFree, onSelectPlan, onLogin })
     const [plans, setPlans] = useState<PlanCard[]>(() => buildCards(FALLBACK_PLANS));
 
     // Hydrate real plans/prices from the public plans endpoint. Falls back to the
-    // (correct) static list if the API is unreachable, so prices always match Razorpay.
+    // (correct) static list if the API is unreachable, so prices always match what we bill.
     useEffect(() => {
         let active = true;
         subscriptionAPI.getPlans()
@@ -403,7 +403,7 @@ const Landing: React.FC<LandingProps> = ({ onStartFree, onSelectPlan, onLogin })
                     </div>
                     <p className="pricing-note">
                         14-day free trial &middot; no credit card &middot;
-                        Prices in INR, exclusive of GST &middot; Payments powered by Razorpay &middot;
+                        Prices in INR, exclusive of GST &middot; Payment arranged directly with RestroPulse &middot;
                         Need a custom plan for multiple outlets? <a href="mailto:hello.restropulse@baxel.in">Talk to us</a>
                     </p>
                 </div>

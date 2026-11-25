@@ -1,5 +1,5 @@
 // -------------------------------------------------------
-// @restropulse/shared - orders, payments and ordering settings (Phase 2, M2)
+// @restropulse/shared - orders and ordering settings (Phase 2, M2)
 //
 // Types plus pure logic (status machine, pricing). The API is the authority;
 // the web dashboard imports the same status machine so the two never drift.
@@ -14,8 +14,6 @@ export type OrderType = 'delivery' | 'pickup' | 'dine_in';
 export const ORDER_TYPES: readonly OrderType[] = ['delivery', 'pickup', 'dine_in'];
 
 export type OrderStatus =
-  | 'PENDING_PAYMENT'    // created, waiting for the online payment
-  | 'PAYMENT_FAILED'     // payment attempt failed; the customer may retry
   | 'RECEIVED'           // the restaurant has the order
   | 'PREPARING'
   | 'READY'              // ready for pickup / hand-off to a rider
@@ -23,8 +21,13 @@ export type OrderStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-export type PaymentMethod = 'online' | 'cash';
-export const PAYMENT_METHODS: readonly PaymentMethod[] = ['online', 'cash'];
+/**
+ * There is no payment gateway: every order is paid in cash, at the counter
+ * (pickup / dine-in) or on delivery. Kept as a field so a gateway can be added
+ * later without reshaping stored orders.
+ */
+export type PaymentMethod = 'cash';
+export const PAYMENT_METHODS: readonly PaymentMethod[] = ['cash'];
 
 /** Amounts in INR (rupees, 2 decimals). Payments convert to paise at the edge. */
 export interface OrderTotals {
@@ -66,7 +69,7 @@ export interface OrderAddress {
 export interface OrderStatusHistoryEntry {
   status: OrderStatus;
   at: string;              // ISO timestamp
-  /** Who moved it: the restaurant, the customer (payment), or the system (webhook). */
+  /** Who moved it: the restaurant, the customer (checkout), or the system. */
   by: 'restaurant' | 'customer' | 'system';
   note?: string;
 }
@@ -78,8 +81,6 @@ export interface AppliedOffer {
   discount: number;
   deliveryDiscount: number;
 }
-
-export type OrderPaymentStatus = 'not_required' | 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded';
 
 export interface Order {
   id: string;
@@ -95,7 +96,6 @@ export interface Order {
   status: OrderStatus;
   statusHistory: OrderStatusHistoryEntry[];
   paymentMethod: PaymentMethod;
-  paymentStatus: OrderPaymentStatus;
   customerName: string;
   customerPhone: string;
   address?: OrderAddress;
@@ -111,51 +111,8 @@ export interface Order {
 
 /** What the customer's tracking page may see (no token, no internal ids beyond the order's own). */
 export type PublicOrder = Pick<Order,
-  'id' | 'orderNumber' | 'orderType' | 'items' | 'totals' | 'offer' | 'status' | 'paymentMethod' | 'paymentStatus' | 'createdAt'
+  'id' | 'orderNumber' | 'orderType' | 'items' | 'totals' | 'offer' | 'status' | 'paymentMethod' | 'createdAt'
 > & { statusHistory: Array<Pick<OrderStatusHistoryEntry, 'status' | 'at'>> };
-
-// ----- Payments (one document per online payment attempt) -----
-
-export type PaymentStatus = 'created' | 'captured' | 'failed' | 'refund_pending' | 'refunded';
-
-export interface PaymentEventEntry {
-  at: string;
-  /** e.g. intent_created | verify_ok | verify_failed | webhook:payment.captured | refund_requested */
-  type: string;
-  source: 'intent' | 'verify' | 'webhook' | 'restaurant';
-  /** Razorpay webhook event id, used to ignore redeliveries. */
-  eventId?: string;
-  providerPaymentId?: string;
-  errorCode?: string;
-  errorDescription?: string;
-}
-
-export interface Payment {
-  id: string;
-  restaurantId: string;
-  orderId: string;
-  provider: 'razorpay';
-  /** Razorpay order id (order_xxx). Unique. */
-  providerOrderId: string;
-  /** Razorpay payment id (pay_xxx), once known. */
-  providerPaymentId?: string;
-  providerRefundId?: string;
-  /** PAISE, computed server-side from the order total. */
-  amount: number;
-  currency: 'INR';
-  status: PaymentStatus;
-  events: PaymentEventEntry[];
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}
-
-/** What the storefront needs to open Razorpay Checkout. */
-export interface PaymentIntent {
-  providerOrderId: string;
-  keyId: string;
-  amount: number;          // PAISE
-  currency: 'INR';
-}
 
 // ----- Ordering settings (on the restaurant) -----
 
@@ -176,8 +133,6 @@ export interface RestaurantOrderingSettings {
   delivery: { enabled: boolean } & DeliveryFeeRule;
   pickup: { enabled: boolean };
   dineIn: { enabled: boolean };
-  /** Accept cash (on delivery / at the counter) as well as online payment. */
-  cashAccepted: boolean;
 }
 
 export const DEFAULT_ORDERING_SETTINGS: RestaurantOrderingSettings = {
@@ -186,12 +141,12 @@ export const DEFAULT_ORDERING_SETTINGS: RestaurantOrderingSettings = {
   delivery: { enabled: false, flatFee: 0, minOrder: 0 },
   pickup: { enabled: true },
   dineIn: { enabled: false },
-  cashAccepted: false,
 };
 
 /** Merge stored (possibly partial) settings over the defaults. */
 export function resolveOrderingSettings(stored?: Partial<RestaurantOrderingSettings> | null): RestaurantOrderingSettings {
-  const s = stored ?? {};
+  // Drop cashAccepted from settings stored before payments were removed.
+  const { cashAccepted: _legacyCash, ...s } = (stored ?? {}) as Partial<RestaurantOrderingSettings> & { cashAccepted?: unknown };
   return {
     ...DEFAULT_ORDERING_SETTINGS,
     ...s,
@@ -210,8 +165,6 @@ export function isOrderTypeEnabled(settings: RestaurantOrderingSettings, type: O
 // ----- Status machine -----
 
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
-  PENDING_PAYMENT: ['RECEIVED', 'PAYMENT_FAILED', 'CANCELLED'],
-  PAYMENT_FAILED: ['PENDING_PAYMENT', 'RECEIVED', 'CANCELLED'],
   RECEIVED: ['PREPARING', 'CANCELLED'],
   PREPARING: ['READY', 'CANCELLED'],
   READY: ['OUT_FOR_DELIVERY', 'COMPLETED', 'CANCELLED'],
@@ -242,12 +195,10 @@ export function canTransitionOrderStatus(from: OrderStatus, to: OrderStatus, ord
 }
 
 /**
- * Transitions the restaurant may make from the dashboard. Payment states are
- * driven by the customer and Razorpay, so they never appear here; cancelling
- * goes through its own action (it may refund).
+ * Transitions the restaurant may make from the dashboard. Cancelling goes
+ * through its own action.
  */
 export function restaurantNextStatuses(order: Pick<Order, 'status' | 'orderType'>): OrderStatus[] {
-  if (order.status === 'PENDING_PAYMENT' || order.status === 'PAYMENT_FAILED') return [];
   return ORDER_STATUS_TRANSITIONS[order.status]
     .filter((to) => to !== 'CANCELLED' && canTransitionOrderStatus(order.status, to, order.orderType));
 }
@@ -257,8 +208,6 @@ export function canRestaurantCancel(order: Pick<Order, 'status'>): boolean {
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: 'Awaiting payment',
-  PAYMENT_FAILED: 'Payment failed',
   RECEIVED: 'New',
   PREPARING: 'Preparing',
   READY: 'Ready',
@@ -303,7 +252,7 @@ export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-/** Rupees to integer paise for the payment gateway. */
+/** Rupees to integer paise. */
 export function toPaise(rupees: number): number {
   return Math.round(roundMoney(rupees) * 100);
 }
@@ -451,7 +400,6 @@ export function toPublicOrder(order: Order): PublicOrder {
     ...(order.offer ? { offer: order.offer } : {}),
     status: order.status,
     paymentMethod: order.paymentMethod,
-    paymentStatus: order.paymentStatus,
     createdAt: order.createdAt,
     statusHistory: order.statusHistory.map(({ status, at }) => ({ status, at })),
   };

@@ -157,8 +157,6 @@ describe('status machine', () => {
     expect(restaurantNextStatuses({ status: 'RECEIVED', orderType: 'pickup' })).toEqual(['PREPARING']);
     expect(restaurantNextStatuses({ status: 'READY', orderType: 'delivery' })).toEqual(['OUT_FOR_DELIVERY']);
     expect(restaurantNextStatuses({ status: 'READY', orderType: 'pickup' })).toEqual(['COMPLETED']);
-    expect(restaurantNextStatuses({ status: 'PENDING_PAYMENT', orderType: 'pickup' })).toEqual([]);
-    expect(restaurantNextStatuses({ status: 'PAYMENT_FAILED', orderType: 'pickup' })).toEqual([]);
     expect(restaurantNextStatuses({ status: 'COMPLETED', orderType: 'pickup' })).toEqual([]);
     expect(canRestaurantCancel({ status: 'PREPARING' })).toBe(true);
     expect(canRestaurantCancel({ status: 'CANCELLED' })).toBe(false);
@@ -197,7 +195,7 @@ describe('settings and money helpers', () => {
       id: 'ord1', restaurantId: 'r1', orderNumber: 'RP-ABC123', trackingToken: 'secret', orderType: 'pickup',
       items: [], totals: { subtotal: 0, discount: 0, deliveryFee: 0, deliveryDiscount: 0, tax: 0, total: 0 },
       status: 'RECEIVED', statusHistory: [{ status: 'RECEIVED', at: '2026-11-25T06:30:00Z', by: 'system', note: 'internal' }],
-      paymentMethod: 'cash', paymentStatus: 'not_required', customerName: 'A', customerPhone: '9999999999',
+      paymentMethod: 'cash', customerName: 'A', customerPhone: '9999999999',
       createdAt: '2026-11-25T06:30:00Z', updatedAt: '2026-11-25T06:30:00Z',
     };
     const pub = toPublicOrder(order);

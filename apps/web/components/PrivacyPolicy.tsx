@@ -49,7 +49,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
                             <li><strong>Restaurant information:</strong> restaurant name, cuisine, address and location (collected via Google Maps/Places during onboarding), and business details you add such as offers, chef specials, and menu updates.</li>
                             <li><strong>Instagram / Facebook data:</strong> when you connect your Instagram or Facebook account, Meta's OAuth flow shares your Page and Instagram Business Account profile information with us, and issues an access token that lets RestroPulse publish posts on your behalf. Access tokens are encrypted (AES-256) before storage and are never shown in plain text.</li>
                             <li><strong>Content you create:</strong> captions, images, videos, and scheduling details for posts you create or approve, whether written by you or generated with AI assistance.</li>
-                            <li><strong>Billing information:</strong> subscription and payment records are processed by Razorpay. RestroPulse does not receive or store your card, UPI, or bank account details -- Razorpay handles that directly and is independently PCI-DSS compliant.</li>
+                            <li><strong>Billing information:</strong> your plan, invoices, and records of the payments you make for it. Payments are arranged directly with RestroPulse; the app does not ask for or store your card, UPI, or bank account details.</li>
                             <li><strong>Usage data:</strong> basic product analytics (pages viewed, feature usage, error diagnostics) collected via Azure Application Insights. Our logging pipeline is configured to never record personal fields such as phone numbers, emails, addresses, names, or access tokens.</li>
                         </ul>
                     </section>
@@ -58,7 +58,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
                         <h2>How we use your information</h2>
                         <ul>
                             <li>To operate the service: publish and schedule your posts to Instagram/Facebook, generate content suggestions, and run Restaurant Intelligence scans of nearby competitors.</li>
-                            <li>To manage your account, subscription, trial, and billing with Razorpay.</li>
+                            <li>To manage your account, subscription, trial, and billing.</li>
                             <li>To communicate with you about your account, service changes, or support requests.</li>
                             <li>To maintain and improve the reliability and security of the platform.</li>
                             <li>To comply with legal obligations, including Meta's platform requirements and tax/billing recordkeeping.</li>
@@ -71,7 +71,6 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
                         <ul>
                             <li><strong>Meta Graph API</strong> (Instagram/Facebook) -- to publish content and read basic Page/account information you authorize.</li>
                             <li><strong>Firebase Authentication</strong> (Google) -- to verify your phone number via OTP.</li>
-                            <li><strong>Razorpay</strong> -- to process subscription payments and generate invoices.</li>
                             <li><strong>Google Maps / Places API</strong> -- to look up your restaurant's address during onboarding and for competitor discovery in Restaurant Intelligence.</li>
                             <li><strong>Anthropic, Replicate, Google Calendar API, and Perplexity</strong> -- to generate AI captions, images/video, and current-affairs-aware content suggestions where enabled for your account.</li>
                             <li><strong>Microsoft Azure</strong> (App Service, Key Vault, Application Insights) and <strong>MongoDB Atlas</strong> -- to host the application, secure credentials, and store your account data.</li>
@@ -85,7 +84,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
                             We retain your account and restaurant data for as long as your account is active. If you
                             delete your account, your records are removed or anonymized as described below, subject to
                             what we are required to retain for billing, tax, or legal recordkeeping (for example,
-                            Razorpay invoices).
+                            invoices).
                         </p>
                     </section>
 

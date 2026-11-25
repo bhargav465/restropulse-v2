@@ -19,7 +19,6 @@ describe('client-config', () => {
             apiUrl: 'https://api.staging.example.com/api',
             appUrl: 'https://staging.example.com',
             googleMapsApiKey: 'maps-key',
-            razorpayKeyId: 'rzp-key',
             appInsightsConnectionString: 'InstrumentationKey=abc',
             telemetrySampleRate: 50,
             firebase: {
@@ -57,6 +56,8 @@ describe('client-config', () => {
         expect(cfg.appUrl).toBe('http://localhost:3000');
         expect(cfg.telemetrySampleRate).toBe(100);
         expect(cfg.firebase.projectId).toBeTruthy();
+        // No payment gateway: the client config carries no gateway key.
+        expect(Object.keys(cfg).some((k) => /payment|gateway|checkout/i.test(k))).toBe(false);
     });
 
     it('falls back to import.meta.env values when the fetch throws (e.g. local dev, no sidecar file)', async () => {
