@@ -92,8 +92,6 @@ jobs:
           echo "::add-mask::$MAPS_KEY"
           APPINSIGHTS=$(get_secret WEB-APPINSIGHTS-CONNECTION-STRING)
           echo "::add-mask::$APPINSIGHTS"
-          RAZORPAY_KEY_ID=$(get_secret RAZORPAY-KEY-ID)
-          echo "::add-mask::$RAZORPAY_KEY_ID"
           RECAPTCHA_SITE_KEY=$(get_secret RECAPTCHA-SITE-KEY)
           echo "::add-mask::$RECAPTCHA_SITE_KEY"
           DEPLOY_GIT_SHA="${{ needs.resolve-ref.outputs.deploy-git-sha }}"
@@ -104,7 +102,6 @@ jobs:
             --arg apiUrl "${{ vars.PRODUCTION_API_URL }}/api" \
             --arg appUrl "${{ vars.PRODUCTION_WEB_URL }}" \
             --arg googleMapsApiKey "$MAPS_KEY" \
-            --arg razorpayKeyId "$RAZORPAY_KEY_ID" \
             --arg appInsightsConnectionString "$APPINSIGHTS" \
             --arg recaptchaSiteKey "$RECAPTCHA_SITE_KEY" \
             --argjson telemetrySampleRate 100 \
@@ -121,7 +118,6 @@ jobs:
               apiUrl: $apiUrl,
               appUrl: $appUrl,
               googleMapsApiKey: $googleMapsApiKey,
-              razorpayKeyId: $razorpayKeyId,
               appInsightsConnectionString: $appInsightsConnectionString,
               recaptchaSiteKey: $recaptchaSiteKey,
               telemetrySampleRate: $telemetrySampleRate,

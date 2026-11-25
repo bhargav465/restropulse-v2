@@ -41,19 +41,13 @@ export const AddressBody = z.object({
 });
 
 export const CheckoutBody = QuoteBody.extend({
-    paymentMethod: z.enum(['online', 'cash'], { errorMap: () => ({ message: 'Choose how you want to pay.' }) }),
+    // Orders are paid in cash at the counter, at the table or on delivery.
+    paymentMethod: z.literal('cash', { errorMap: () => ({ message: 'Orders are paid in cash.' }) }).optional(),
     customerName: requiredText(80, 'Add your name.'),
     customerPhone: phone,
     address: AddressBody.optional(),
     table: optionalText(16),
     notes: optionalText(300),
-});
-
-export const VerifyPaymentBody = z.object({
-    token: z.string().min(1).max(64),
-    razorpayOrderId: z.string().min(1).max(64),
-    razorpayPaymentId: z.string().min(1).max(64),
-    razorpaySignature: z.string().min(1).max(256),
 });
 
 export const TokenBody = z.object({ token: z.string().min(1).max(64) });
@@ -74,7 +68,6 @@ export const StatusBody = z.object({
 
 export const CancelBody = z.object({
     reason: requiredText(200, 'Say why the order is cancelled.'),
-    refund: z.boolean().optional(),
 });
 
 export const FeedQuery = z.object({
@@ -100,6 +93,5 @@ export const OrderingSettingsBody = z.object({
         }),
         pickup: z.object({ enabled: z.boolean() }),
         dineIn: z.object({ enabled: z.boolean() }),
-        cashAccepted: z.boolean(),
     }),
 });

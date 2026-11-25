@@ -34,7 +34,7 @@ import deliveryWebhookRoutes from './routes/delivery-webhooks.js';
 import { registerDeliveryDispatch } from './services/delivery/dispatch-hook.js';
 import { corsPolicy } from './middleware/cors-policy.js';
 import sitesPublicRoutes from './routes/sites-public.js';
-import paymentWebhookRoutes from './routes/payment-webhooks.js';
+import platformBillingRoutes from './routes/platform-billing.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createGlobalApiLimiter } from './middleware/rate-limit.js';
 import { createReadinessHandler } from './routes/health.js';
@@ -110,9 +110,6 @@ const env = loadAndValidateEnv({
         SECRETS_BACKEND: z.enum(['env', 'azure-kv']).default('env'),
         AZURE_KEY_VAULT_URL: z.string().url().optional(),
         AZURE_KEY_VAULT_KEY_PREFIX: z.string().optional(),
-        RAZORPAY_KEY_ID: z.string().min(1).optional(),
-        RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
-        RAZORPAY_WEBHOOK_SECRET: z.string().min(1).optional(),
         // Restaurant Intelligence (scan pipeline). Optional -- the Places/Anthropic
         // stages 503 gracefully when their key is absent, so reports/snapshots/
         // compare still serve on seeded data. Keys are available via content-engine.
@@ -173,9 +170,7 @@ app.use('/content', express.static(path.join(__dirname, '../public')));
 // Dashboard origins get credentialed CORS; restaurant websites on any domain
 // get open, cookie-less CORS on the public storefront/sites routes.
 app.use(corsPolicy([...CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean), 'http://localhost:3001']));
-// Razorpay webhook needs raw body for signature verification
-app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
-app.use('/api/webhooks/razorpay/orders', express.raw({ type: 'application/json' }));
+// Delivery-partner webhooks need the raw body for signature verification
 app.use('/api/webhooks/delivery', express.raw({ type: () => true, limit: '256kb' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -213,6 +208,7 @@ app.use('/api/posts', postsRoutes);
 app.use('/api/strategy', strategyRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/platform-admin/billing', platformBillingRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/credit-packs', creditPackRoutes);
 app.use('/api/invoices', invoiceRoutes);
@@ -226,7 +222,6 @@ app.use('/api/admin/delivery', adminDeliveryRoutes);
 // Public ordering API for restaurant sites (guest checkout, tracking).
 app.use('/api/storefront', storefrontRoutes);
 app.use('/api/sites', sitesPublicRoutes);
-app.use('/api/webhooks/razorpay/orders', paymentWebhookRoutes);
 app.use('/api/webhooks/delivery', deliveryWebhookRoutes);
 // Public lead-gen grader — deliberately unauthenticated; stricter per-route limits inside.
 app.use('/api/grader', graderRoutes);

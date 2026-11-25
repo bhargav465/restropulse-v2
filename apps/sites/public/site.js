@@ -16,8 +16,6 @@
   var attemptKey = 'rp-attempt-' + boot.slug;
 
   var STATUS_TEXT = {
-    PENDING_PAYMENT: 'Waiting for your payment',
-    PAYMENT_FAILED: "Your payment didn't go through",
     RECEIVED: 'The restaurant has your order',
     PREPARING: 'Being prepared',
     READY: 'Ready',
@@ -25,7 +23,14 @@
     COMPLETED: 'Done. Enjoy your meal!',
     CANCELLED: 'Cancelled'
   };
-  var ACTIVE = ['PENDING_PAYMENT', 'RECEIVED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'];
+  var ACTIVE = ['RECEIVED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'];
+
+  // No online payment: every order is paid in cash. Same lines as the checkout page.
+  var CASH_NOTE = {
+    delivery: 'Pay cash on delivery.',
+    pickup: 'Pay at the counter when you pick up.',
+    dine_in: 'Pay at your table.'
+  };
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -195,52 +200,11 @@
     return (boot.basePath || '') + '/order/' + encodeURIComponent(orderId) + '#t=' + encodeURIComponent(token);
   }
 
-  var razorpayLoading;
-  function loadRazorpay() {
-    if (window.Razorpay) return Promise.resolve();
-    if (!razorpayLoading) {
-      razorpayLoading = new Promise(function (resolve, reject) {
-        var s = document.createElement('script');
-        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        s.onload = function () { resolve(); };
-        s.onerror = function () { razorpayLoading = null; reject(new Error("The payment window couldn't load. Try again.")); };
-        document.head.appendChild(s);
-      });
-    }
-    return razorpayLoading;
-  }
-
-  function pay(order, token, payment, prefill) {
-    return loadRazorpay().then(function () {
-      return new Promise(function (resolve) {
-        var rzp = new window.Razorpay({
-          key: payment.keyId,
-          amount: payment.amount,
-          currency: payment.currency,
-          order_id: payment.providerOrderId,
-          name: boot.name,
-          description: 'Order ' + order.orderNumber,
-          prefill: prefill || {},
-          handler: function (r) {
-            request('POST', '/orders/' + encodeURIComponent(order.id) + '/payment/verify', {
-              token: token,
-              razorpayOrderId: r.razorpay_order_id,
-              razorpayPaymentId: r.razorpay_payment_id,
-              razorpaySignature: r.razorpay_signature
-            }).then(function () { resolve('paid'); }, function () { resolve('check'); });
-          },
-          modal: { ondismiss: function () { resolve('dismissed'); } }
-        });
-        rzp.open();
-      });
-    });
-  }
-
   function placeOrder(e) {
     e.preventDefault();
     var button = $('[data-place-order]', form);
     var body = cartBody();
-    body.paymentMethod = checked('paymentMethod');
+    body.paymentMethod = 'cash';
     body.customerName = value('customerName');
     body.customerPhone = value('customerPhone');
     if (value('notes')) body.notes = value('notes');
@@ -264,13 +228,9 @@
     showError(form, '');
     request('POST', '/orders', body, { 'Idempotency-Key': attempt.key }).then(function (data) {
       rememberOrder(data.order, data.trackingToken);
-      var go = function () {
-        cart = []; saveCart();
-        try { localStorage.removeItem(attemptKey); } catch (err) { /* ignore */ }
-        window.location.assign(trackingUrl(data.order.id, data.trackingToken));
-      };
-      if (!data.payment) return go();
-      return pay(data.order, data.trackingToken, data.payment, { name: body.customerName, contact: body.customerPhone }).then(go, go);
+      cart = []; saveCart();
+      try { localStorage.removeItem(attemptKey); } catch (err) { /* ignore */ }
+      window.location.assign(trackingUrl(data.order.id, data.trackingToken));
     }).catch(function (err) {
       showError(form, err.message);
     }).then(function () { button.disabled = false; });
@@ -317,7 +277,7 @@
     var m = /(?:^|[#&])t=([^&]+)/.exec(window.location.hash);
     var token = m ? decodeURIComponent(m[1]) : load(ordersKey, {})[id];
     var statusEl = $('[data-track-status]', root);
-    var payBtn = $('[data-pay-again]', root);
+    var payEl = $('[data-track-pay]', root);
     if (!token) {
       statusEl.textContent = "Open this page from the link on the device you ordered on to see your order.";
       return;
@@ -359,10 +319,12 @@
         tl.appendChild(li);
       });
       renderTotals($('[data-track-totals]', root), order.totals, order.offer);
-      var needsPay = order.paymentMethod === 'online' && (order.status === 'PENDING_PAYMENT' || order.status === 'PAYMENT_FAILED');
-      payBtn.hidden = !needsPay;
+      var active = ACTIVE.indexOf(order.status) !== -1;
+      var note = CASH_NOTE[order.orderType];
+      payEl.textContent = active && note ? 'Payment: ' + note : '';
+      payEl.hidden = !(active && note);
       clearTimeout(timer);
-      if (ACTIVE.indexOf(order.status) !== -1) timer = setTimeout(refresh, 15000);
+      if (active) timer = setTimeout(refresh, 15000);
     }
 
     function refresh() {
@@ -374,13 +336,6 @@
         if (err.status !== 404) timer = setTimeout(refresh, 30000);
       });
     }
-
-    payBtn.addEventListener('click', function () {
-      payBtn.disabled = true;
-      request('POST', '/orders/' + encodeURIComponent(id) + '/payment/retry', { token: token }).then(function (data) {
-        return pay(data.order, token, data.payment).then(refresh);
-      }).catch(function (err) { showError(root, err.message); }).then(function () { payBtn.disabled = false; });
-    });
 
     refresh();
   }

@@ -7,7 +7,6 @@ function buildFallbackConfig(): ClientConfig {
         apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
         appUrl: import.meta.env.VITE_APP_URL || 'http://localhost:3000',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-        razorpayKeyId: import.meta.env.VITE_RAZORPAY_KEY_ID || '',
         appInsightsConnectionString: import.meta.env.VITE_APPINSIGHTS_CONNECTION_STRING || '',
         telemetrySampleRate: Number(import.meta.env.VITE_TELEMETRY_SAMPLE_RATE) || 100,
         firebase: {

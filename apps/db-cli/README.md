@@ -84,13 +84,9 @@ Seeds the database with test data.
 
 Options:
 - `--clean` - Clear existing data before seeding
-- `--allow-missing-razorpay` - Bypass Razorpay plan ID completeness check (not recommended)
 
 #### `reset`
 Drops all collections and recreates an empty database with schema validators and indexes. This gives you a fresh database as if the application has just started.
-
-Options:
-- `--allow-missing-razorpay` - Bypass Razorpay plan ID completeness check (not recommended)
 
 #### `atlas-inventory`
 Lists all cluster users/roles and databases into a sanitized JSON report under `reports/atlas/`.

@@ -179,10 +179,9 @@ Private
 - [x] Content approval workflow (approve/request changes/revert)
 - [x] New user onboarding flow (multi-step registration with Google Maps)
 - [x] Account manager assignment during onboarding
-- [x] Razorpay subscription payments (Starter/Growth/Premium plans)
-- [x] Unified credit system with credit packs
-- [x] Coupon system with Razorpay Offers integration
-- [x] Invoice generation (auto from webhooks + credit purchases)
+- [x] Subscription plans (Starter/Growth/Premium), requested by the owner and activated manually by a platform admin
+- [x] Unified credit system (credit top-ups granted by a platform admin)
+- [x] Coupon system (applied when a requested plan is activated)
 - [x] Plan limit enforcement middleware
 - [x] ADMIN role with role-based access control
 

@@ -64,9 +64,9 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
                         <h2>Free trial and subscriptions</h2>
                         <ul>
                             <li>New accounts start with a free trial (no card required) for a limited number of days shown at signup.</li>
-                            <li>Paid plans are billed monthly or annually through Razorpay, in INR, exclusive of applicable taxes (e.g. GST).</li>
-                            <li>Some post types consume credits from your plan's included allowance (for example, image posts, carousels, and reels have different credit costs). Additional credits can be purchased separately as credit packs.</li>
-                            <li>If a payment fails, your subscription may enter a past-due or halted state per Razorpay's retry schedule; continued non-payment may result in suspension of paid features until resolved or cancelled.</li>
+                            <li>Paid plans are billed monthly or annually in INR, exclusive of applicable taxes (e.g. GST). Payment is arranged directly with RestroPulse: you request a plan in the app, and the RestroPulse team contacts you to arrange payment before the plan is switched on.</li>
+                            <li>Some post types consume credits from your plan's included allowance (for example, image posts, carousels, and reels have different credit costs). Additional credits can be added as credit packs by the RestroPulse team on request.</li>
+                            <li>If payment for a billing period is not received, your subscription may enter a past-due or halted state; continued non-payment may result in suspension of paid features until resolved or cancelled.</li>
                         </ul>
                     </section>
 
@@ -76,7 +76,7 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
                             <li>You can cancel your subscription at any time from Profile &gt; Subscription in the app.</li>
                             <li>When you cancel, your current plan and its features remain active until the end of the billing period you already paid for. After that, your account moves to free/credit-based usage rather than being deleted.</li>
                             <li>Fees already paid are non-refundable for the remaining portion of a billing period, except where required by applicable law.</li>
-                            <li>Purchased one-time credit packs are non-refundable once the purchase is completed, except where required by applicable law.</li>
+                            <li>Credit packs are non-refundable once the credits have been added to your account, except where required by applicable law.</li>
                             <li>We may suspend or cancel a subscription for non-payment, fraud, or breach of these Terms.</li>
                         </ul>
                     </section>
@@ -107,7 +107,7 @@ const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
                             Publishing depends on the Meta Graph API and your connected Instagram/Facebook account
                             remaining authorized and in good standing. RestroPulse is not responsible for outages,
                             API changes, rate limits, or account actions (including suspensions) taken by Meta,
-                            Google, Razorpay, or any other third-party platform we integrate with.
+                            Google, or any other third-party platform we integrate with.
                         </p>
                     </section>
 

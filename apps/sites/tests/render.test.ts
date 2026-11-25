@@ -138,12 +138,28 @@ describe('home page', () => {
         expect(html).toContain('role="status">Open on Diwali');
         expect(html).toContain('value="delivery" checked');
         expect(html).not.toContain('value="dine_in"');
-        expect(html).toContain('value="online" checked');
         expect(html).toContain('href="/p/catering"');
         expect(html).not.toContain('/p/secret');
     });
 
-    it('puts boot data in a JSON block for the script', () => {
+    it('the checkout shows how to pay in cash instead of payment choices', () => {
+        expect(html).not.toContain('name="paymentMethod"');
+        expect(html).not.toContain('Pay online');
+        expect(html).not.toContain('<legend>Payment</legend>');
+        expect(html).toContain('data-cash-note');
+        // One line per enabled order type, shown by site.js for the chosen type.
+        expect(html).toContain('<p data-when="delivery"><strong>Payment:</strong> Pay cash on delivery.</p>');
+        expect(html).toContain('<p data-when="pickup"><strong>Payment:</strong> Pay at the counter when you pick up.</p>');
+        expect(html).not.toContain('Pay at your table.');
+        const dineIn = sampleConfig();
+        dineIn.ordering.orderTypes = { delivery: false, pickup: false, dineIn: true };
+        const out = renderHome(ctx({ config: dineIn }));
+        expect(out).toContain('<p data-when="dine_in"><strong>Payment:</strong> Pay at your table.</p>');
+        expect(out).not.toContain('Pay cash on delivery.');
+        expect(out).not.toContain('name="paymentMethod"');
+    });
+
+        it('puts boot data in a JSON block for the script', () => {
         const m = /<script type="application\/json" id="rp-boot">(.*?)<\/script>/.exec(html);
         expect(JSON.parse(m![1])).toMatchObject({ apiUrl: 'https://api.restropulse.in', slug: 'bawarchi', basePath: '', page: 'home' });
     });
@@ -198,6 +214,9 @@ describe('other pages', () => {
         expect(out).toContain('data-order-id="ord1"');
         expect(out).toContain('"page":"track"');
         expect(out).toContain('data-track-rider hidden');
+        expect(out).toContain('data-track-pay hidden');
+        expect(out).not.toContain('data-pay-again');
+        expect(out).not.toContain('Pay now');
     });
 
     it('plain pages', () => {

@@ -60,7 +60,6 @@ export const SEED_DATA: Record<string, any[]> = {
                 dailyAdhoc: { INSTAGRAM: { IMAGE: 1, STORY: 1, CAROUSEL: 1, REEL: 1, VIDEO: 1 } },
             },
             pricing: { monthly: 299900, annual: 2999000, currency: 'INR' },
-            razorpayPlanIds: { monthly: '', annual: '' },
             features: ['INSTAGRAM'],
         },
         {
@@ -75,7 +74,6 @@ export const SEED_DATA: Record<string, any[]> = {
                 dailyAdhoc: { INSTAGRAM: { IMAGE: 2, STORY: 2, CAROUSEL: 1, REEL: 1, VIDEO: 1 }, FACEBOOK: { IMAGE: 2, CAROUSEL: 1, VIDEO: 1, STORY: 1 } },
             },
             pricing: { monthly: 999900, annual: 9999000, currency: 'INR' },
-            razorpayPlanIds: { monthly: '', annual: '' },
             features: ['INSTAGRAM', 'FACEBOOK'],
         },
         {
@@ -90,7 +88,6 @@ export const SEED_DATA: Record<string, any[]> = {
                 dailyAdhoc: { INSTAGRAM: { IMAGE: 3, STORY: 3, CAROUSEL: 2, REEL: 2, VIDEO: 2 }, FACEBOOK: { IMAGE: 3, CAROUSEL: 2, VIDEO: 2, STORY: 2 } },
             },
             pricing: { monthly: 1699900, annual: 16999000, currency: 'INR' },
-            razorpayPlanIds: { monthly: '', annual: '' },
             features: ['INSTAGRAM', 'FACEBOOK'],
         },
     ],

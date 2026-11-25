@@ -9,7 +9,7 @@ import type { Order, OrderStatus, RestaurantOrderingSettings } from '@restropuls
 import {
     canTransitionOrderStatus, isOrderStatus, isValidRestaurantSlug, resolveOrderingSettings, ACTIVE_ORDER_STATUSES,
 } from '@restropulse/shared';
-import type { AdminOrder, OrderFeed, OrderingSettingsView, RefundOutcome } from './api';
+import type { AdminOrder, OrderFeed, OrderingSettingsView } from './api';
 import { notifyDemoBackendAction } from './lib/demo';
 
 const RID = 'demo-r1';
@@ -31,7 +31,7 @@ function order(id: string, n: string, status: OrderStatus, over: Partial<AdminOr
         statusHistory: [{ status, at, by: 'customer' }],
         items: [{ menuItemId: 'demo-item-3', categoryId: 'demo-cat-2', name: 'Hyderabadi Dum Biryani', qty: 1, unitPrice: 420, lineTotal: 420 }],
         totals: { subtotal: 420, discount: 0, deliveryFee: 0, deliveryDiscount: 0, tax: 21, total: 441 },
-        paymentMethod: 'online', paymentStatus: 'paid',
+        paymentMethod: 'cash',
         customerName: '[SAMPLE] Guest', customerPhone: '+910000000000',
         createdAt: at, updatedAt: at,
         ...over,
@@ -47,7 +47,6 @@ function seed(): DemoOrdersState {
             delivery: { enabled: true, flatFee: 40, minOrder: 200, freeAbove: 800 },
             pickup: { enabled: true },
             dineIn: { enabled: false },
-            cashAccepted: true,
         },
         orders: [
             order('demo-ord-1', 'RP-DEMO01', 'RECEIVED', {
@@ -60,7 +59,7 @@ function seed(): DemoOrdersState {
                 totals: { subtotal: 800, discount: 0, deliveryFee: 0, deliveryDiscount: 0, tax: 40, total: 840 },
                 notes: 'Less spicy, please',
             }, 3),
-            order('demo-ord-2', 'RP-DEMO02', 'PREPARING', { customerName: '[SAMPLE] Ravi', paymentMethod: 'cash', paymentStatus: 'not_required' }, 12),
+            order('demo-ord-2', 'RP-DEMO02', 'PREPARING', { customerName: '[SAMPLE] Ravi' }, 12),
             order('demo-ord-3', 'RP-DEMO03', 'READY', { customerName: '[SAMPLE] Meera' }, 25),
             order('demo-ord-4', 'RP-DEMO04', 'COMPLETED', { customerName: '[SAMPLE] Kiran' }, 180),
         ],
@@ -87,7 +86,7 @@ function move(o: AdminOrder, to: OrderStatus, note?: string, extra: Partial<Admi
 }
 
 function settingsView(): OrderingSettingsView {
-    return { slug: state.slug, suggestedSlug: state.slug ?? 'demo-kitchen', ordering: clone(state.ordering), onlinePaymentsAvailable: true };
+    return { slug: state.slug, suggestedSlug: state.slug ?? 'demo-kitchen', ordering: clone(state.ordering) };
 }
 
 export const ordersAPI = {
@@ -116,14 +115,13 @@ export const ordersAPI = {
         notifyDemoBackendAction();
         return clone(o);
     },
-    cancel: async (id: string, reason: string, refund = true): Promise<{ order: AdminOrder; refund: RefundOutcome }> => {
+    cancel: async (id: string, reason: string): Promise<{ order: AdminOrder }> => {
         await delay();
         const o = find(id);
         if (!canTransitionOrderStatus(o.status, 'CANCELLED', o.orderType)) throw new Error('This order can no longer be cancelled.');
-        const refunds = refund && o.paymentMethod === 'online' && o.paymentStatus === 'paid';
-        move(o, 'CANCELLED', reason, { cancelReason: reason, ...(refunds ? { paymentStatus: 'refund_pending' } : {}) });
+        move(o, 'CANCELLED', reason, { cancelReason: reason });
         notifyDemoBackendAction();
-        return { order: clone(o), refund: refunds ? 'requested' : 'none' };
+        return { order: clone(o) };
     },
     getSettings: async (): Promise<OrderingSettingsView> => {
         await delay();

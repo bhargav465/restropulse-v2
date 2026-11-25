@@ -20,7 +20,6 @@ export interface SiteOrdering {
     orderTypes: { delivery: boolean; pickup: boolean; dineIn: boolean };
     delivery: { flatFee: number; minOrder: number; freeAbove?: number };
     taxRatePercent: number;
-    payment: { online: boolean; cash: boolean };
 }
 
 export interface SiteConfig {

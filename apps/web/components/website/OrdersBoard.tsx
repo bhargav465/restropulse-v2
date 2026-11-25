@@ -20,20 +20,18 @@ const NEXT_LABELS: Partial<Record<OrderStatus, string>> = {
     COMPLETED: 'Complete',
 };
 
-const PAYMENT_LABELS: Record<AdminOrder['paymentStatus'], string> = {
-    not_required: 'Cash',
-    pending: 'Awaiting payment',
-    paid: 'Paid online',
-    failed: 'Payment failed',
-    refund_pending: 'Refund in progress',
-    refunded: 'Refunded',
+/** Every order is paid in cash; say where the customer pays. */
+const PAYMENT_LABELS: Record<AdminOrder['orderType'], string> = {
+    delivery: 'Cash on delivery',
+    pickup: 'Cash at pickup',
+    dine_in: 'Cash at the table',
 };
 
 function statusTone(status: OrderStatus): 'primary' | 'success' | 'warning' | 'danger' | 'muted' {
     if (status === 'RECEIVED') return 'primary';
     if (status === 'PREPARING' || status === 'READY' || status === 'OUT_FOR_DELIVERY') return 'warning';
     if (status === 'COMPLETED') return 'success';
-    if (status === 'CANCELLED' || status === 'PAYMENT_FAILED') return 'danger';
+    if (status === 'CANCELLED') return 'danger';
     return 'muted';
 }
 
@@ -58,14 +56,12 @@ const OrderCard: React.FC<{
     order: AdminOrder;
     busy: boolean;
     onMove: (to: OrderStatus) => void;
-    onCancel: (reason: string, refund: boolean) => void;
+    onCancel: (reason: string) => void;
     onRiderChanged: (orderId: string) => void;
 }> = ({ order, busy, onMove, onCancel, onRiderChanged }) => {
     const [cancelling, setCancelling] = useState(false);
     const [reason, setReason] = useState('');
-    const [refund, setRefund] = useState(true);
     const next = restaurantNextStatuses(order);
-    const paidOnline = order.paymentMethod === 'online' && order.paymentStatus === 'paid';
 
     return (
         <Card className="space-y-3" p="p-4">
@@ -100,13 +96,13 @@ const OrderCard: React.FC<{
             {order.notes && <p className="text-sm italic text-[var(--rp-muted)]">“{order.notes}”</p>}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--rp-line)] pt-3 text-sm">
                 <span className="text-[var(--rp-muted)]">
-                    {PAYMENT_LABELS[order.paymentStatus]}
+                    {PAYMENT_LABELS[order.orderType]}
                     {order.offer && <> · {order.offer.title}</>}
                 </span>
                 <span className="font-bold text-[var(--rp-text)] tabular-nums">{rupees(order.totals.total)}</span>
             </div>
             {order.cancelReason && <p className="text-sm text-[var(--rp-danger)]">Cancelled: {order.cancelReason}</p>}
-            {order.orderType === 'delivery' && order.status !== 'PENDING_PAYMENT' && order.status !== 'PAYMENT_FAILED' && (
+            {order.orderType === 'delivery' && (
                 <OrderRider order={order} onOrderChanged={onRiderChanged} />
             )}
 
@@ -131,14 +127,8 @@ const OrderCard: React.FC<{
                             placeholder="Out of stock, kitchen closing…"
                         />
                     </label>
-                    {paidOnline && (
-                        <label className="flex items-center gap-2 text-sm text-[var(--rp-text)]">
-                            <input type="checkbox" checked={refund} onChange={(e) => setRefund(e.target.checked)} />
-                            Refund {rupees(order.totals.total)} to the customer
-                        </label>
-                    )}
                     <div className="flex gap-2">
-                        <Button disabled={busy || !reason.trim()} onClick={() => onCancel(reason.trim(), paidOnline && refund)}>Confirm cancel</Button>
+                        <Button disabled={busy || !reason.trim()} onClick={() => onCancel(reason.trim())}>Confirm cancel</Button>
                         <Button variant="secondary" disabled={busy} onClick={() => setCancelling(false)}>Keep order</Button>
                     </div>
                 </div>
@@ -149,7 +139,7 @@ const OrderCard: React.FC<{
 
 /**
  * Live order board: open orders refresh every 15 seconds; each card offers the
- * next allowed status (from the shared status machine) and cancel with refund.
+ * next allowed status (from the shared status machine) and cancel.
  */
 const OrdersBoard: React.FC = () => {
     const [view, setView] = useState<View>('active');
@@ -221,17 +211,13 @@ const OrdersBoard: React.FC = () => {
         }
     };
 
-    const cancel = async (order: AdminOrder, reason: string, refund: boolean) => {
+    const cancel = async (order: AdminOrder, reason: string) => {
         setBusyId(order.id);
         try {
-            const result = await ordersAPI.cancel(order.id, reason, refund);
+            const result = await ordersAPI.cancel(order.id, reason);
             replace(result.order);
             setError(null);
-            setNotice(result.refund === 'requested'
-                ? `${order.orderNumber} cancelled. The refund is on its way to the customer.`
-                : result.refund === 'failed'
-                    ? `${order.orderNumber} cancelled, but the refund didn't go through. Refund it from your Razorpay dashboard.`
-                    : `${order.orderNumber} cancelled.`);
+            setNotice(`${order.orderNumber} cancelled.`);
         } catch (e) {
             setError((e as Error).message);
         } finally {
@@ -269,7 +255,7 @@ const OrdersBoard: React.FC = () => {
             )}
             <div className="grid gap-3 md:grid-cols-2">
                 {orders.map((o) => (
-                    <OrderCard key={o.id} order={o} busy={busyId === o.id} onMove={(to) => void move(o, to)} onCancel={(r, refund) => void cancel(o, r, refund)} onRiderChanged={(id) => void refreshOrder(id)} />
+                    <OrderCard key={o.id} order={o} busy={busyId === o.id} onMove={(to) => void move(o, to)} onCancel={(r) => void cancel(o, r)} onRiderChanged={(id) => void refreshOrder(id)} />
                 ))}
             </div>
         </div>

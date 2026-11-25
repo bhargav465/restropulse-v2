@@ -529,77 +529,51 @@ export const subscriptionAPI = {
         return response.data!;
     },
 
-    subscribe: async (planSlug: string, couponCode?: string): Promise<{ subscriptionId: string; keyId: string }> => {
-        const response = await fetchAPI<ApiResponse<{ subscriptionId: string; keyId: string }>>('/subscriptions/subscribe', {
+    /**
+     * Request a plan (billing is manual: no checkout). The request is stored as
+     * the subscription's pending plan until the RestroPulse team confirms
+     * payment and switches it on. 409 when a plan is already ACTIVE -- use
+     * changePlan then.
+     */
+    subscribe: async (planSlug: string, couponCode?: string): Promise<{ requested: true; planName: string }> => {
+        const response = await fetchAPI<ApiResponse<{ requested: true; planName: string }>>('/subscriptions/subscribe', {
             method: 'POST',
-            body: JSON.stringify({ planSlug, billingCycle: 'MONTHLY', couponCode }),
+            body: JSON.stringify({ planSlug, ...(couponCode ? { couponCode } : {}) }),
         });
         return response.data!;
     },
 
-    cancel: async (): Promise<void> => {
-        await fetchAPI('/subscriptions/cancel', { method: 'POST' });
+    /**
+     * Schedules cancellation of an ACTIVE plan at the end of its paid period
+     * (and withdraws any pending request); with no active plan, withdraws the
+     * pending plan request.
+     */
+    cancel: async (): Promise<{ success: boolean; message?: string }> => {
+        return fetchAPI<{ success: boolean; message?: string }>('/subscriptions/cancel', { method: 'POST' });
     },
 
-    changePlan: async (planSlug: string, opts?: { mode?: 'now' | 'cycle_end' }): Promise<{
-        effective: 'immediate' | 'cycle_end';
-        planName: string;
-        currentPeriodEnd?: string | Date;
-        requiresCheckout?: boolean;
-        subscriptionId?: string;
-        keyId?: string;
-    }> => {
-        const response = await fetchAPI<ApiResponse<{
-            effective: 'immediate' | 'cycle_end';
-            planName: string;
-            currentPeriodEnd?: string | Date;
-            requiresCheckout?: boolean;
-            subscriptionId?: string;
-            keyId?: string;
-        }>>('/subscriptions/change-plan', {
+    /** Request a switch from the active plan. `requested: false` when it is already the current plan and nothing is pending. */
+    changePlan: async (planSlug: string): Promise<{ requested: boolean; planName: string }> => {
+        const response = await fetchAPI<ApiResponse<{ requested: boolean; planName: string }>>('/subscriptions/change-plan', {
             method: 'POST',
-            body: JSON.stringify({
-                planSlug,
-                billingCycle: 'MONTHLY',
-                ...(opts?.mode ? { mode: opts.mode } : {}),
-            }),
+            body: JSON.stringify({ planSlug }),
         });
         return response.data!;
     },
 
-    reactivate: async (): Promise<{ requiresCheckout: true; subscriptionId: string; keyId: string }> => {
-        const res = await fetchAPI<ApiResponse<{ requiresCheckout: true; subscriptionId: string; keyId: string }>>(
+    /** Withdraw a pending plan request; the current plan (if any) is untouched. */
+    withdrawRequest: async (): Promise<{ withdrawn: true }> => {
+        const res = await fetchAPI<ApiResponse<{ withdrawn: true }>>('/subscriptions/withdraw-request', { method: 'POST' });
+        return res.data!;
+    },
+
+    /** Undo a scheduled cancellation. */
+    reactivate: async (): Promise<{ reactivated: true }> => {
+        const res = await fetchAPI<ApiResponse<{ reactivated: true }>>(
             '/subscriptions/reactivate',
             { method: 'POST' },
         );
         return res.data!;
-    },
-
-    purchaseCredits: async (creditPackId: string): Promise<{ orderId: string; amount: number; currency: string; keyId: string; credits: number }> => {
-        const response = await fetchAPI<ApiResponse<{ orderId: string; amount: number; currency: string; keyId: string; credits: number }>>('/subscriptions/credits/purchase', {
-            method: 'POST',
-            body: JSON.stringify({ creditPackId }),
-        });
-        return response.data!;
-    },
-
-    verifyCredits: async (razorpayOrderId: string, razorpayPaymentId: string, razorpaySignature: string): Promise<void> => {
-        await fetchAPI('/subscriptions/credits/verify', {
-            method: 'POST',
-            body: JSON.stringify({ razorpayOrderId, razorpayPaymentId, razorpaySignature }),
-        });
-    },
-
-    verifySubscription: async (
-        razorpayPaymentId: string,
-        razorpaySubscriptionId: string,
-        razorpaySignature: string,
-    ): Promise<{ status: string; subscriptionId: string }> => {
-        const response = await fetchAPI<ApiResponse<{ status: string; subscriptionId: string }>>('/subscriptions/verify', {
-            method: 'POST',
-            body: JSON.stringify({ razorpayPaymentId, razorpaySubscriptionId, razorpaySignature }),
-        });
-        return response.data!;
     },
 };
 
@@ -1066,10 +1040,7 @@ export interface OrderingSettingsView {
     slug: string | null;
     suggestedSlug: string;
     ordering: RestaurantOrderingSettings;
-    onlinePaymentsAvailable: boolean;
 }
-
-export type RefundOutcome = 'none' | 'requested' | 'failed';
 
 const realOrdersAPI = {
     /** status: 'active' (kitchen), 'all', or comma-separated statuses. */
@@ -1085,8 +1056,8 @@ const realOrdersAPI = {
         (await fetchAPI<ApiResponse<AdminOrder>>(`/admin/orders/${id}`)).data!,
     setStatus: async (id: string, to: OrderStatus, note?: string): Promise<AdminOrder> =>
         (await fetchAPI<ApiResponse<AdminOrder>>(`/admin/orders/${id}/status`, cmsJson('POST', { to, ...(note ? { note } : {}) }))).data!,
-    cancel: async (id: string, reason: string, refund = true): Promise<{ order: AdminOrder; refund: RefundOutcome }> =>
-        (await fetchAPI<ApiResponse<{ order: AdminOrder; refund: RefundOutcome }>>(`/admin/orders/${id}/cancel`, cmsJson('POST', { reason, refund }))).data!,
+    cancel: async (id: string, reason: string): Promise<{ order: AdminOrder }> =>
+        (await fetchAPI<ApiResponse<{ order: AdminOrder }>>(`/admin/orders/${id}/cancel`, cmsJson('POST', { reason }))).data!,
     getSettings: async (): Promise<OrderingSettingsView> =>
         (await fetchAPI<ApiResponse<OrderingSettingsView>>('/admin/orders/settings')).data!,
     saveSettings: async (input: { slug?: string; ordering: RestaurantOrderingSettings }): Promise<OrderingSettingsView> =>

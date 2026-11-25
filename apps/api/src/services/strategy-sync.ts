@@ -2,11 +2,11 @@
  * Strategy Sync Service
  *
  * Ensures every restaurant with an active subscription has a StrategyCycle
- * for their current billing period. Called from subscription webhook handlers.
+ * for their current billing period.
  *
  * Design principles:
  * - Idempotent: calling multiple times for the same billing period is safe
- * - Billing-period aligned: cycle dates = Razorpay billing period dates
+ * - Billing-period aligned: cycle dates = the subscription's billing period dates
  * - Archival: ACTIVE cycles from expired billing periods are moved to HISTORY
  */
 

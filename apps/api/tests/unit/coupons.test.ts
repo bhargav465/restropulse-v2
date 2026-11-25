@@ -24,18 +24,6 @@ vi.mock('@restropulse/db', async (importOriginal) => {
     };
 });
 
-vi.mock('../../src/services/razorpay.js', () => ({
-    createRazorpayOffer: vi.fn().mockResolvedValue({ id: 'offer_rzp_1' }),
-    createRazorpaySubscription: vi.fn(),
-    cancelRazorpaySubscription: vi.fn(),
-    createRazorpayOrder: vi.fn(),
-    verifyWebhookSignature: vi.fn(),
-    verifyPaymentSignature: vi.fn(),
-    getRazorpayKeyId: vi.fn().mockReturnValue('rzp_test_key'),
-    fetchRazorpayInvoice: vi.fn(),
-    listRazorpayInvoices: vi.fn(),
-}));
-
 const { createTestApp, generateAuthToken, generateAdminAuthToken } = await import('../helpers/testHelper.js');
 
 const authToken = generateAuthToken();

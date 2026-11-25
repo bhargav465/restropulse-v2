@@ -25,7 +25,7 @@
 | A2 approval-queue UX       |              | B2 tenant + custom domains       |
 | A3 video / reels           |              | B3 sites host + SEO              |
 | A4 Meta publishing         |              | B4 delivery provider layer       |
-| A5 restaurant profile,     |              | B5 payments completion           |
+| A5 restaurant profile,     |              | B5 cash checkout + delivery fees |
 |    landing, grader funnel  |              | B6 CMS (menu/offers/content)     |
 +-------------+--------------+              +--------------+-------------------+
               |                                            |
@@ -136,7 +136,7 @@ Port, do not rewrite. Source `origin/feat/vercel-deploy` -> base `baxeltech-stag
 |---|---|
 | `packages/shared/src/ordering.ts` | add `Shipment`, `DeliveryQuote`, `RestaurantDomain`, `Offer` types |
 | `packages/db` indexes + seeds (`ordering-demo.ts`) | reuse `packages/secrets` for config |
-| `apps/api/src/routes/storefront.ts`, `admin-ordering.ts`, `services/ordering/*` | rebase on Azure-line `server.ts`, `instrument.ts`, `helmet`, zod validation; reuse `services/razorpay.ts` |
+| `apps/api/src/routes/storefront.ts`, `admin-ordering.ts`, `services/ordering/*` | rebase on Azure-line `server.ts`, `instrument.ts`, `helmet`, zod validation |
 | `apps/storefront` | rename to `apps/sites` (it becomes the per-restaurant website, not just a store) |
 | `apps/web/components/ordering/*` | mount in the v1 shell as buckets Website - Menu - Orders - Delivery (flagged `VITE_ORDERING=true`) |
 | `apps/db-cli/seed-ordering.ts` | keep `[SAMPLE]` marking |
@@ -192,14 +192,13 @@ Dispatcher (`apps/api/src/services/delivery/dispatcher.ts`), triggered by order 
 2. `createShipment` on the winner; on failure try next provider; on all-fail -> `self` adapter + nudge "assign a rider"
 3. persist `shipments` doc; order gets `shipmentId`
 
-Reliability: outbox collection `delivery_jobs { type, payload, attempts, nextRunAt, status }` processed by a new worker `apps/dispatch-worker` (copy of the publisher pattern) -- the API never calls an aggregator inline. Webhooks at `POST /api/webhooks/delivery/:provider` with signature verify + idempotency (`provider+eventId` unique index) + raw-body parsing like the Razorpay webhook. Tracking page reads `shipments.events`.
+Reliability: outbox collection `delivery_jobs { type, payload, attempts, nextRunAt, status }` processed by a new worker `apps/dispatch-worker` (copy of the publisher pattern) -- the API never calls an aggregator inline. Webhooks at `POST /api/webhooks/delivery/:provider` with signature verify + idempotency (`provider+eventId` unique index) + raw-body parsing. Tracking page reads `shipments.events`.
 
 Adapters at Launch 2: `mock` (deterministic timeline for tests/demo), `self` (merchant marks states manually), `middleware` (the chosen platform; carries the underlying carrier -- Rapido, Shadowfax -- as `shipment.carrier`). **Hard dependency:** a merchant account + API key + webhook secret on the chosen middleware, from Bhargav, before the real adapter starts; the interface, mock, self and dispatcher do not wait for it.
 
-### B5 - Payments completion
+### B5 - Cash checkout and delivery fees
 
-- Reuse `services/razorpay.ts`; add `payment.captured` / `payment.failed` handling for storefront orders to the existing webhook route (today only `/payments/verify` confirms) so a closed browser tab still confirms the order.
-- Refund on merchant cancel after capture (`refunds` via Razorpay API, idempotent on orderId).
+- Storefront orders are cash only: cash on delivery, pay at the counter for pickup, pay at the table for dine-in. A placed order goes straight to `RECEIVED`; there is no online payment gateway, payment webhook or refund path. Cancelling an order needs no refund step.
 - **Delivery fee rules engine (owner decision B5-1: fully configurable by the restaurant; depends on customer location, time and restaurant).** The fee the customer pays is computed server-side by `services/delivery/fee-rules.ts` from `restaurant.deliverySettings.feeRules`, evaluated top-down, first match wins:
 
   ```ts
@@ -220,7 +219,7 @@ Adapters at Launch 2: `mock` (deterministic timeline for tests/demo), `self` (me
     surcharge?: { kind: 'flat' | 'pct'; amount: number; label: string };                  // e.g. rain / late-night
   }
   ```
-  Default rule set seeded per restaurant: `pass_through` with 0 markup. The admin "Delivery" bucket edits rules with a live preview ("a 4.2 km order at 9:30 pm on Saturday pays Rs 49"). The customer-facing quote is computed at checkout (`POST /payments/intent` includes `deliveryFee` and the matched `ruleId` in `OrderTotals`), re-validated server-side at order creation, and never trusted from the client. Provider cost vs customer fee is stored on the shipment so the merchant sees margin per order.
+  Default rule set seeded per restaurant: `pass_through` with 0 markup. The admin "Delivery" bucket edits rules with a live preview ("a 4.2 km order at 9:30 pm on Saturday pays Rs 49"). The customer-facing quote is computed at checkout (`POST /api/storefront/:slug/quote` includes `deliveryFee` and the matched `ruleId` in `OrderTotals`), re-validated server-side at order creation, and never trusted from the client. Provider cost vs customer fee is stored on the shipment so the merchant sees margin per order.
 
 ### B6 - CMS
 
@@ -237,7 +236,7 @@ Already exists after B1: menu CRUD + CSV import, content draft/publish/rollback 
 | `restaurant_domains` | new | hostname (unique), status, verifyToken, sslStatus |
 | `shipments` | new | orderId, provider, externalId, status, events[], quote, cost |
 | `delivery_jobs` | new | outbox; `nextRunAt` index |
-| `webhook_events` | new | `provider+eventId` unique (delivery + razorpay share it) |
+| `webhook_events` | new | `provider+eventId` unique (delivery webhooks) |
 | `offers` | new | restaurantId, rule, validity |
 | `publish_failures` | new (Lane A) | postId, classification, raw error |
 
@@ -260,7 +259,7 @@ Already exists after B1: menu CRUD + CSV import, content draft/publish/rollback 
 | 2 | A1 PR3 art-director + fixture eval | B2 tenant resolution, `/r/:slug`, `restaurant_domains`, admin "Add domain" |
 | 3 | A2 approval-queue UX + A4 Meta reliability | B3 `apps/sites` host + SEO head + sitemap; Cloudflare for SaaS wiring |
 | 4 | A3 video retries + A5 profile/landing/grader | B4 interface + mock + self + dispatcher + dispatch-worker + webhooks; ADR 0004 middleware choice |
-| 5 | **Launch 1:** staging soak, E2E, production promotion | B5 payments completion + fee rules engine |
+| 5 | **Launch 1:** staging soak, E2E, production promotion | B5 cash checkout + fee rules engine |
 | 6 | post-launch fixes | B4 middleware adapter (needs account) - B6 offers/CMS additions |
 | 7 | -- | **Launch 2:** staging soak, E2E order->pay->dispatch->track, production promotion |
 
@@ -287,4 +286,4 @@ Review cadence: one PR per row cell, each with tests, `ASSUMPTION:` labels, and 
 
 ## 9. Human-only items (cannot be done by Claude)
 
-Meta App Review + sandbox IG account - Razorpay live KYC + webhook secret - Cloudflare account + DNS for the sites zone - Azure resource creation + Key Vault secrets - merchant account, API key and webhook secret on the chosen delivery middleware - key rotation from Aug - go/no-go and rollback ownership for each of the two launches.
+Meta App Review + sandbox IG account - Cloudflare account + DNS for the sites zone - Azure resource creation + Key Vault secrets - merchant account, API key and webhook secret on the chosen delivery middleware - key rotation from Aug - go/no-go and rollback ownership for each of the two launches.

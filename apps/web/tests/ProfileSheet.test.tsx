@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from './utils/test-utils';
+import { render, screen, fireEvent, waitFor, act, within } from './utils/test-utils';
 import ProfileSheet from '../components/ProfileSheet';
 import { getGoogleMapsApiKey } from '../utils/env';
 
@@ -44,7 +44,7 @@ vi.mock('../api', () => ({
                 status: 'ACTIVE',
                 billingCycle: 'MONTHLY',
                 credits: 15,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
                 currentPeriodEnd: '2026-04-01',
             },
             usage: {
@@ -53,15 +53,14 @@ vi.mock('../api', () => ({
             },
         }),
         getPlans: vi.fn().mockResolvedValue([
-            { id: 'p1', slug: 'starter', tier: 'STARTER', name: 'Starter', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, razorpayPlanIds: { monthly: 'rp1', annual: 'rp2' }, features: ['INSTAGRAM'] },
-            { id: 'p2', slug: 'growth', tier: 'GROWTH', name: 'Growth', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, razorpayPlanIds: { monthly: 'rp3', annual: 'rp4' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+            { id: 'p1', slug: 'starter', tier: 'STARTER', name: 'Starter', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+            { id: 'p2', slug: 'growth', tier: 'GROWTH', name: 'Growth', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
         ]),
         subscribe: vi.fn(),
         changePlan: vi.fn(),
         reactivate: vi.fn(),
         cancel: vi.fn(),
-        purchaseCredits: vi.fn(),
-        verifyCredits: vi.fn(),
+        withdrawRequest: vi.fn().mockResolvedValue({ withdrawn: true }),
     },
     couponAPI: {
         validate: vi.fn(),
@@ -144,7 +143,7 @@ describe('ProfileSheet Component', () => {
                 status: 'ACTIVE',
                 billingCycle: 'MONTHLY',
                 credits: 15,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
                 currentPeriodEnd: '2026-04-01',
             },
             usage: {
@@ -153,8 +152,8 @@ describe('ProfileSheet Component', () => {
             },
         });
         vi.mocked(subscriptionAPI.getPlans).mockResolvedValue([
-            { id: 'p1', slug: 'starter', tier: 'STARTER', name: 'Starter', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, razorpayPlanIds: { monthly: 'rp1', annual: 'rp2' }, features: ['INSTAGRAM'] },
-            { id: 'p2', slug: 'growth', tier: 'GROWTH', name: 'Growth', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, razorpayPlanIds: { monthly: 'rp3', annual: 'rp4' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+            { id: 'p1', slug: 'starter', tier: 'STARTER', name: 'Starter', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+            { id: 'p2', slug: 'growth', tier: 'GROWTH', name: 'Growth', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
         ]);
         vi.mocked(creditPacksAPI.getAll).mockResolvedValue([
             { id: 'cp1', name: '10 Credits', description: '10 bonus credits', credits: 10, priceInPaise: 9900, isActive: true, sortOrder: 1 },
@@ -166,9 +165,9 @@ describe('ProfileSheet Component', () => {
         ]);
         // Reset action mocks that individual tests may override with mockRejectedValue
         vi.mocked(subscriptionAPI.subscribe).mockReset();
-        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ effective: 'immediate', planName: 'Growth' });
-        vi.mocked(subscriptionAPI.reactivate).mockResolvedValue({ requiresCheckout: true, subscriptionId: 'rzp_sub_new', keyId: 'rzp_test_key' });
-        vi.mocked(subscriptionAPI.purchaseCredits).mockReset();
+        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: true, planName: 'Growth' });
+        vi.mocked(subscriptionAPI.reactivate).mockResolvedValue({ reactivated: true });
+        vi.mocked(subscriptionAPI.cancel).mockResolvedValue({ success: true });
 
         window.history.pushState = mockHistoryPushState;
         window.history.back = mockHistoryBack;
@@ -330,7 +329,7 @@ describe('ProfileSheet Component', () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 15,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM'] },
                 currentPeriodEnd: '2026-04-01',
             },
             usage: null,
@@ -879,10 +878,10 @@ describe('ProfileSheet Component', () => {
         expect(screen.getByText('Cancel')).toBeInTheDocument();
     });
 
-    // --- SubscriptionModal: Switch Plan with Razorpay ---
+    // --- SubscriptionModal: requesting a plan (no payment gateway) ---
 
     it('should call changePlan when clicking Switch on a non-current plan with active subscription', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ effective: 'immediate', planName: 'Starter' });
+        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -894,35 +893,21 @@ describe('ProfileSheet Component', () => {
         // ACTIVE status shows confirmation dialog before proceeding
         const switchButton = screen.getByText('Downgrade');
         fireEvent.click(switchButton);
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
-            expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter', { mode: 'cycle_end' });
+            expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter');
             expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
         });
     });
 
-    it('should call subscribe without changePlan when no active subscription', async () => {
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any) { this.open = mockRzpOpen; });
-        (window as any).Razorpay = MockRazorpay;
-
+    it('should request a plan with subscribe (no checkout) when there is no active subscription', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: {
-                id: 'sub1',
-                restaurantId: 'r1',
-                status: 'NONE',
-                credits: 5,
-                planSnapshot: null,
-                currentPeriodEnd: undefined,
-            },
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_456',
-        });
+        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -930,21 +915,25 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // With no active plan, buttons should say "Subscribe"
-        const subscribeButtons = screen.getAllByText('Subscribe');
-        fireEvent.click(subscribeButtons[0]);
+        // With no active plan, buttons say "Request" and send the request straight away
+        const requestButtons = screen.getAllByText('Request');
+        const callsBefore = vi.mocked(subscriptionAPI.getCurrent).mock.calls.length;
+        fireEvent.click(requestButtons[0]);
 
         await waitFor(() => {
             expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
             expect(subscriptionAPI.subscribe).toHaveBeenCalledWith('starter', undefined);
-            expect(mockRzpOpen).toHaveBeenCalled();
+            expect(screen.getByText('Request received for Starter. The RestroPulse team will be in touch to arrange payment and switch the plan on.')).toBeInTheDocument();
         });
-
-        delete (window as any).Razorpay;
+        // The panel stays open and the subscription is re-read so the pending request shows
+        expect(screen.getByText('Change Plan')).toBeInTheDocument();
+        expect(vi.mocked(subscriptionAPI.getCurrent).mock.calls.length).toBeGreaterThan(callsBefore);
+        // A success notice offers no retry
+        expect(screen.queryByText('Tap to retry')).not.toBeInTheDocument();
     });
 
     it('should handle switch plan failure gracefully', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Payment failed'));
+        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Request failed'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -954,81 +943,43 @@ describe('ProfileSheet Component', () => {
 
         // ACTIVE status shows confirmation dialog before proceeding
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
-            expect(screen.getByText(/Payment failed/i)).toBeInTheDocument();
+            expect(screen.getByText(/Request failed/i)).toBeInTheDocument();
         });
     });
 
-    // --- SubscriptionModal: Purchase Credits with Razorpay ---
+    // --- SubscriptionModal: credits (added by the RestroPulse team) ---
 
-    it('should call handlePurchaseCredits and open Razorpay when clicking a credit pack', async () => {
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any) { this.open = mockRzpOpen; });
-        (window as any).Razorpay = MockRazorpay;
-
-        vi.mocked(subscriptionAPI.purchaseCredits).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            orderId: 'order_123',
-            amount: 9900,
-            currency: 'INR',
-            credits: 10,
-        });
-
+    it('shows credit packs as information only and tells the owner to contact their account manager', async () => {
         render(<ProfileSheet {...defaultProps} featureFlags={{ deleteAccount: false, topupCredits: true, updatesSection: false }} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Top Up Credits')).toBeInTheDocument());
 
-        // Click the first credit pack (10 credits) -- find pack buttons inside the Top Up Credits section
-        const topUpHeading = screen.getByText('Top Up Credits');
-        const topUpSection = topUpHeading.closest('div')!.parentElement!;
-        const packButtons = topUpSection.querySelectorAll('button');
-        fireEvent.click(packButtons[0]);
-
-        await waitFor(() => {
-            expect(subscriptionAPI.purchaseCredits).toHaveBeenCalledWith('cp1');
-            expect(MockRazorpay).toHaveBeenCalledWith(expect.objectContaining({
-                key: 'rzp_test_key',
-                amount: 9900,
-                currency: 'INR',
-                order_id: 'order_123',
-                name: 'RestroPulse',
-                description: '10 Credits',
-            }));
-            expect(mockRzpOpen).toHaveBeenCalled();
-        });
-
-        delete (window as any).Razorpay;
+        const packs = screen.getByRole('list', { name: 'Credit packs' });
+        expect(packs).toHaveTextContent('10');
+        expect(packs).toHaveTextContent('25');
+        // No self-serve purchase: the packs are not buttons
+        expect(packs.querySelectorAll('button')).toHaveLength(0);
+        expect(screen.getByText('To add credits, contact your account manager, John Doe.')).toBeInTheDocument();
     });
 
-    it('should handle credit purchase failure gracefully', async () => {
-        vi.mocked(subscriptionAPI.purchaseCredits).mockRejectedValue(new Error('Purchase failed'));
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
-
-        render(<ProfileSheet {...defaultProps} featureFlags={{ deleteAccount: false, topupCredits: true, updatesSection: false }} />);
+    it('tells the owner to contact the RestroPulse team for credits when no account manager name is known', async () => {
+        const noManager = { ...mockRestaurantData, accountManager: { ...mockRestaurantData.accountManager, name: '' } };
+        render(<ProfileSheet {...defaultProps} restaurantData={noManager} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Top Up Credits')).toBeInTheDocument());
 
-        const topUpHeading = screen.getByText('Top Up Credits');
-        const topUpSection = topUpHeading.closest('div')!.parentElement!;
-        const packButtons = topUpSection.querySelectorAll('button');
-        fireEvent.click(packButtons[0]);
-
-        await waitFor(() => {
-            expect(consoleSpy).toHaveBeenCalledWith('Credit purchase failed:', expect.any(Error));
-            expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-        });
-
-        consoleSpy.mockRestore();
+        expect(screen.getByText('Contact the RestroPulse team to add credits.')).toBeInTheDocument();
     });
 
-    it('shows Coming Soon placeholder for Top Up Credits when topupCredits flag is false', async () => {
+    it('shows only the contact line for Top Up Credits when topupCredits flag is false', async () => {
         render(<ProfileSheet {...defaultProps} featureFlags={{ deleteAccount: false, topupCredits: false, updatesSection: false }} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
@@ -1036,17 +987,14 @@ describe('ProfileSheet Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Top Up Credits')).toBeInTheDocument();
-            expect(screen.getByText('Coming Soon')).toBeInTheDocument();
+            expect(screen.getByText('To add credits, contact your account manager, John Doe.')).toBeInTheDocument();
         });
 
-        // Credit pack purchase buttons should NOT be rendered
-        const topUpHeading = screen.getByText('Top Up Credits');
-        const topUpSection = topUpHeading.closest('div')!.parentElement!;
-        const packButtons = topUpSection.querySelectorAll('button');
-        expect(packButtons.length).toBe(0);
+        expect(screen.queryByRole('list', { name: 'Credit packs' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Coming Soon')).not.toBeInTheDocument();
     });
 
-    it('shows credit pack purchase buttons when topupCredits flag is true', async () => {
+    it('shows credit pack prices when topupCredits flag is true', async () => {
         vi.mocked(creditPacksAPI.getAll).mockResolvedValue([
             { id: 'cp1', name: '10 Credits', description: '10 bonus credits', credits: 10, priceInPaise: 9900, isActive: true, sortOrder: 1 },
         ]);
@@ -1058,7 +1006,7 @@ describe('ProfileSheet Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('Top Up Credits')).toBeInTheDocument();
-            expect(screen.getByText('10')).toBeInTheDocument();
+            expect(screen.getByRole('list', { name: 'Credit packs' })).toHaveTextContent('₹99');
         });
 
         expect(screen.queryByText('Coming Soon')).not.toBeInTheDocument();
@@ -1066,7 +1014,7 @@ describe('ProfileSheet Component', () => {
 
     // --- SubscriptionModal: Error visibility for every action button ---
 
-    it('should show error for Subscribe button when no active subscription', async () => {
+    it('should show error for the Request button when no active subscription', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -1078,7 +1026,7 @@ describe('ProfileSheet Component', () => {
             },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.subscribe).mockRejectedValue(new Error('razorpay plan not configured'));
+        vi.mocked(subscriptionAPI.subscribe).mockRejectedValue(new Error('Plan not found'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1086,18 +1034,18 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // All plans show Subscribe when status is NONE
-        const subscribeButtons = screen.getAllByText('Subscribe');
+        // All plans show Request when status is NONE
+        const subscribeButtons = screen.getAllByText('Request');
         expect(subscribeButtons.length).toBeGreaterThanOrEqual(1);
 
         fireEvent.click(subscribeButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByText(/razorpay plan not configured/i)).toBeInTheDocument();
+            expect(screen.getByText(/Plan not found/i)).toBeInTheDocument();
         });
     });
 
-    it('should show error for every Subscribe button, not just the first', async () => {
+    it('should show error for every Request button, not just the first', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -1109,7 +1057,7 @@ describe('ProfileSheet Component', () => {
             },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.subscribe).mockRejectedValue(new Error('razorpay plan not configured'));
+        vi.mocked(subscriptionAPI.subscribe).mockRejectedValue(new Error('Plan not found'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1117,19 +1065,19 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        const subscribeButtons = screen.getAllByText('Subscribe');
+        const subscribeButtons = screen.getAllByText('Request');
         expect(subscribeButtons.length).toBeGreaterThanOrEqual(2);
 
-        // Click the last Subscribe button (not the first)
+        // Click the last Request button (not the first)
         fireEvent.click(subscribeButtons[subscribeButtons.length - 1]);
 
         await waitFor(() => {
-            expect(screen.getByText(/razorpay plan not configured/i)).toBeInTheDocument();
+            expect(screen.getByText(/Plan not found/i)).toBeInTheDocument();
         });
     });
 
     it('should show subscription error even when modal is scrolled down', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Payment failed'));
+        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Request failed'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1146,16 +1094,16 @@ describe('ProfileSheet Component', () => {
         // ACTIVE status shows confirmation dialog before proceeding
         const subscribeButtons = screen.getAllByRole('button', { name: 'Downgrade' });
         fireEvent.click(subscribeButtons[0]);
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
-            expect(screen.getByText(/Payment failed/i)).toBeInTheDocument();
+            expect(screen.getByText(/Request failed/i)).toBeInTheDocument();
         });
     });
 
     it('should show error again after clicking Switch a second time', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Payment failed'));
+        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Request failed'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1165,18 +1113,18 @@ describe('ProfileSheet Component', () => {
 
         // First click -- ACTIVE status shows confirmation dialog
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
         await waitFor(() => {
-            expect(screen.getByText(/Payment failed/i)).toBeInTheDocument();
+            expect(screen.getByText(/Request failed/i)).toBeInTheDocument();
         });
 
         // Second click -- error must still be shown
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
         await waitFor(() => {
-            expect(screen.getByText(/Payment failed/i)).toBeInTheDocument();
+            expect(screen.getByText(/Request failed/i)).toBeInTheDocument();
         });
     });
 
@@ -1191,8 +1139,8 @@ describe('ProfileSheet Component', () => {
 
         // With ACTIVE subscription the button says "Downgrade" — confirmation dialog first
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
             expect(screen.getByText(/No active subscription to change/i)).toBeInTheDocument();
@@ -1202,25 +1150,12 @@ describe('ProfileSheet Component', () => {
         expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
     });
 
-    it('should show error when window.Razorpay is not loaded for subscribe (new subscription)', async () => {
-        // Ensure Razorpay is NOT on window
-        delete (window as any).Razorpay;
-
+    it('never opens a payment window or checkout when requesting a plan', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: {
-                id: 'sub1',
-                restaurantId: 'r1',
-                status: 'NONE',
-                credits: 5,
-                planSnapshot: null,
-                currentPeriodEnd: undefined,
-            },
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
+        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1228,47 +1163,18 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // NONE status shows Subscribe button directly (no confirmation dialog)
-        const subscribeButtons = screen.getAllByText('Subscribe');
-        fireEvent.click(subscribeButtons[0]);
+        fireEvent.click(screen.getAllByText('Request')[0]);
 
-        await waitFor(() => {
-            expect(screen.getByText(/Payment service not available/i)).toBeInTheDocument();
-        });
+        await waitFor(() => expect(subscriptionAPI.subscribe).toHaveBeenCalled());
+        await screen.findByText(/Request received for Starter/);
+        expect(mockWindowOpen).not.toHaveBeenCalled();
+        expect(document.querySelector('script[src*="checkout"], iframe')).toBeNull();
+        expect(screen.getByText('No payment is taken in the app. The RestroPulse team arranges payment with you directly.')).toBeInTheDocument();
     });
 
-    it('should show error when window.Razorpay is not loaded for credit purchase', async () => {
-        delete (window as any).Razorpay;
-
-        vi.mocked(subscriptionAPI.purchaseCredits).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            orderId: 'order_123',
-            amount: 9900,
-            currency: 'INR',
-            credits: 10,
-        });
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
-
-        render(<ProfileSheet {...defaultProps} featureFlags={{ deleteAccount: false, topupCredits: true, updatesSection: false }} />);
-        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-
-        fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Top Up Credits')).toBeInTheDocument());
-
-        const topUpHeading = screen.getByText('Top Up Credits');
-        const topUpSection = topUpHeading.closest('div')!.parentElement!;
-        const packButtons = topUpSection.querySelectorAll('button');
-        fireEvent.click(packButtons[0]);
-
-        await waitFor(() => {
-            expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-        });
-
-        consoleSpy.mockRestore();
-    });
 
     it('should clear previous error when starting a new action', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Payment failed'));
+        vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Request failed'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1278,17 +1184,17 @@ describe('ProfileSheet Component', () => {
 
         // First action fails -- ACTIVE status shows confirmation dialog
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
         await waitFor(() => {
-            expect(screen.getByText(/Payment failed/i)).toBeInTheDocument();
+            expect(screen.getByText(/Request failed/i)).toBeInTheDocument();
         });
 
         // Start a new action -- error should clear before the new attempt
         vi.mocked(subscriptionAPI.changePlan).mockRejectedValue(new Error('Another failure'));
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         // Error clears momentarily, then reappears after the new failure
         await waitFor(() => {
@@ -1296,34 +1202,14 @@ describe('ProfileSheet Component', () => {
         });
     });
 
-    // --- SubscriptionModal: Razorpay payment handler callbacks ---
+    // --- SubscriptionModal: request outcomes ---
 
-    it('should show generic payment failed error when Razorpay emits payment.failed with no detail', async () => {
-        let paymentFailedHandler: ((response?: { error?: { description?: string; reason?: string } }) => void) | undefined;
-        const mockRzpOpen = vi.fn(() => {
-            // Fire with no response object to exercise the fallback message
-            paymentFailedHandler?.();
-        });
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any, options: any) {
-            this.open = mockRzpOpen;
-            this.on = (event: string, handler: (response?: any) => void) => {
-                if (event === 'payment.failed') {
-                    paymentFailedHandler = handler;
-                }
-            };
-            this.options = options;
-        });
-        (window as any).Razorpay = MockRazorpay;
-
-        // Use NONE status so the Subscribe path (with Razorpay) is triggered
+    it('shows the server error when subscribe is refused because a plan is already active, and re-reads the subscription', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, currentPeriodEnd: undefined },
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
             usage: null,
         });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
+        vi.mocked(subscriptionAPI.subscribe).mockRejectedValue(new Error('An active subscription already exists. Use change-plan to switch plans.'));
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1331,153 +1217,62 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // NONE status shows Subscribe button directly
-        const subscribeButtons = screen.getAllByText('Subscribe');
-        fireEvent.click(subscribeButtons[0]);
-
-        await waitFor(() => {
-            expect(mockRzpOpen).toHaveBeenCalled();
-            expect(screen.getByText(/Payment failed\. Please try again\./i)).toBeInTheDocument();
-        });
-
-        delete (window as any).Razorpay;
-    });
-
-    it('should show specific error detail when Razorpay emits payment.failed with description', async () => {
-        let paymentFailedHandler: ((response?: any) => void) | undefined;
-        const mockRzpOpen = vi.fn(() => {
-            paymentFailedHandler?.({ error: { description: 'Insufficient funds in account', reason: 'low_balance' } });
-        });
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any, options: any) {
-            this.open = mockRzpOpen;
-            this.on = (event: string, handler: (response?: any) => void) => {
-                if (event === 'payment.failed') paymentFailedHandler = handler;
-            };
-            this.options = options;
-        });
-        (window as any).Razorpay = MockRazorpay;
-
-        // Use NONE status so the Subscribe path (with Razorpay) is triggered
-        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, currentPeriodEnd: undefined },
-            usage: null,
-        });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
-
-        render(<ProfileSheet {...defaultProps} />);
-        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-
-        fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
-
-        // NONE status shows Subscribe button directly
-        const subscribeButtons = screen.getAllByText('Subscribe');
-        fireEvent.click(subscribeButtons[0]);
-
-        await waitFor(() => {
-            expect(screen.getByText(/Payment failed: Insufficient funds in account/i)).toBeInTheDocument();
-        });
-
-        delete (window as any).Razorpay;
-    });
-
-    it('should close subscription panel and trigger data refresh after Razorpay payment handler fires', async () => {
-        let razorpayHandler: () => void;
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any, options: any) {
-            razorpayHandler = options.handler;
-            this.open = mockRzpOpen;
-        });
-        (window as any).Razorpay = MockRazorpay;
-
-        // Use NONE status so the Subscribe path (with Razorpay) is triggered
-        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, currentPeriodEnd: undefined },
-            usage: null,
-        });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
-
-        render(<ProfileSheet {...defaultProps} />);
-        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-
-        fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
-
-        // NONE status shows Subscribe button directly (no confirmation dialog)
-        const subscribeButtons = screen.getAllByText('Subscribe');
-        fireEvent.click(subscribeButtons[0]);
-        await waitFor(() => expect(mockRzpOpen).toHaveBeenCalled());
-
-        // Simulate Razorpay calling the handler immediately after payment completes.
-        // The handler closes the subscription panel and calls loadSubscriptionData + schedules polling.
         const callsBefore = vi.mocked(subscriptionAPI.getCurrent).mock.calls.length;
-        razorpayHandler!();
-        // closeSubscription() calls window.history.back(); jsdom doesn't fire popstate
-        // automatically, so we dispatch it manually to simulate the browser response.
-        window.dispatchEvent(new PopStateEvent('popstate'));
+        fireEvent.click(screen.getAllByText('Request')[0]);
 
         await waitFor(() => {
-            // Subscription sub-panel should be gone
-            expect(screen.queryByText('Change Plan')).not.toBeInTheDocument();
-            // getCurrent should have been called again to refresh subscription data
-            expect(vi.mocked(subscriptionAPI.getCurrent).mock.calls.length).toBeGreaterThan(callsBefore);
+            expect(screen.getByText(/An active subscription already exists/)).toBeInTheDocument();
+            expect(screen.getByText('Tap to retry')).toBeInTheDocument();
         });
-
-        delete (window as any).Razorpay;
+        // Re-sync so a retry routes through change-plan if a plan became active
+        await waitFor(() => expect(vi.mocked(subscriptionAPI.getCurrent).mock.calls.length).toBeGreaterThan(callsBefore));
     });
 
-    it('should verify and refresh after Razorpay credit purchase handler fires', async () => {
-        let razorpayHandler: (response: any) => Promise<void>;
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any, options: any) {
-            razorpayHandler = options.handler;
-            this.open = mockRzpOpen;
-        });
-        (window as any).Razorpay = MockRazorpay;
+    it('says the owner is already on the plan when change-plan has nothing to request', async () => {
+        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: false, planName: 'Starter' });
 
-        vi.mocked(subscriptionAPI.purchaseCredits).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            orderId: 'order_123',
-            amount: 9900,
-            currency: 'INR',
-            credits: 10,
-        });
-        vi.mocked(subscriptionAPI.verifyCredits).mockResolvedValue(undefined);
-
-        render(<ProfileSheet {...defaultProps} featureFlags={{ deleteAccount: false, topupCredits: true, updatesSection: false }} />);
+        render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Top Up Credits')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        const topUpHeading = screen.getByText('Top Up Credits');
-        const topUpSection = topUpHeading.closest('div')!.parentElement!;
-        const packButtons = topUpSection.querySelectorAll('button');
-        fireEvent.click(packButtons[0]);
+        fireEvent.click(screen.getByText('Downgrade'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Send request' }));
 
-        await waitFor(() => expect(mockRzpOpen).toHaveBeenCalled());
-
-        // Simulate Razorpay calling the handler after payment
-        await razorpayHandler!({
-            razorpay_order_id: 'order_123',
-            razorpay_payment_id: 'pay_456',
-            razorpay_signature: 'sig_789',
-        });
-
-        await waitFor(() => {
-            expect(subscriptionAPI.verifyCredits).toHaveBeenCalledWith('order_123', 'pay_456', 'sig_789');
-            // initial load on mount + openSubscription reload + credit purchase handler
-            expect(subscriptionAPI.getCurrent).toHaveBeenCalledTimes(3);
-        });
-
-        delete (window as any).Razorpay;
+        await waitFor(() => expect(screen.getByText("You're already on Starter.")).toBeInTheDocument());
+        expect(screen.queryByText(/Request received/)).not.toBeInTheDocument();
     });
+
+    it('shows the pending request after a plan is requested', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
+            usage: null,
+        });
+        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
+
+        render(<ProfileSheet {...defaultProps} />);
+        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Subscription').closest('button')!);
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
+
+        // After the request the API reports the plan as pending
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, pendingPlanId: 'p-starter', pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] }, planRequestedAt: '2026-11-20T10:00:00.000Z' },
+            usage: null,
+        });
+        fireEvent.click(screen.getAllByText('Request')[0]);
+
+        const banner = await screen.findByRole('status', { name: 'Plan request' });
+        expect(banner).toHaveTextContent('Plan request received');
+        expect(banner).toHaveTextContent('You asked for the Starter plan on');
+        expect(banner).toHaveTextContent('The RestroPulse team will be in touch to arrange payment and switch the plan on.');
+        expect(screen.getByText('Requested')).toBeInTheDocument();
+        // The panel stays open
+        expect(screen.getByText('Change Plan')).toBeInTheDocument();
+    });
+
 
     // --- SubscriptionModal: Current plan indicator ---
 
@@ -1517,22 +1312,15 @@ describe('ProfileSheet Component', () => {
         await waitFor(() => expect(screen.getByText('Free Credits')).toBeInTheDocument());
     });
 
-    // --- SubscriptionModal: Subscribe with coupon (new subscription only) ---
+    // --- SubscriptionModal: request with coupon (new subscription only) ---
 
     it('should pass coupon code when subscribing without active subscription', async () => {
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any) { this.open = mockRzpOpen; });
-        (window as any).Razorpay = MockRazorpay;
-
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, currentPeriodEnd: undefined },
             usage: null,
         });
         vi.mocked(couponAPI.validate).mockResolvedValue({ valid: true });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
+        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1546,31 +1334,22 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Apply'));
         await waitFor(() => expect(screen.getByText('Coupon applied!')).toBeInTheDocument());
 
-        // NONE status shows Subscribe button directly
-        const subscribeButtons = screen.getAllByText('Subscribe');
+        // NONE status shows Request button directly
+        const subscribeButtons = screen.getAllByText('Request');
         fireEvent.click(subscribeButtons[0]);
 
         await waitFor(() => {
             expect(subscriptionAPI.subscribe).toHaveBeenCalledWith('starter', 'SAVE20');
         });
-
-        delete (window as any).Razorpay;
     });
 
     it('should normalize lowercase coupon code on apply and pass normalized value when subscribing', async () => {
-        const mockRzpOpen = vi.fn();
-        const MockRazorpay = vi.fn().mockImplementation(function (this: any) { this.open = mockRzpOpen; });
-        (window as any).Razorpay = MockRazorpay;
-
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, currentPeriodEnd: undefined },
             usage: null,
         });
         vi.mocked(couponAPI.validate).mockResolvedValue({ valid: true });
-        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-            keyId: 'rzp_test_key',
-            subscriptionId: 'sub_rzp_123',
-        });
+        vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -1588,15 +1367,13 @@ describe('ProfileSheet Component', () => {
             expect(couponAPI.validate).toHaveBeenCalledWith('SAVE20');
         });
 
-        // NONE status shows Subscribe button directly
-        const subscribeButtons = screen.getAllByText('Subscribe');
+        // NONE status shows Request button directly
+        const subscribeButtons = screen.getAllByText('Request');
         fireEvent.click(subscribeButtons[0]);
 
         await waitFor(() => {
             expect(subscriptionAPI.subscribe).toHaveBeenCalledWith('starter', 'SAVE20');
         });
-
-        delete (window as any).Razorpay;
     });
 
     // --- InstagramErrorModal ---
@@ -1842,14 +1619,15 @@ describe('ProfileSheet Component', () => {
 
     // --- SubscriptionModal: renewal date ---
 
-    it('should show renewal date in subscription modal', async () => {
+    it('should show the paid-until date in subscription modal', async () => {
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => {
-            expect(screen.getByText(/Renews/)).toBeInTheDocument();
+            expect(screen.getByText(/Paid until/)).toBeInTheDocument();
         });
+        expect(screen.queryByText(/Renews/)).not.toBeInTheDocument();
     });
 
     // --- SubscriptionModal: plan features ---
@@ -1872,16 +1650,17 @@ describe('ProfileSheet Component', () => {
         expect(instagramFeatures.length).toBeGreaterThanOrEqual(1);
     });
 
-    // --- SubscriptionModal: Razorpay footer text ---
+    // --- SubscriptionModal: payment footer text ---
 
-    it('should show Razorpay payment note in subscription modal', async () => {
+    it('should show the manual payment note in subscription modal', async () => {
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => {
-            expect(screen.getByText('Payments processed securely via Razorpay')).toBeInTheDocument();
+            expect(screen.getByText('No payment is taken in the app. The RestroPulse team arranges payment with you directly.')).toBeInTheDocument();
         });
+        expect(screen.queryByText(/processed securely/i)).not.toBeInTheDocument();
     });
 
     // --- OAuth error triggers error modal display ---
@@ -2029,44 +1808,37 @@ describe('ProfileSheet Component', () => {
 
     // --- Line 769: "Tap to retry" in subscription modal actionError ---
 
-    it('should show Tap to retry button when subscription action fails and retry clears error', async () => {
-        // Make disconnect error to trigger setActionError in the subscription modal
-        vi.mocked(instagramAPI.disconnect).mockRejectedValueOnce(new Error('Network error'));
-        window.confirm = vi.fn().mockReturnValue(true);
+    it('should show Tap to retry when a plan request fails and retry re-sends the same request', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
+            usage: null,
+        });
+        vi.mocked(subscriptionAPI.subscribe)
+            .mockRejectedValueOnce(new Error('Network error'))
+            .mockResolvedValueOnce({ requested: true, planName: 'Growth' });
 
-        const connectedData = {
-            ...mockRestaurantData,
-            integrations: { instagram: true },
-            instagramUsername: 'testuser',
-        };
-
-        render(<ProfileSheet {...defaultProps} restaurantData={connectedData} featureFlags={{ deleteAccount: false, topupCredits: true, updatesSection: false }} />);
-
-        // Open subscription modal to expose actionError inside it
+        render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByPlaceholderText('Have a coupon code?')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // Now trigger an action error inside subscription modal via purchaseCredits failure
-        vi.mocked(subscriptionAPI.purchaseCredits).mockRejectedValueOnce(new Error('payment failed'));
+        const requestButtons = screen.getAllByText('Request');
+        fireEvent.click(requestButtons[requestButtons.length - 1]);
 
-        // Click a credit pack to trigger purchaseCredits
-        const creditPackButtons = screen.getAllByText('10');
-        // The first button with text '10' is the credit pack
-        fireEvent.click(creditPackButtons[0]);
-
-        // Wait for actionError to appear (shown via ActionNotice in the subscription modal)
         await waitFor(() => {
+            expect(screen.getByText('Network error')).toBeInTheDocument();
             expect(screen.getByText('Tap to retry')).toBeInTheDocument();
         });
 
-        // Click "Tap to retry" - should clear actionError and reload
         fireEvent.click(screen.getByText('Tap to retry'));
 
-        // After clicking retry, it calls loadSubscriptionData again -- the error should be cleared
         await waitFor(() => {
             expect(screen.queryByText('Tap to retry')).not.toBeInTheDocument();
+            expect(screen.getByText(/Request received for Growth/)).toBeInTheDocument();
         });
+        expect(subscriptionAPI.subscribe).toHaveBeenCalledTimes(2);
+        expect(subscriptionAPI.subscribe).toHaveBeenLastCalledWith('growth', undefined);
     });
 
     // --- Line 1073: Help/setup guide button when Instagram not connected ---
@@ -2174,7 +1946,7 @@ describe('ProfileSheet Component', () => {
 
     // --- Reactivate subscription ---
 
-    it('should show Reactivate button when cancelAtPeriodEnd is true', async () => {
+    it('should show Reactivate button when cancelAtPeriodEnd is true and undo the cancellation without a checkout', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -2183,7 +1955,7 @@ describe('ProfileSheet Component', () => {
                 billingCycle: 'MONTHLY',
                 credits: 15,
                 cancelAtPeriodEnd: true,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
                 currentPeriodEnd: '2026-05-01',
             },
             usage: null,
@@ -2197,20 +1969,41 @@ describe('ProfileSheet Component', () => {
 
         expect(screen.getByText('Reactivate')).toBeInTheDocument();
 
-        // Clicking Reactivate now opens a confirm dialog first
+        // Clicking Reactivate opens a confirm dialog first
         fireEvent.click(screen.getByText('Reactivate'));
 
-        // Confirm dialog should appear with honest copy
         await waitFor(() => {
             expect(screen.getByText(/Continue on Growth/i)).toBeInTheDocument();
         });
+        expect(screen.getByText(/Nothing is charged in the app/)).toBeInTheDocument();
+        expect(screen.queryByText(/₹5/)).not.toBeInTheDocument();
 
-        // Confirm it
-        fireEvent.click(screen.getByRole('button', { name: /Confirm — pay ₹5 now/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep my plan' }));
 
         await waitFor(() => {
-            expect(subscriptionAPI.reactivate).toHaveBeenCalled();
+            expect(subscriptionAPI.reactivate).toHaveBeenCalledTimes(1);
+            expect(screen.getByText('Growth will no longer end. Your cancellation has been undone.')).toBeInTheDocument();
         });
+        expect(mockWindowOpen).not.toHaveBeenCalled();
+    });
+
+    it('shows the error when reactivating fails', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 15, cancelAtPeriodEnd: true, planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] }, currentPeriodEnd: '2026-05-01' },
+            usage: null,
+        });
+        vi.mocked(subscriptionAPI.reactivate).mockRejectedValue(new Error('No scheduled cancellation to undo'));
+
+        render(<ProfileSheet {...defaultProps} />);
+        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Subscription').closest('button')!);
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Reactivate'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Keep my plan' }));
+
+        await waitFor(() => expect(screen.getByText('No scheduled cancellation to undo')).toBeInTheDocument());
     });
 
     it('should show unified switch dialog (deferred) when cancelAtPeriodEnd user clicks a different plan', async () => {
@@ -2226,7 +2019,7 @@ describe('ProfileSheet Component', () => {
                 credits: 15,
                 cancelAtPeriodEnd: true,
                 currentPeriodEnd: new Date(Date.now() + 10 * 86_400_000).toISOString(),
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
             },
             usage: null,
         });
@@ -2251,7 +2044,7 @@ describe('ProfileSheet Component', () => {
 
     // --- Downgrade confirmation dialog ---
 
-    it('should show downgrade confirmation dialog with cycle_end message', async () => {
+    it('should explain in the switch dialog that the team arranges payment and nothing is charged', async () => {
         // Current plan is Growth (expensive), switching to cheaper Starter
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2263,21 +2056,20 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Downgrade'));
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument();
-            // Unified flow honest copy: three-line story (today / until / from).
-            expect(screen.getByText(/verification charge to register a new payment mandate/i)).toBeInTheDocument();
-            expect(screen.getByText(/your existing/i)).toBeInTheDocument();
+            expect(screen.getByText('Switch to Starter?')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument();
         });
+        expect(screen.getByText(/We'll send your request to the RestroPulse team\. They'll be in touch to arrange payment and switch you to Starter/)).toBeInTheDocument();
+        expect(screen.getByText('Until then you stay on Growth. Nothing is charged in the app.')).toBeInTheDocument();
+        expect(screen.queryByText(/mandate|verification charge/i)).not.toBeInTheDocument();
+        // Nothing is sent until the owner confirms
+        expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
     });
 
     // --- Downgrade success notice ---
 
-    it('should show downgrade scheduled notice after successful downgrade', async () => {
-        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-            effective: 'cycle_end',
-            planName: 'Starter',
-            currentPeriodEnd: '2026-05-01T00:00:00.000Z',
-        });
+    it('should show the request-received notice after a downgrade request', async () => {
+        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2286,17 +2078,19 @@ describe('ProfileSheet Component', () => {
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
         fireEvent.click(screen.getByText('Downgrade'));
-        await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
-            expect(screen.getByText(/Switching to Starter on/i)).toBeInTheDocument();
+            expect(screen.getByText('Request received for Starter. The RestroPulse team will be in touch to arrange payment and switch the plan on.')).toBeInTheDocument();
         });
+        expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter');
+        expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
     });
 
-    // --- Gap 5: pending downgrade plan shows "Starts [date]" ---
+    // --- Pending plan request: banner + "Requested" card ---
 
-    it('should show Starts date on pending downgrade plan card', async () => {
+    it('should show a pending switch request in the banner and mark the plan card as Requested', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -2304,8 +2098,10 @@ describe('ProfileSheet Component', () => {
                 status: 'ACTIVE',
                 billingCycle: 'MONTHLY',
                 credits: 15,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                pendingPlanId: 'p-starter',
+                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+                planRequestedAt: '2026-04-20T00:00:00.000Z',
                 currentPeriodEnd: '2026-05-01T00:00:00.000Z',
             },
             usage: null,
@@ -2317,32 +2113,32 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // Starter card should show "Starts ..." instead of a Switch button
-        await waitFor(() => {
-            expect(screen.getByText(/Starts/)).toBeInTheDocument();
-        });
+        const banner = screen.getByRole('status', { name: 'Plan request' });
+        expect(banner).toHaveTextContent('You asked to switch from Growth to Starter on');
+        expect(banner).toHaveTextContent('You stay on Growth until then.');
+        expect(screen.getByRole('button', { name: 'Withdraw request' })).toBeInTheDocument();
 
-        // The Starter card should not have a tier-change button (shows "Starts ..." instead)
-        const downgradeButtons = screen.queryAllByRole('button', { name: 'Downgrade' });
-        expect(downgradeButtons.length).toBe(0);
+        // The Starter card shows "Requested" instead of a tier-change button
+        expect(screen.getByText('Requested')).toBeInTheDocument();
+        expect(screen.queryAllByRole('button', { name: 'Downgrade' })).toHaveLength(0);
     });
 
-    it('should warn in confirm dialog that pending downgrade will be cancelled on upgrade', async () => {
+    it('should say in the upgrade dialog that it replaces the pending request', async () => {
         // User has Growth plan with a pending downgrade to Starter scheduled
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 15,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
                 currentPeriodEnd: '2026-05-01T00:00:00.000Z',
             },
             usage: null,
         });
         // Override plans so Premium is available as an upgrade
         vi.mocked(subscriptionAPI.getPlans).mockResolvedValue([
-            { id: 'plan_starter_id', slug: 'starter', name: 'Starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'plan_starter_m', annual: 'plan_starter_a' } },
-            { id: 'plan_growth_id', slug: 'growth', name: 'Growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'plan_growth_m', annual: 'plan_growth_a' } },
-            { id: 'plan_premium_id', slug: 'premium', name: 'Premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 }, FACEBOOK: { IMAGE: 20, CAROUSEL: 5, VIDEO: 10, STORY: 20 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'plan_premium_m', annual: 'plan_premium_a' } },
+            { id: 'plan_starter_id', slug: 'starter', name: 'Starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+            { id: 'plan_growth_id', slug: 'growth', name: 'Growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+            { id: 'plan_premium_id', slug: 'premium', name: 'Premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 }, FACEBOOK: { IMAGE: 20, CAROUSEL: 5, VIDEO: 10, STORY: 20 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
         ]);
 
         render(<ProfileSheet {...defaultProps} />);
@@ -2355,21 +2151,18 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Upgrade'));
         await waitFor(() => expect(screen.getByText('Upgrade to Premium?')).toBeInTheDocument());
 
-        // Unified-flow upgrade dialog mentions the previously-scheduled switch in the
-        // "From" line so the user sees the Starter plan-change is being replaced.
-        expect(screen.getByText(/Replaces the previously scheduled switch to Starter/i)).toBeInTheDocument();
+        // The dialog says the new request replaces the pending Starter request
+        expect(screen.getByText('This replaces your request for Starter.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
+        await waitFor(() => expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('premium'));
     });
 
     // --- Regression: amending a pending plan change must not trigger destructive re-checkout ---
 
-    it('should call changePlan (not subscribe) when amending a pending downgrade on a cancelAtPeriodEnd subscription', async () => {
-        // Bug scenario: user is on Premium with cancelAtPeriodEnd=true and a pending
-        // downgrade to Growth. User changes their mind and clicks Starter. The old
-        // behaviour fell through to `subscribe`, which cancelled Premium, opened a new
-        // Razorpay checkout, and double-charged the user. The fix routes the click
-        // through `changePlan` (Case C — amend pending downgrade in DB only).
-        (window as any).Razorpay = vi.fn();
-
+    it('should call changePlan (not subscribe) when replacing a pending request on a cancelAtPeriodEnd subscription', async () => {
+        // User is on Premium with cancelAtPeriodEnd=true and a pending request for
+        // Growth, then picks Starter. An active plan must route through change-plan
+        // (subscribe would 409).
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -2379,22 +2172,18 @@ describe('ProfileSheet Component', () => {
                 credits: 15,
                 cancelAtPeriodEnd: true,
                 cancelledAt: '2026-04-10T00:00:00.000Z',
-                planSnapshot: { id: 'p-premium', name: 'Premium', slug: 'premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                planSnapshot: { id: 'p-premium', name: 'Premium', slug: 'premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
                 currentPeriodEnd: '2026-05-01T00:00:00.000Z',
             },
             usage: null,
         });
         vi.mocked(subscriptionAPI.getPlans).mockResolvedValue([
-            { id: 'plan_starter_id', slug: 'starter', name: 'Starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'plan_starter_m', annual: 'plan_starter_a' } },
-            { id: 'plan_growth_id', slug: 'growth', name: 'Growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'plan_growth_m', annual: 'plan_growth_a' } },
-            { id: 'plan_premium_id', slug: 'premium', name: 'Premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'plan_premium_m', annual: 'plan_premium_a' } },
+            { id: 'plan_starter_id', slug: 'starter', name: 'Starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+            { id: 'plan_growth_id', slug: 'growth', name: 'Growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+            { id: 'plan_premium_id', slug: 'premium', name: 'Premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 20, STORY: 20, CAROUSEL: 5, REEL: 10, VIDEO: 10 } } }, pricing: { monthly: 199900, annual: 1999000, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
         ]);
-        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-            effective: 'cycle_end',
-            planName: 'Starter',
-            currentPeriodEnd: '2026-05-01T00:00:00.000Z',
-        });
+        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: true, planName: 'Starter' });
 
         render(<ProfileSheet {...defaultProps} />);
         await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2405,26 +2194,19 @@ describe('ProfileSheet Component', () => {
         // Starter shows as Downgrade (cheaper than Premium). Click it.
         fireEvent.click(screen.getByText('Downgrade'));
 
-        // Confirm dialog should appear — amend messaging (not the destructive "Start new plan now?")
-        await waitFor(() => expect(screen.getByText(/Change scheduled plan to Starter\?|Switch to Starter\?/i)).toBeInTheDocument());
-        expect(screen.queryByText('Start new plan now?')).not.toBeInTheDocument();
-
-        // Confirm — click the confirm button (either "Change scheduled plan" or "Confirm Downgrade")
-        const confirmBtn = screen.queryByText('Change scheduled plan') ?? screen.getByRole('button', { name: /^Confirm$/ });
-        fireEvent.click(confirmBtn);
+        await waitFor(() => expect(screen.getByText('Switch to Starter?')).toBeInTheDocument());
+        expect(screen.getByText('This replaces your request for Growth.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
         await waitFor(() => {
-            expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter', { mode: 'cycle_end' });
+            expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter');
         });
 
-        // Critical regression assertions:
         expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
-        expect((window as any).Razorpay).not.toHaveBeenCalled();
-
-        delete (window as any).Razorpay;
+        expect(await screen.findByText(/Request received for Starter/)).toBeInTheDocument();
     });
 
-    it('should open confirm dialog then call changePlan when clicking Keep current on a pending plan card', async () => {
+    it('withdraws a pending switch request on an active plan and keeps the current plan running', async () => {
         vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
             subscription: {
                 id: 'sub1',
@@ -2432,60 +2214,11 @@ describe('ProfileSheet Component', () => {
                 status: 'ACTIVE',
                 billingCycle: 'MONTHLY',
                 credits: 100,
-                cancelAtPeriodEnd: true,
-                planSnapshot: { id: 'p2', slug: 'growth', name: 'Growth', tier: 'GROWTH', limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, razorpayPlanIds: { monthly: 'rp3', annual: 'rp4' }, features: ['INSTAGRAM', 'FACEBOOK'] },
-                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                cancelAtPeriodEnd: false,
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                pendingPlanId: 'p-starter',
+                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
                 currentPeriodEnd: '2026-06-01T00:00:00.000Z',
-                razorpaySubscriptionId: 'rzp_sub_growth',
-            } as any,
-            usage: null,
-        });
-        vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-            effective: 'immediate',
-            planName: 'Growth',
-            requiresCheckout: true,
-            subscriptionId: 'rzp_sub_growth_new',
-            keyId: 'rzp_test_key',
-        });
-
-        render(<ProfileSheet {...defaultProps} />);
-        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
-
-        fireEvent.click(screen.getByText('Subscription').closest('button')!);
-        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
-
-        // The pending Starter card should have a "Keep current" button
-        const keepCurrentBtn = await screen.findByRole('button', { name: /cancel scheduled plan change/i });
-        fireEvent.click(keepCurrentBtn);
-
-        // Confirm dialog should appear
-        expect(await screen.findByText(/To stay on Growth/i)).toBeInTheDocument();
-
-        // changePlan should NOT have been called yet
-        expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
-
-        // Confirm the dialog
-        const confirmBtn = screen.getByRole('button', { name: /keep current plan/i });
-        fireEvent.click(confirmBtn);
-
-        await waitFor(() => {
-            expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('growth', { mode: 'cycle_end' });
-        });
-        expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
-    });
-
-    // --- Gap 1 + Gap 2: CREATED status label and billing cycle filter ---
-
-    it('should show Awaiting payment for CREATED status on matching billing cycle', async () => {
-        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-            subscription: {
-                id: 'sub1',
-                restaurantId: 'r1',
-                status: 'CREATED',
-                billingCycle: 'MONTHLY',
-                credits: 0,
-                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                currentPeriodEnd: undefined,
             },
             usage: null,
         });
@@ -2496,36 +2229,134 @@ describe('ProfileSheet Component', () => {
         fireEvent.click(screen.getByText('Subscription').closest('button')!);
         await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-        // Monthly toggle (default) — CREATED billingCycle=MONTHLY should show "Awaiting payment"
-        // on the matching plan card. (B3 fix: other plan cards may show "Activating..." to
-        // signal that their Subscribe action is disabled while a checkout is in flight.)
+        fireEvent.click(await screen.findByRole('button', { name: 'Withdraw request' }));
+
+        // Confirm dialog first; nothing is called yet
+        expect(await screen.findByText('Withdraw your request for Starter?')).toBeInTheDocument();
+        expect(screen.getByText("The RestroPulse team won't switch you to Starter. You stay on Growth.")).toBeInTheDocument();
+        expect(subscriptionAPI.withdrawRequest).not.toHaveBeenCalled();
+
+        // "Keep request" closes the dialog without calling anything
+        fireEvent.click(screen.getByRole('button', { name: 'Keep request' }));
+        expect(screen.queryByText('Withdraw your request for Starter?')).not.toBeInTheDocument();
+        expect(subscriptionAPI.withdrawRequest).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
+        await screen.findByText('Withdraw your request for Starter?');
+        // The dialog's confirm button is the last "Withdraw request" button
+        fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
+
+        // Only the request goes; the Growth plan is not touched.
         await waitFor(() => {
-            expect(screen.getByText('Awaiting payment')).toBeInTheDocument();
+            expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
+            expect(screen.getByText('Your request for Starter was withdrawn.')).toBeInTheDocument();
         });
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+        expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
+        expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
+        expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
+    });
+
+    it('withdraws a pending request on a plan already set to end and leaves that cancellation alone', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: {
+                id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 100,
+                cancelAtPeriodEnd: true,
+                planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+                currentPeriodEnd: '2026-06-01T00:00:00.000Z',
+            },
+            usage: null,
+        });
+
+        render(<ProfileSheet {...defaultProps} />);
+        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Subscription').closest('button')!);
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
+        await screen.findByText('Withdraw your request for Starter?');
+        fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
+
+        await waitFor(() => expect(screen.getByText('Your request for Starter was withdrawn.')).toBeInTheDocument());
+        expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+        expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
+    });
+
+    // --- Gap 1 + Gap 2: CREATED status label and billing cycle filter ---
+
+    it('shows a pending request for an owner with no active plan and withdraws it', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: {
+                id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0,
+                planSnapshot: null,
+                pendingPlanId: 'p-growth',
+                pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                planRequestedAt: '2026-11-20T10:00:00.000Z',
+            },
+            usage: null,
+        });
+
+        render(<ProfileSheet {...defaultProps} />);
+        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Subscription').closest('button')!);
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
+
+        const banner = screen.getByRole('status', { name: 'Plan request' });
+        expect(banner).toHaveTextContent('You asked for the Growth plan on');
+        expect(banner).not.toHaveTextContent('You stay on');
+        // Growth card is marked Requested; Starter can still be requested
+        expect(screen.getByText('Requested')).toBeInTheDocument();
+        expect(screen.getAllByText('Request')).toHaveLength(1);
+        // No hero "Cancel plan" button without an active plan
+        expect(screen.queryByText('Cancel plan')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
+        expect(await screen.findByText("The RestroPulse team won't set up Growth for you. You can request a plan again at any time.")).toBeInTheDocument();
+        fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
+
+        await waitFor(() => expect(screen.getByText('Your request for Growth was withdrawn.')).toBeInTheDocument());
+        expect(subscriptionAPI.withdrawRequest).toHaveBeenCalledTimes(1);
+        expect(subscriptionAPI.cancel).not.toHaveBeenCalled();
+    });
+
+    it('shows the error when withdrawing a request fails', async () => {
+        vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+            subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 0, planSnapshot: null, pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] } },
+            usage: null,
+        });
+        vi.mocked(subscriptionAPI.withdrawRequest).mockRejectedValueOnce(new Error('Could not withdraw the request'));
+
+        render(<ProfileSheet {...defaultProps} />);
+        await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+
+        fireEvent.click(screen.getByText('Subscription').closest('button')!);
+        await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Withdraw request' }));
+        await screen.findByText('Withdraw your request for Growth?');
+        fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw request' }).at(-1)!);
+
+        await waitFor(() => expect(screen.getByText('Could not withdraw the request')).toBeInTheDocument());
+        expect(screen.queryByText('Withdraw your request for Growth?')).not.toBeInTheDocument();
     });
 
     // ---------------------------------------------------------------------------
-    // Domestic card / GPay / UPI fallback: changePlan returns requiresCheckout
+    // Manual billing: requests, cancellation and plan-card edge cases
     // ---------------------------------------------------------------------------
-    describe('SubscriptionModal: domestic card / GPay checkout fallback', () => {
-        beforeEach(() => {
-            (window as any).Razorpay = vi.fn().mockImplementation(() => ({
-                open: vi.fn(),
-                on: vi.fn(),
-            }));
-        });
-
-        afterEach(() => {
-            delete (window as any).Razorpay;
-        });
-
-        it('should open Razorpay checkout when changePlan returns requiresCheckout for an upgrade', async () => {
-            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-                effective: 'immediate',
-                planName: 'Premium',
-                requiresCheckout: true,
-                subscriptionId: 'sub_new_123',
-                keyId: 'rzp_test_key',
+    describe('SubscriptionModal: manual billing flows', () => {
+        it('requests an upgrade through change-plan with only the plan slug', async () => {
+            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({ requested: true, planName: 'Growth' });
+            // Use Starter as current plan so Growth shows "Upgrade"
+            vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+                subscription: {
+                    id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 5,
+                    planSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
+                },
+                usage: null,
             });
 
             render(<ProfileSheet {...defaultProps} />);
@@ -2534,28 +2365,17 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            // Starter is cheaper than Growth (current plan) → Downgrade button
-            // But if we mock a Premium plan scenario with a higher-priced plan, we'd see Upgrade.
-            // For this test we just trigger via the Downgrade button and mock changePlan to return requiresCheckout.
-            fireEvent.click(screen.getByText('Downgrade'));
-            await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+            fireEvent.click(screen.getByText('Upgrade'));
+            await waitFor(() => expect(screen.getByText('Upgrade to Growth?')).toBeInTheDocument());
+            expect(screen.getByText(/switch you to Growth \(₹999 per month\)/)).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
-            await waitFor(() => {
-                expect((window as any).Razorpay).toHaveBeenCalledWith(expect.objectContaining({
-                    subscription_id: 'sub_new_123',
-                    key: 'rzp_test_key',
-                }));
-            });
+            await waitFor(() => expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('growth'));
+            expect(vi.mocked(subscriptionAPI.changePlan).mock.calls[0]).toHaveLength(1);
+            expect(await screen.findByText('Request received for Growth. The RestroPulse team will be in touch to arrange payment and switch the plan on.')).toBeInTheDocument();
         });
 
-        it('should NOT open Razorpay checkout for domestic card downgrade (cycle_end, no requiresCheckout)', async () => {
-            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-                effective: 'cycle_end',
-                planName: 'Starter',
-                currentPeriodEnd: '2026-05-01',
-            });
-
+        it('Go back closes the switch dialog without sending a request', async () => {
             render(<ProfileSheet {...defaultProps} />);
             await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
 
@@ -2563,25 +2383,20 @@ describe('ProfileSheet Component', () => {
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
             fireEvent.click(screen.getByText('Downgrade'));
-            await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+            await waitFor(() => expect(screen.getByText('Switch to Starter?')).toBeInTheDocument());
+            fireEvent.click(within(screen.getByRole('dialog', { name: 'Switch to Starter?' })).getByRole('button', { name: 'Go back' }));
 
-            await waitFor(() => {
-                expect(screen.getByText(/Switching to Starter on/i)).toBeInTheDocument();
-            });
-            // Razorpay checkout must NOT open
-            expect((window as any).Razorpay).not.toHaveBeenCalled();
+            expect(screen.queryByText('Switch to Starter?')).not.toBeInTheDocument();
+            expect(subscriptionAPI.changePlan).not.toHaveBeenCalled();
         });
 
-        it('should show error when Razorpay is not loaded for requiresCheckout path', async () => {
-            delete (window as any).Razorpay;
-            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-                effective: 'immediate',
-                planName: 'Growth',
-                requiresCheckout: true,
-                subscriptionId: 'sub_new_789',
-                keyId: 'rzp_test_key',
+        it('disables every plan button while a request is being sent', async () => {
+            vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
+                subscription: { id: 'sub1', restaurantId: 'r1', status: 'NONE', credits: 5, planSnapshot: null, currentPeriodEnd: undefined },
+                usage: null,
             });
+            let resolveSubscribe: (v: { requested: true; planName: string }) => void = () => {};
+            vi.mocked(subscriptionAPI.subscribe).mockImplementation(() => new Promise((r) => { resolveSubscribe = r; }));
 
             render(<ProfileSheet {...defaultProps} />);
             await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2589,32 +2404,22 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            fireEvent.click(screen.getByText('Downgrade'));
-            await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+            fireEvent.click(screen.getAllByText('Request')[0]);
 
-            await waitFor(() => {
-                expect(screen.getByText(/Payment service not available/i)).toBeInTheDocument();
-            });
+            await waitFor(() => expect(screen.getByText('Sending...')).toBeInTheDocument());
+            const disabled = screen.getAllByRole('button').filter((b) => b.textContent === 'Request' || b.textContent === 'Sending...');
+            expect(disabled.length).toBe(2);
+            disabled.forEach((b) => expect(b).toBeDisabled());
+
+            await act(async () => { resolveSubscribe({ requested: true, planName: 'Starter' }); });
+            await waitFor(() => expect(screen.queryByText('Sending...')).not.toBeInTheDocument());
+            expect(subscriptionAPI.subscribe).toHaveBeenCalledTimes(1);
         });
 
         // Payment method change scenarios
-        it('should open Razorpay checkout when user changed payment method from international card to GPay (upgrade)', async () => {
-            // User originally subscribed via international card (PATCH worked), then switched to GPay.
-            // Backend returns requiresCheckout because PATCH now fails with GPay error.
-            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-                effective: 'immediate',
-                planName: 'Growth',
-                requiresCheckout: true,
-                subscriptionId: 'sub_gpay_001',
-                keyId: 'rzp_test_key',
-            });
-            // Use Starter as current plan so Growth shows "Upgrade"
+        it('shows overdue copy for a past-due plan that points to the account manager', async () => {
             vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-                subscription: {
-                    id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 5,
-                    planSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                },
+                subscription: { id: 'sub1', restaurantId: 'r1', status: 'PAST_DUE', billingCycle: 'MONTHLY', credits: 5, planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] }, currentPeriodEnd: '2026-04-01' },
                 usage: null,
             });
 
@@ -2624,39 +2429,21 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            fireEvent.click(screen.getByText('Upgrade'));
-            await waitFor(() => expect(screen.getByText('Upgrade to Growth?')).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: 'Schedule from next cycle' }));
-
-            await waitFor(() => {
-                expect((window as any).Razorpay).toHaveBeenCalledWith(expect.objectContaining({
-                    subscription_id: 'sub_gpay_001',
-                    key: 'rzp_test_key',
-                }));
-            });
+            expect(screen.getByText('Payment Overdue')).toBeInTheDocument();
+            expect(screen.getByText("We haven't received payment for your current period. Contact your account manager (John Doe) to keep your plan running.")).toBeInTheDocument();
+            // A past-due plan is still an active plan: switching goes through change-plan
+            fireEvent.click(screen.getByText('Downgrade'));
+            fireEvent.click(await screen.findByRole('button', { name: 'Send request' }));
+            await waitFor(() => expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter'));
+            expect(subscriptionAPI.subscribe).not.toHaveBeenCalled();
         });
 
-        it('upgrade via Schedule from next cycle still opens Razorpay checkout (deferred sub mandate auth)', async () => {
-            // Unified flow: every plan change opens Razorpay checkout for the new
-            // mandate authorisation. The "no checkout when PATCH succeeded" path
-            // from the legacy code is gone — Razorpay refuses PATCH for card
-            // mandates anyway, and the unified flow is honest about always
-            // requiring a fresh mandate authorization.
-            vi.mocked(subscriptionAPI.changePlan).mockResolvedValue({
-                effective: 'cycle_end',
-                planName: 'Growth',
-                requiresCheckout: true,
-                subscriptionId: 'sub_growth_def',
-                keyId: 'rzp_test_key',
-            });
-            // Use Starter as current plan so Growth shows "Upgrade"
+        it('shows suspended copy for a halted plan and lets the owner request a plan', async () => {
             vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
-                subscription: {
-                    id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 5,
-                    planSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                },
+                subscription: { id: 'sub1', restaurantId: 'r1', status: 'HALTED', credits: 0, planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] } },
                 usage: null,
             });
+            vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Growth' });
 
             render(<ProfileSheet {...defaultProps} />);
             await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2664,26 +2451,15 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            fireEvent.click(screen.getByText('Upgrade'));
-            await waitFor(() => expect(screen.getByText('Upgrade to Growth?')).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: 'Schedule from next cycle' }));
-
-            // changePlan called with mode=cycle_end; Razorpay checkout opens for ₹5 mandate auth
-            await waitFor(() => expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('growth', { mode: 'cycle_end' }));
-            await waitFor(() => {
-                expect((window as any).Razorpay).toHaveBeenCalledWith(expect.objectContaining({
-                    subscription_id: 'sub_growth_def',
-                    key: 'rzp_test_key',
-                }));
-            });
+            expect(screen.getByText('Subscription Suspended')).toBeInTheDocument();
+            expect(screen.getByText('Your plan is suspended. Request a plan below or contact your account manager (John Doe) to restore access.')).toBeInTheDocument();
+            const requestButtons = screen.getAllByText('Request');
+            fireEvent.click(requestButtons[requestButtons.length - 1]);
+            await waitFor(() => expect(subscriptionAPI.subscribe).toHaveBeenCalledWith('growth', undefined));
         });
 
         // [S9] Resubscribe from CANCELLED state
-        it('[S9] should allow resubscribe when subscription status is CANCELLED', async () => {
-            const mockRzpOpen = vi.fn();
-            const MockRazorpay = vi.fn().mockImplementation(function (this: any) { this.open = mockRzpOpen; });
-            (window as any).Razorpay = MockRazorpay;
-
+        it('[S9] should allow a new plan request when subscription status is CANCELLED', async () => {
             vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
                 subscription: {
                     id: 'sub1',
@@ -2695,10 +2471,7 @@ describe('ProfileSheet Component', () => {
                 },
                 usage: null,
             });
-            vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({
-                keyId: 'rzp_test_key',
-                subscriptionId: 'sub_rzp_new',
-            });
+            vi.mocked(subscriptionAPI.subscribe).mockResolvedValue({ requested: true, planName: 'Starter' });
 
             render(<ProfileSheet {...defaultProps} />);
             await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2706,31 +2479,25 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            // With CANCELLED status, should show Subscribe buttons like NONE
-            const subscribeButtons = screen.getAllByText('Subscribe');
+            // With CANCELLED status, should show Request buttons like NONE
+            const subscribeButtons = screen.getAllByText('Request');
             fireEvent.click(subscribeButtons[0]);
 
             await waitFor(() => {
                 expect(subscriptionAPI.subscribe).toHaveBeenCalledWith('starter', undefined);
-                expect(mockRzpOpen).toHaveBeenCalled();
+                expect(screen.getByText(/Request received for Starter/)).toBeInTheDocument();
             });
-
-            delete (window as any).Razorpay;
         });
 
         // [S7] Pure cancel action
-        it('[S7] should call cancel API when user initiates cancellation', async () => {
-            vi.mocked(subscriptionAPI.cancel).mockResolvedValue(undefined);
-
-            // Mock subscription with visible cancel UI
-            vi.mocked(subscriptionAPI.getCurrent).mockResolvedValueOnce({
+        // [S7] Cancel an active plan
+        it('[S7] should call cancel API when user confirms cancellation, mentioning a pending request', async () => {
+            vi.mocked(subscriptionAPI.cancel).mockResolvedValue({ success: true, message: 'Subscription will cancel at period end' });
+            vi.mocked(subscriptionAPI.getCurrent).mockResolvedValue({
                 subscription: {
-                    id: 'sub1',
-                    restaurantId: 'r1',
-                    status: 'ACTIVE',
-                    billingCycle: 'MONTHLY',
-                    credits: 15,
-                    planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                    id: 'sub1', restaurantId: 'r1', status: 'ACTIVE', billingCycle: 'MONTHLY', credits: 15,
+                    planSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 3, REEL: 5, VIDEO: 5 }, FACEBOOK: { IMAGE: 10, CAROUSEL: 3, VIDEO: 5, STORY: 10 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM', 'FACEBOOK'] },
+                    pendingPlanSnapshot: { id: 'p-starter', name: 'Starter', slug: 'starter', tier: 'STARTER', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 5, STORY: 5, CAROUSEL: 1, REEL: 2, VIDEO: 2 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
                     currentPeriodEnd: '2026-05-01',
                     cancelAtPeriodEnd: false,
                 },
@@ -2743,8 +2510,12 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            // Verify cancel API is available for testing
-            expect(subscriptionAPI.cancel).toBeDefined();
+            fireEvent.click(screen.getByText('Cancel plan'));
+            expect(await screen.findByText(/Your request for Starter will be withdrawn\./)).toBeInTheDocument();
+            fireEvent.click(screen.getAllByRole('button', { name: 'Cancel plan' }).at(-1)!);
+
+            await waitFor(() => expect(subscriptionAPI.cancel).toHaveBeenCalledTimes(1));
+            expect(subscriptionAPI.reactivate).not.toHaveBeenCalled();
         });
 
         // [PERM-1] Click current plan (should be no-op)
@@ -2785,8 +2556,8 @@ describe('ProfileSheet Component', () => {
                     status: 'ACTIVE',
                     billingCycle: 'MONTHLY',
                     credits: 5,
-                    planSnapshot: { id: 'p-premium', name: 'Premium', slug: 'premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 5, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
-                    pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 7, STORY: 7, CAROUSEL: 3, REEL: 3, VIDEO: 3 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'], razorpayPlanIds: { monthly: 'rp_m', annual: 'rp_a' } },
+                    planSnapshot: { id: 'p-premium', name: 'Premium', slug: 'premium', tier: 'PREMIUM', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 10, STORY: 10, CAROUSEL: 5, REEL: 5, VIDEO: 5 } } }, pricing: { monthly: 99900, annual: 999900, currency: 'INR' }, features: ['INSTAGRAM'] },
+                    pendingPlanSnapshot: { id: 'p-growth', name: 'Growth', slug: 'growth', tier: 'GROWTH', version: 1, isCurrentVersion: true, limits: { weekly: { INSTAGRAM: { IMAGE: 7, STORY: 7, CAROUSEL: 3, REEL: 3, VIDEO: 3 } } }, pricing: { monthly: 49900, annual: 499900, currency: 'INR' }, features: ['INSTAGRAM'] },
                     currentPeriodEnd: '2026-05-15',
                 },
                 usage: null,
@@ -2798,8 +2569,11 @@ describe('ProfileSheet Component', () => {
             fireEvent.click(screen.getByText('Subscription').closest('button')!);
             await waitFor(() => expect(screen.getByText('Change Plan')).toBeInTheDocument());
 
-            // Find the pending plan card (Growth with "Starts" date)
-            const pendingPlanText = screen.queryByText(/Starts/i);
+            // Find the pending plan card (Growth, marked "Requested")
+            const pendingPlanText = screen.queryByText('Requested');
+            expect(pendingPlanText).toBeInTheDocument();
+            // The requested plan's card offers no plan button (withdraw lives in the banner)
+            expect(pendingPlanText!.closest('.rounded-2xl')!.querySelectorAll('button')).toHaveLength(0);
             if (pendingPlanText) {
                 const initialCallCount = vi.mocked(subscriptionAPI.changePlan).mock.calls.length;
                 const planCard = pendingPlanText.closest('[role="button"]') || pendingPlanText.closest('div');
@@ -2819,20 +2593,8 @@ describe('ProfileSheet Component', () => {
         // [PERM-3] Amendment sequence
         it('[PERM-3] should handle multiple plan amendments in sequence', async () => {
             vi.mocked(subscriptionAPI.changePlan)
-                .mockResolvedValueOnce({
-                    effective: 'cycle_end',
-                    planName: 'Starter',
-                    requiresCheckout: true,
-                    subscriptionId: 'sub_starter_1',
-                    keyId: 'rzp_test_key',
-                })
-                .mockResolvedValueOnce({
-                    effective: 'cycle_end',
-                    planName: 'Premium',
-                    requiresCheckout: true,
-                    subscriptionId: 'sub_prem_1',
-                    keyId: 'rzp_test_key',
-                });
+                .mockResolvedValueOnce({ requested: true, planName: 'Starter' })
+                .mockResolvedValueOnce({ requested: true, planName: 'Starter' });
 
             render(<ProfileSheet {...defaultProps} />);
             await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
@@ -2842,11 +2604,17 @@ describe('ProfileSheet Component', () => {
 
             // Amendment 1: Downgrade to Starter
             fireEvent.click(screen.getByText('Downgrade'));
-            await waitFor(() => expect(screen.getByRole('button', { name: /^Confirm$/ })).toBeInTheDocument());
-            fireEvent.click(screen.getByRole('button', { name: /^Confirm$/ }));
+            await waitFor(() => expect(screen.getByRole('button', { name: 'Send request' })).toBeInTheDocument());
+            fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
             await waitFor(() => {
-                expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter', { mode: 'cycle_end' });
+                expect(subscriptionAPI.changePlan).toHaveBeenCalledWith('starter');
+                expect(screen.getByText(/Request received for Starter/)).toBeInTheDocument();
             });
+
+            // Amendment 2: request it again (the API treats a repeat as the same request)
+            fireEvent.click(screen.getByText('Downgrade'));
+            fireEvent.click(await screen.findByRole('button', { name: 'Send request' }));
+            await waitFor(() => expect(subscriptionAPI.changePlan).toHaveBeenCalledTimes(2));
         });
 
     });

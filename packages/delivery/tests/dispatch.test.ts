@@ -40,7 +40,7 @@ describe('rankQuotes', () => {
 describe('buildQuoteRequest', () => {
   it('carries pickup, drop and whether to collect cash', () => {
     const r = buildQuoteRequest(
-      makeOrder({ paymentMethod: 'cash', paymentStatus: 'not_required' }),
+      makeOrder({ paymentMethod: 'cash' }),
       makeRestaurant({ phone: '+914400', address: { line1: '1 Food St', city: 'Chennai', pincode: '600001' } } as never),
     )!;
     expect(r.pickup).toEqual({ name: '[SAMPLE] Spice Route', phone: '+914400', address: { line1: '1 Food St', city: 'Chennai', pincode: '600001' } });

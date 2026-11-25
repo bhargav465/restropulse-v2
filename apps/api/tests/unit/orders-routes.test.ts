@@ -1,18 +1,13 @@
 /**
- * Storefront checkout, payment verify/retry, tracking, the Razorpay orders
- * webhook and the restaurant order routes, end to end through the real order
- * service. @restropulse/db is replaced by an in-memory fake so the flows keep
- * state between calls; Razorpay network calls are stubbed, signatures are real.
+ * Storefront checkout, tracking and the restaurant order routes, end to end
+ * through the real order service. Orders are paid in cash (at the counter, at
+ * the table or on delivery). @restropulse/db is replaced by an in-memory fake
+ * so the flows keep state between calls.
  */
-import crypto from 'crypto';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import type { Order, OrderingMenuItem, Offer, Payment, Restaurant } from '@restropulse/shared';
-
-process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
-process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
-process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret';
+import type { Order, OrderingMenuItem, Offer, Restaurant } from '@restropulse/shared';
 
 // ----- In-memory @restropulse/db -----
 const state = {
@@ -20,8 +15,6 @@ const state = {
     items: [] as OrderingMenuItem[],
     offers: [] as Offer[],
     orders: [] as Order[],
-    payments: [] as Payment[],
-    events: new Set<string>(),
     seq: 0,
     collideNext: 0,
 };
@@ -67,35 +60,6 @@ const fakeDb = {
         o.statusHistory.push({ status: to as Order['status'], at: new Date().toISOString(), ...entry } as Order['statusHistory'][number]);
         return clone(o);
     }),
-    setOrderPaymentStatus: vi.fn(async (rid: string, id: string, paymentStatus: Order['paymentStatus']) => {
-        const o = state.orders.find((x) => x.restaurantId === rid && x.id === id);
-        if (o) o.paymentStatus = paymentStatus;
-        return clone(o ?? null);
-    }),
-    insertPayment: vi.fn(async (input: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>) => {
-        const p = { ...clone(input), id: `pay${++state.seq}`, createdAt: new Date(Date.now() + state.seq).toISOString(), updatedAt: '' } as Payment;
-        state.payments.push(p);
-        return clone(p);
-    }),
-    findPaymentByProviderOrderId: vi.fn(async (id: string) => clone(state.payments.find((p) => p.providerOrderId === id) ?? null)),
-    findPaymentByProviderPaymentId: vi.fn(async (id: string) => clone(state.payments.find((p) => p.providerPaymentId === id) ?? null)),
-    findLatestPaymentForOrder: vi.fn(async (rid: string, orderId: string) => {
-        const list = state.payments.filter((p) => p.restaurantId === rid && p.orderId === orderId);
-        return clone(list[list.length - 1] ?? null);
-    }),
-    updatePayment: vi.fn(async (id: string, updates: Record<string, unknown>, event: Record<string, unknown>) => {
-        const p = state.payments.find((x) => x.id === id);
-        if (!p) return null;
-        for (const [k, v] of Object.entries(updates)) if (v !== undefined) (p as unknown as Record<string, unknown>)[k] = v;
-        p.events.push({ at: new Date().toISOString(), ...event } as Payment['events'][number]);
-        return clone(p);
-    }),
-    recordPaymentWebhookEvent: vi.fn(async (id: string) => {
-        if (state.events.has(id)) return false;
-        state.events.add(id);
-        return true;
-    }),
-    forgetPaymentWebhookEvent: vi.fn(async (id: string) => { state.events.delete(id); }),
 };
 
 vi.mock('@restropulse/db', async (importOriginal) => {
@@ -118,24 +82,15 @@ vi.mock('../../src/middleware/rate-limit.js', async (importOriginal) => {
     };
 });
 
-const rzp = vi.hoisted(() => ({ createRazorpayOrder: vi.fn(), refundRazorpayPayment: vi.fn() }));
-vi.mock('../../src/services/razorpay.js', async (importOriginal) => {
-    const actual = await importOriginal() as Record<string, unknown>;
-    return { ...actual, ...rzp };
-});
-
 const { generateTokens } = await import('../../src/services/jwt.js');
 const { default: storefrontRoutes } = await import('../../src/routes/storefront.js');
 const { default: adminOrdersRoutes } = await import('../../src/routes/admin-orders.js');
-const { default: paymentWebhookRoutes } = await import('../../src/routes/payment-webhooks.js');
 const service = await import('../../src/services/orders/order-service.js');
 
 const app = express();
-app.use('/api/webhooks/razorpay/orders', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use('/api/storefront', storefrontRoutes);
 app.use('/api/admin/orders', adminOrdersRoutes);
-app.use('/api/webhooks/razorpay/orders', paymentWebhookRoutes);
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ success: false, error: err.message });
 });
@@ -149,7 +104,6 @@ const openSettings = {
     delivery: { enabled: true, flatFee: 40, minOrder: 100 },
     pickup: { enabled: true },
     dineIn: { enabled: false },
-    cashAccepted: true,
 };
 
 const restaurant = (over: Partial<Restaurant> = {}): Restaurant => ({
@@ -163,21 +117,10 @@ const restaurant = (over: Partial<Restaurant> = {}): Restaurant => ({
 const cart = { orderType: 'pickup', items: [{ menuItemId: 'biryani', qty: 2 }] };
 const guest = { customerName: 'Asha', customerPhone: '98765 43210' };
 
-const sign = (body: string, secret: string) => crypto.createHmac('sha256', secret).update(body).digest('hex');
-const paySignature = (orderId: string, paymentId: string) => sign(`${orderId}|${paymentId}`, 'rzp_test_secret');
-const webhook = (payload: object, eventId?: string) => {
-    const body = JSON.stringify(payload);
-    const req = request(app).post('/api/webhooks/razorpay/orders')
-        .set('Content-Type', 'application/json')
-        .set('x-razorpay-signature', sign(body, 'rzp_webhook_secret'));
-    if (eventId) req.set('x-razorpay-event-id', eventId);
-    return req.send(body);
-};
-
-async function placeOnline(extra: Record<string, unknown> = {}) {
-    const res = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'online', ...extra });
+async function placeCash(extra: Record<string, unknown> = {}) {
+    const res = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, ...extra });
     expect(res.status).toBe(201);
-    return res.body.data as { order: Order; trackingToken: string; payment: { providerOrderId: string; amount: number; keyId: string } };
+    return res.body.data as { order: Order; trackingToken: string };
 }
 
 beforeEach(() => {
@@ -191,14 +134,8 @@ beforeEach(() => {
         { id: 'o2', restaurantId: 'r1', title: 'Future', reward: { kind: 'flat_off', amount: 10 }, scope: { kind: 'all' }, schedule: { startsAt: '2099-01-01T00:00:00Z' }, showOnSite: true, promoteInContent: false, status: 'active' },
     ];
     state.orders = [];
-    state.payments = [];
-    state.events = new Set();
     state.seq = 0;
     state.collideNext = 0;
-    let n = 0;
-    rzp.createRazorpayOrder.mockReset().mockImplementation(async (amount: number) => ({ id: `order_rzp${++n}`, amount, currency: 'INR', status: 'created' }));
-    rzp.refundRazorpayPayment.mockReset().mockResolvedValue({ id: 'rfnd_1', status: 'pending', amount: 0 });
-    process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
     service._resetOrderListeners();
 });
 
@@ -207,7 +144,8 @@ describe('public storefront', () => {
         const res = await request(app).get('/api/storefront/bawarchi');
         expect(res.status).toBe(200);
         expect(res.body.data.restaurant).toMatchObject({ name: "Bawarchi's Kitchen", slug: 'bawarchi', phone: '+914000000000', address: 'Road 1, Hyderabad' });
-        expect(res.body.data.ordering).toMatchObject({ storeOpen: true, orderTypes: { delivery: true, pickup: true, dineIn: false }, payment: { online: true, cash: true } });
+        expect(res.body.data.ordering).toMatchObject({ storeOpen: true, orderTypes: { delivery: true, pickup: true, dineIn: false }, });
+        expect(res.body.data.ordering).not.toHaveProperty('payment');
         expect(res.body.data.content.tagline).toBe('Hot biryani');
         expect((await request(app).get('/api/storefront/nope-nope')).status).toBe(404);
         expect((await request(app).get('/api/storefront/NO')).status).toBe(404);
@@ -255,13 +193,33 @@ describe('public storefront', () => {
         service.onOrderStatusChange((o) => { seen.push(o.status); });
         const res = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'cash', notes: 'Less spicy' });
         expect(res.status).toBe(201);
-        expect(res.body.data.order).toMatchObject({ status: 'RECEIVED', paymentStatus: 'not_required', orderNumber: expect.stringMatching(/^RP-[A-Z2-9]{6}$/) });
+        expect(res.body.data.order).toMatchObject({ status: 'RECEIVED', paymentMethod: 'cash', orderNumber: expect.stringMatching(/^RP-[A-Z2-9]{6}$/) });
         expect(res.body.data.order).not.toHaveProperty('customerPhone');
         expect(res.body.data.trackingToken).toHaveLength(24);
         expect(res.body.data).not.toHaveProperty('payment');
         expect(state.orders[0]).toMatchObject({ customerPhone: '+919876543210', notes: 'Less spicy' });
+        expect(state.orders[0]).not.toHaveProperty('paymentStatus');
         expect(seen).toEqual(['RECEIVED']);
-        expect(rzp.createRazorpayOrder).not.toHaveBeenCalled();
+    });
+
+    test('paymentMethod may be omitted and only cash is accepted', async () => {
+        const omitted = await placeCash();
+        expect(omitted.order).toMatchObject({ status: 'RECEIVED', paymentMethod: 'cash' });
+        const online = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'online' });
+        expect(online.status).toBe(400);
+        expect(online.body.error).toBe('Orders are paid in cash.');
+        expect(state.orders).toHaveLength(1);
+    });
+
+    test('an order total of zero is still placed (nothing to collect)', async () => {
+        state.offers[0].reward = { kind: 'flat_off', amount: 1000 };
+        const placed = await placeCash({ offerCode: 'FLAT50' });
+        expect(placed.order.status).toBe('RECEIVED');
+    });
+
+    test('a legacy cashAccepted: false setting no longer blocks orders', async () => {
+        (state.restaurants[0].ordering as Record<string, unknown>).cashAccepted = false;
+        expect((await placeCash()).order.status).toBe('RECEIVED');
     });
 
     test('checkout validates the customer and the store', async () => {
@@ -269,8 +227,6 @@ describe('public storefront', () => {
         expect((await post({ ...cart, ...guest, customerPhone: '12345', paymentMethod: 'cash' })).body.error).toBe('Enter a 10-digit mobile number.');
         expect((await post({ ...cart, customerPhone: '9876543210', paymentMethod: 'cash' })).body.error).toBe('Add your name.');
         expect((await post({ ...cart, ...guest, orderType: 'delivery', paymentMethod: 'cash' })).body.code).toBe('ADDRESS_REQUIRED');
-        state.restaurants[0].ordering!.cashAccepted = false;
-        expect((await post({ ...cart, ...guest, paymentMethod: 'cash' })).body.code).toBe('CASH_NOT_ACCEPTED');
         state.restaurants[0].ordering!.storeOpen = false;
         const closed = await post({ ...cart, ...guest, paymentMethod: 'cash' });
         expect(closed.status).toBe(409);
@@ -292,17 +248,20 @@ describe('public storefront', () => {
         expect(badPin.body.error).toBe('Enter a 6-digit pincode.');
     });
 
-    test('the same Idempotency-Key returns the first order and its open payment', async () => {
+    test('the same Idempotency-Key returns the first order', async () => {
+        const seen: string[] = [];
+        service.onOrderStatusChange((o) => { seen.push(o.status); });
         const send = () => request(app).post('/api/storefront/bawarchi/orders').set('Idempotency-Key', 'checkout-abc-123')
-            .send({ ...cart, ...guest, paymentMethod: 'online' });
+            .send({ ...cart, ...guest, paymentMethod: 'cash' });
         const first = await send();
         const second = await send();
         expect(first.status).toBe(201);
         expect(second.status).toBe(200);
         expect(second.body.data.order.id).toBe(first.body.data.order.id);
-        expect(second.body.data.payment.providerOrderId).toBe(first.body.data.payment.providerOrderId);
-        expect(rzp.createRazorpayOrder).toHaveBeenCalledTimes(1);
+        expect(second.body.data).not.toHaveProperty('payment');
         expect(state.orders).toHaveLength(1);
+        // The kitchen hears about the order once, not on the replay.
+        expect(seen).toEqual(['RECEIVED']);
         const bad = await request(app).post('/api/storefront/bawarchi/orders').set('Idempotency-Key', 'short').send({ ...cart, ...guest, paymentMethod: 'cash' });
         expect(bad.status).toBe(400);
     });
@@ -322,144 +281,16 @@ describe('public storefront', () => {
         expect((await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'cash' })).status).toBe(500);
     });
 
-    test('online checkout opens a Razorpay order for the server total', async () => {
-        const placed = await placeOnline({ offerCode: 'FLAT50' });
-        expect(placed.order).toMatchObject({ status: 'PENDING_PAYMENT', paymentStatus: 'pending' });
-        expect(placed.payment).toEqual({ providerOrderId: 'order_rzp1', keyId: 'rzp_test_key', amount: 47250, currency: 'INR' });
-        expect(rzp.createRazorpayOrder).toHaveBeenCalledWith(47250, placed.order.orderNumber, 'INR', { kind: 'storefront_order', orderId: placed.order.id, restaurantId: 'r1' });
-    });
-
-    test('online checkout needs Razorpay and a total of at least one rupee', async () => {
-        state.offers[0].reward = { kind: 'flat_off', amount: 1000 };
-        const free = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'online', offerCode: 'FLAT50' });
-        expect(free.body.code).toBe('TOTAL_TOO_LOW');
-        delete process.env.RAZORPAY_KEY_ID;
-        const res = await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, paymentMethod: 'online' });
-        expect(res.status).toBe(503);
-        expect(res.body.code).toBe('PAYMENTS_UNAVAILABLE');
-    });
-
-    test('verify with a valid signature moves the order to the kitchen once', async () => {
-        const placed = await placeOnline();
-        const verify = (sig: string) => request(app).post(`/api/storefront/bawarchi/orders/${placed.order.id}/payment/verify`).send({
-            token: placed.trackingToken, razorpayOrderId: 'order_rzp1', razorpayPaymentId: 'pay_123', razorpaySignature: sig,
-        });
-        const ok = await verify(paySignature('order_rzp1', 'pay_123'));
-        expect(ok.status).toBe(200);
-        expect(ok.body.data.order).toMatchObject({ status: 'RECEIVED', paymentStatus: 'paid' });
-        expect(state.payments[0]).toMatchObject({ status: 'captured', providerPaymentId: 'pay_123' });
-        const again = await verify(paySignature('order_rzp1', 'pay_123'));
-        expect(again.body.data.order.status).toBe('RECEIVED');
-        expect(state.orders[0].statusHistory.filter((h) => h.status === 'RECEIVED')).toHaveLength(1);
-    });
-
-    test('verify rejects bad signatures, wrong Razorpay orders and wrong tokens', async () => {
-        const placed = await placeOnline();
-        const base = { token: placed.trackingToken, razorpayOrderId: 'order_rzp1', razorpayPaymentId: 'pay_1' };
-        const url = `/api/storefront/bawarchi/orders/${placed.order.id}/payment/verify`;
-        expect((await request(app).post(url).send({ ...base, razorpaySignature: 'short' })).status).toBe(400);
-        expect((await request(app).post(url).send({ ...base, razorpaySignature: paySignature('order_rzp1', 'pay_2') })).status).toBe(400);
-        expect((await request(app).post(url).send({ ...base, razorpayOrderId: 'order_other', razorpaySignature: paySignature('order_other', 'pay_1') })).status).toBe(400);
-        expect((await request(app).post(url).send({ ...base, token: 'x'.repeat(24), razorpaySignature: paySignature('order_rzp1', 'pay_1') })).status).toBe(404);
-        expect((await request(app).post('/api/storefront/bawarchi/orders/bad%20id/payment/verify').send({ ...base, razorpaySignature: 'x' })).status).toBe(404);
-        expect(state.orders[0].status).toBe('PENDING_PAYMENT');
-    });
-
     test('tracking needs the token and hides private fields', async () => {
-        const placed = await placeOnline();
+        const placed = await placeCash();
         const ok = await request(app).get(`/api/storefront/bawarchi/orders/${placed.order.id}`).query({ token: placed.trackingToken });
         expect(ok.status).toBe(200);
         expect(ok.body.data.order).not.toHaveProperty('trackingToken');
         expect(ok.body.data.order).not.toHaveProperty('customerName');
+        expect(ok.body.data.order).not.toHaveProperty('paymentStatus');
+        expect(ok.body.data.order.paymentMethod).toBe('cash');
         expect((await request(app).get(`/api/storefront/bawarchi/orders/${placed.order.id}`)).status).toBe(404);
         expect((await request(app).get(`/api/storefront/taken-name/orders/${placed.order.id}`).query({ token: placed.trackingToken })).status).toBe(404);
-    });
-});
-
-describe('payment webhook', () => {
-    const captured = (orderId: string, paymentId: string) => ({ event: 'payment.captured', payload: { payment: { entity: { id: paymentId, order_id: orderId } } } });
-
-    test('payment.captured confirms the order and redeliveries are ignored', async () => {
-        const placed = await placeOnline();
-        const first = await webhook(captured('order_rzp1', 'pay_w1'), 'evt_1');
-        expect(first.status).toBe(200);
-        expect(state.orders[0]).toMatchObject({ status: 'RECEIVED', paymentStatus: 'paid' });
-        const dup = await webhook(captured('order_rzp1', 'pay_w1'), 'evt_1');
-        expect(dup.body.data).toEqual({ duplicate: true });
-        // verify after the webhook is harmless
-        const v = await request(app).post(`/api/storefront/bawarchi/orders/${placed.order.id}/payment/verify`).send({
-            token: placed.trackingToken, razorpayOrderId: 'order_rzp1', razorpayPaymentId: 'pay_w1', razorpaySignature: paySignature('order_rzp1', 'pay_w1'),
-        });
-        expect(v.body.data.order.status).toBe('RECEIVED');
-    });
-
-    test('order.paid is handled the same way, keyed by the order entity', async () => {
-        await placeOnline();
-        await webhook({ event: 'order.paid', payload: { order: { entity: { id: 'order_rzp1' } }, payment: { entity: { id: 'pay_o1' } } } }, 'evt_op');
-        expect(state.orders[0].status).toBe('RECEIVED');
-    });
-
-    test('rejects bad signatures and junk payloads; ignores other events and other payments', async () => {
-        const bad = await request(app).post('/api/webhooks/razorpay/orders').set('Content-Type', 'application/json').set('x-razorpay-signature', 'nope').send('{}');
-        expect(bad.status).toBe(400);
-        const unsigned = await request(app).post('/api/webhooks/razorpay/orders').set('Content-Type', 'application/json').send('{}');
-        expect(unsigned.status).toBe(400);
-        const junk = 'not json';
-        const junkRes = await request(app).post('/api/webhooks/razorpay/orders').set('Content-Type', 'application/json').set('x-razorpay-signature', sign(junk, 'rzp_webhook_secret')).send(junk);
-        expect(junkRes.status).toBe(400);
-        expect((await webhook({ event: 'subscription.charged' })).body.data).toEqual({ ignored: true });
-        expect((await webhook(captured('order_subscription', 'pay_x'))).body.data).toEqual({ ignored: true });
-        expect((await webhook({ event: 'refund.processed', payload: { refund: { entity: { id: 'r', payment_id: 'pay_unknown' } } } })).body.data).toEqual({ ignored: true });
-        expect((await webhook({ event: 'payment.captured', payload: {} })).body.data).toEqual({ ignored: true });
-    });
-
-    test('payment.failed lets the customer retry with a new attempt', async () => {
-        const placed = await placeOnline();
-        await webhook({ event: 'payment.failed', payload: { payment: { entity: { id: 'pay_f1', order_id: 'order_rzp1', error_code: 'BAD_REQUEST_ERROR', error_description: 'Card declined' } } } }, 'evt_f');
-        expect(state.orders[0]).toMatchObject({ status: 'PAYMENT_FAILED', paymentStatus: 'failed' });
-        expect(state.payments[0].events.at(-1)).toMatchObject({ errorCode: 'BAD_REQUEST_ERROR', errorDescription: 'Card declined' });
-
-        const retry = await request(app).post(`/api/storefront/bawarchi/orders/${placed.order.id}/payment/retry`).send({ token: placed.trackingToken });
-        expect(retry.status).toBe(200);
-        expect(retry.body.data.payment.providerOrderId).toBe('order_rzp2');
-        expect(retry.body.data.order).toMatchObject({ status: 'PENDING_PAYMENT', paymentStatus: 'pending' });
-
-        await webhook(captured('order_rzp2', 'pay_ok'), 'evt_ok');
-        expect(state.orders[0]).toMatchObject({ status: 'RECEIVED', paymentStatus: 'paid' });
-        // A late failure for the old attempt changes nothing.
-        await webhook({ event: 'payment.failed', payload: { payment: { entity: { order_id: 'order_rzp2' } } } }, 'evt_late');
-        expect(state.orders[0].status).toBe('RECEIVED');
-    });
-
-    test('retry is refused once paid, without Razorpay, or with a bad token', async () => {
-        const placed = await placeOnline();
-        const url = `/api/storefront/bawarchi/orders/${placed.order.id}/payment/retry`;
-        delete process.env.RAZORPAY_KEY_ID;
-        expect((await request(app).post(url).send({ token: placed.trackingToken })).body.code).toBe('PAYMENTS_UNAVAILABLE');
-        process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
-        await webhook(captured('order_rzp1', 'pay_1'), 'e1');
-        const done = await request(app).post(url).send({ token: placed.trackingToken });
-        expect(done.status).toBe(409);
-        expect(done.body.code).toBe('NOT_AWAITING_PAYMENT');
-        expect((await request(app).post(url).send({ token: 'wrong' })).status).toBe(404);
-    });
-
-    test('a webhook that fails midway is forgotten so the retry is processed', async () => {
-        await placeOnline();
-        fakeDb.updatePayment.mockRejectedValueOnce(new Error('db down'));
-        const res = await webhook(captured('order_rzp1', 'pay_1'), 'evt_retry');
-        expect(res.status).toBe(500);
-        expect(state.events.has('evt_retry')).toBe(false);
-        expect((await webhook(captured('order_rzp1', 'pay_1'), 'evt_retry')).status).toBe(200);
-        expect(state.orders[0].status).toBe('RECEIVED');
-    });
-
-    test('event recording failures ask Razorpay to retry; missing event ids fall back to a body hash', async () => {
-        await placeOnline();
-        fakeDb.recordPaymentWebhookEvent.mockRejectedValueOnce(new Error('db down'));
-        expect((await webhook(captured('order_rzp1', 'pay_1'))).status).toBe(500);
-        expect((await webhook(captured('order_rzp1', 'pay_1'))).status).toBe(200);
-        expect((await webhook(captured('order_rzp1', 'pay_1'))).body.data).toEqual({ duplicate: true });
     });
 });
 
@@ -474,14 +305,16 @@ describe('restaurant order routes', () => {
 
     test('feed filters by status and hides customer secrets', async () => {
         await request(app).post('/api/storefront/bawarchi/orders').set('Idempotency-Key', 'feed-key-001').send({ ...cart, ...guest, paymentMethod: 'cash' });
-        await placeOnline();
+        const second = await placeCash();
+        await request(app).post(`/api/admin/orders/${second.order.id}/cancel`).set('Authorization', owner).send({ reason: 'Test' });
         const all = await admin('get', '?status=all');
         expect(all.body.data.orders).toHaveLength(2);
         expect(all.body.data.orders[0]).not.toHaveProperty('trackingToken');
         expect(all.body.data.orders[0]).not.toHaveProperty('idempotencyKey');
         expect(all.body.data.serverTime).toEqual(expect.any(String));
         expect((await admin('get', '?status=active')).body.data.orders).toHaveLength(1);
-        expect((await admin('get', '?status=pending_payment,received&limit=10&since=2026-01-01T00:00:00Z')).body.data.orders).toHaveLength(2);
+        expect((await admin('get', '?status=cancelled,received&limit=10&since=2026-01-01T00:00:00Z')).body.data.orders).toHaveLength(2);
+        expect((await admin('get', '?status=pending_payment')).status).toBe(400);
         expect((await admin('get', '?status=bogus')).status).toBe(400);
         expect((await admin('get', '?since=yesterday')).status).toBe(400);
         expect((await admin('get', '', otherOwner)).body.data.orders).toHaveLength(0);
@@ -490,7 +323,7 @@ describe('restaurant order routes', () => {
     test('delivery orders carry their rider status in the feed and on the tracking page', async () => {
         const address = { line1: '12 MG Road', pincode: '500001', city: 'Hyderabad' };
         const placed = (await request(app).post('/api/storefront/bawarchi/orders').send({ ...cart, ...guest, orderType: 'delivery', paymentMethod: 'cash', address })).body.data;
-        await placeOnline();
+        await placeCash();
         const track = () => request(app).get(`/api/storefront/bawarchi/orders/${placed.order.id}`).query({ token: placed.trackingToken });
         expect((await track()).body.data.delivery).toBeNull();
         deliveryShipments.length = 0;
@@ -528,66 +361,24 @@ describe('restaurant order routes', () => {
         expect((await admin('post', '/bad%20id/status').send({ to: 'READY' })).status).toBe(404);
     });
 
-    test('unpaid orders cannot be started and concurrent moves conflict', async () => {
-        const placed = await placeOnline();
-        expect((await admin('post', `/${placed.order.id}/status`).send({ to: 'PREPARING' })).body.code).toBe('AWAITING_PAYMENT');
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'p', order_id: 'order_rzp1' } } } }, 'e');
+    test('concurrent moves conflict', async () => {
+        const placed = await placeCash();
         fakeDb.transitionOrder.mockResolvedValueOnce(null as never);
         const race = await admin('post', `/${placed.order.id}/status`).send({ to: 'PREPARING' });
         expect(race.status).toBe(409);
         expect(race.body.code).toBe('ORDER_CHANGED');
     });
 
-    test('cancelling a paid online order refunds it; refund.processed settles it', async () => {
-        const placed = await placeOnline();
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_r', order_id: 'order_rzp1' } } } }, 'e1');
-        const res = await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'Out of rice' });
+    test('cancelling an order records the reason; there is nothing to refund', async () => {
+        const placed = await placeCash();
+        const res = await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'Out of rice', refund: true });
         expect(res.status).toBe(200);
-        expect(res.body.data.refund).toBe('requested');
-        expect(res.body.data.order).toMatchObject({ status: 'CANCELLED', cancelReason: 'Out of rice', paymentStatus: 'refund_pending' });
-        expect(rzp.refundRazorpayPayment).toHaveBeenCalledWith('pay_r', { notes: { orderId: placed.order.id, reason: 'Out of rice' } });
-        await webhook({ event: 'refund.processed', payload: { refund: { entity: { id: 'rfnd_1', payment_id: 'pay_r' } } } }, 'e2');
-        expect(state.orders[0].paymentStatus).toBe('refunded');
-        expect(state.payments[0].status).toBe('refunded');
-        // A second refund.processed (another event id) is harmless.
-        await webhook({ event: 'refund.processed', payload: { refund: { entity: { id: 'rfnd_1', payment_id: 'pay_r' } } } }, 'e3');
+        expect(res.body.data).not.toHaveProperty('refund');
+        expect(res.body.data.order).toMatchObject({ status: 'CANCELLED', cancelReason: 'Out of rice' });
+        expect(res.body.data.order).not.toHaveProperty('trackingToken');
         expect((await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'again' })).body.code).toBe('INVALID_TRANSITION');
-    });
-
-    test('a refund Razorpay rejects is reported; refund can be skipped', async () => {
-        const a = await placeOnline();
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_a', order_id: 'order_rzp1' } } } }, 'ea');
-        rzp.refundRazorpayPayment.mockRejectedValueOnce(new Error('Insufficient balance'));
-        const failed = await admin('post', `/${a.order.id}/cancel`).send({ reason: 'Closed early' });
-        expect(failed.body.data.refund).toBe('failed');
-        expect(failed.body.data.order).toMatchObject({ status: 'CANCELLED', paymentStatus: 'paid' });
-        expect(state.payments[0].events.at(-1)).toMatchObject({ type: 'refund_failed', errorDescription: 'Insufficient balance' });
-
-        const b = await placeOnline();
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_b', order_id: 'order_rzp2' } } } }, 'eb');
-        const kept = await admin('post', `/${b.order.id}/cancel`).send({ reason: 'Customer asked', refund: false });
-        expect(kept.body.data.refund).toBe('none');
-        expect(rzp.refundRazorpayPayment).toHaveBeenCalledTimes(1);
-        expect((await admin('post', `/${b.order.id}/cancel`).send({})).body.error).toBe('Say why the order is cancelled.');
-    });
-
-    test('a paid order with no captured payment record reports the refund as failed', async () => {
-        const placed = await placeOnline();
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_z', order_id: 'order_rzp1' } } } }, 'ez');
-        state.payments[0].status = 'created';
-        const res = await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'x' });
-        expect(res.body.data.refund).toBe('failed');
-    });
-
-    test('a payment that lands after cancellation is refunded straight away', async () => {
-        const placed = await placeOnline();
-        const cancelled = await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'Kitchen closed' });
-        expect(cancelled.body.data.refund).toBe('none');
-        await webhook({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_late', order_id: 'order_rzp1' } } } }, 'late');
-        expect(rzp.refundRazorpayPayment).toHaveBeenCalledWith('pay_late', expect.anything());
-        expect(state.orders[0]).toMatchObject({ status: 'CANCELLED', paymentStatus: 'refund_pending' });
-        const race = await admin('post', `/${placed.order.id}/cancel`).send({ reason: 'x' });
-        expect(race.status).toBe(409);
+        const other = await placeCash();
+        expect((await admin('post', `/${other.order.id}/cancel`).send({})).body.error).toBe('Say why the order is cancelled.');
     });
 
     test('cancel conflicts when the order moved meanwhile', async () => {
@@ -605,7 +396,9 @@ describe('ordering settings', () => {
     test('reads settings with a slug suggestion', async () => {
         state.restaurants[0] = restaurant({ slug: undefined, ordering: undefined });
         const res = await admin('get');
-        expect(res.body.data).toMatchObject({ slug: null, suggestedSlug: 'bawarchis-kitchen', onlinePaymentsAvailable: true, ordering: { storeOpen: false } });
+        expect(res.body.data).toMatchObject({ slug: null, suggestedSlug: 'bawarchis-kitchen', ordering: { storeOpen: false } });
+        expect(res.body.data).not.toHaveProperty('onlinePaymentsAvailable');
+        expect(res.body.data.ordering).not.toHaveProperty('cashAccepted');
         state.restaurants = [];
         expect((await admin('get')).status).toBe(404);
     });
@@ -624,8 +417,10 @@ describe('ordering settings', () => {
         expect((await admin('put').send({ ordering: openSettings })).body.error).toBe('Choose a web address before opening for orders.');
         expect((await admin('put').send(body({ ordering: { ...openSettings, delivery: { ...openSettings.delivery, enabled: false }, pickup: { enabled: false } } }))).body.error)
             .toBe('Turn on delivery, pickup or dine-in before opening for orders.');
-        delete process.env.RAZORPAY_KEY_ID;
-        expect((await admin('put').send(body({ ordering: { ...openSettings, cashAccepted: false } }))).body.error).toContain('Accept cash');
+        // An older dashboard still sending cashAccepted can open the store; the field is dropped.
+        const legacy = await admin('put').send(body({ ordering: { ...openSettings, cashAccepted: false } }));
+        expect(legacy.status).toBe(200);
+        expect(state.restaurants[0].ordering).not.toHaveProperty('cashAccepted');
         expect((await admin('put').send(body({ slug: 'no' }))).status).toBe(400);
         expect((await admin('put').send(body({ ordering: { ...openSettings, taxRatePercent: 40 } }))).body.error).toBe('Tax can be at most 28%.');
     });

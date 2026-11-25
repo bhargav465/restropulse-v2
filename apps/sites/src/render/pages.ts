@@ -209,12 +209,18 @@ function gallerySection(content: StorefrontContent | null): string {
         .join('')}</ul></section>`;
 }
 
+/** Orders are paid in cash; how depends on the order type. site.js shows the same lines. */
+export const CASH_NOTE = {
+    delivery: 'Pay cash on delivery.',
+    pickup: 'Pay at the counter when you pick up.',
+    dine_in: 'Pay at your table.',
+} as const;
+
 /** The checkout markup; hidden until site.js runs, so the page works as a menu without JS. */
 function checkoutDialog(ctx: PageContext): string {
     const o = ctx.config.ordering;
     const types = ([['delivery', 'Delivery', o.orderTypes.delivery], ['pickup', 'Pickup', o.orderTypes.pickup], ['dine_in', 'Dine-in', o.orderTypes.dineIn]] as const)
         .filter(([, , on]) => on);
-    const pays = ([['online', 'Pay online', o.payment.online], ['cash', 'Cash', o.payment.cash]] as const).filter(([, , on]) => on);
     return `<dialog class="rp-cart" id="rp-cart" aria-labelledby="rp-cart-title">
   <form method="dialog" class="rp-cart-close"><button aria-label="Close cart">Close</button></form>
   <h2 id="rp-cart-title">Your order</h2>
@@ -234,9 +240,9 @@ function checkoutDialog(ctx: PageContext): string {
     <label class="rp-field">Mobile number <input name="customerPhone" required inputmode="tel" maxlength="16" autocomplete="tel"></label>
     <label class="rp-field">Offer code <input name="offerCode" maxlength="32" autocapitalize="characters"></label>
     <label class="rp-field">Notes for the kitchen <textarea name="notes" maxlength="300" rows="2"></textarea></label>
-    <fieldset><legend>Payment</legend>${pays
-        .map(([v, label], i) => `<label><input type="radio" name="paymentMethod" value="${v}"${i === 0 ? ' checked' : ''}> ${label}</label>`)
-        .join('')}</fieldset>
+    <div class="rp-cash-note" data-cash-note>${types
+        .map(([v]) => `<p data-when="${v}"><strong>Payment:</strong> ${CASH_NOTE[v]}</p>`)
+        .join('')}</div>
     <dl class="rp-totals" data-totals></dl>
     <p class="rp-error" role="alert" data-error></p>
     <button type="submit" class="rp-primary" data-place-order>Place order</button>
@@ -249,8 +255,7 @@ export function renderHome(ctx: PageContext): string {
     const content = config.content;
     const o = config.ordering;
     const canOrder = o.storeOpen
-        && (o.orderTypes.delivery || o.orderTypes.pickup || o.orderTypes.dineIn)
-        && (o.payment.online || o.payment.cash);
+        && (o.orderTypes.delivery || o.orderTypes.pickup || o.orderTypes.dineIn);
     const hero = heroImage(content);
     const announcement = content?.announcement?.enabled && content.announcement.text
         ? `<p class="rp-announcement" role="status">${esc(content.announcement.text)}</p>`
@@ -302,10 +307,10 @@ export function renderTracking(ctx: PageContext, orderId: string): string {
   <h1>Your order</h1>
   <p class="rp-muted" data-track-status>Loading your order...</p>
   <p class="rp-muted" data-track-rider hidden></p>
+  <p class="rp-cash-note" data-track-pay hidden></p>
   <ol class="rp-timeline" data-track-timeline></ol>
   <dl class="rp-totals" data-track-totals></dl>
   <p class="rp-error" role="alert" data-error></p>
-  <button type="button" class="rp-primary" data-pay-again hidden>Pay now</button>
   <p><a href="${esc(ctx.basePath || '/')}">Back to the menu</a></p>
 </section>`,
         pageKind: 'track',

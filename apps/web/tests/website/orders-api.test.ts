@@ -35,9 +35,7 @@ describe('ordersAPI (real client)', () => {
         await realOrdersAPI.setStatus('o1', 'READY', 'Packed');
         expect(call(2).body).toBe(JSON.stringify({ to: 'READY', note: 'Packed' }));
         await realOrdersAPI.cancel('o1', 'Out of rice');
-        expect(call(3)).toMatchObject({ url: expect.stringContaining('/o1/cancel'), body: JSON.stringify({ reason: 'Out of rice', refund: true }) });
-        await realOrdersAPI.cancel('o1', 'x', false);
-        expect(call(4).body).toBe(JSON.stringify({ reason: 'x', refund: false }));
+        expect(call(3)).toMatchObject({ url: expect.stringContaining('/o1/cancel'), method: 'POST', body: JSON.stringify({ reason: 'Out of rice' }) });
     });
 
     it('reads and saves settings', async () => {

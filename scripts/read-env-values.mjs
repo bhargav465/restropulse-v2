@@ -56,7 +56,7 @@ function parseEnvBody(body) {
 }
 
 function isSecretKey(key) {
-  return /(SECRET|TOKEN|PASSWORD|MONGODB|URI|KEY|CONNECTION|JWT|FIREBASE|RAZORPAY|AZURE|APPINSIGHTS)/i.test(key);
+  return /(SECRET|TOKEN|PASSWORD|MONGODB|URI|KEY|CONNECTION|JWT|FIREBASE|AZURE|APPINSIGHTS)/i.test(key);
 }
 
 function displayValue(key, value) {

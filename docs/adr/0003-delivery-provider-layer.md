@@ -4,6 +4,8 @@
 
 **Accepted** -- 2026-10-04, with one amendment from the owner: aggregators are reached through a delivery middleware (uEngage Flash / Pidge / Shipway; choice pending in ADR 0004) rather than direct Rapido/Shadowfax adapters, because Rapido exposes no public API and Shadowfax's public Unified API is the e-commerce product, not hyperlocal Flash. Interface, mock, self and dispatcher proceed now; the middleware adapter starts when a merchant account + API key + webhook secret exist.
 
+> Note (2026-11-25): Razorpay billing was removed in November 2026 (subscriptions are activated manually by a platform admin; storefront orders are cash only), so the Razorpay webhook this record cites as a pattern no longer exists. The delivery webhook (`apps/api/src/routes/delivery-webhooks.ts`) keeps the raw-body + signature verification + idempotency approach described below and is now the API's only inbound webhook.
+
 ## 2. Context
 
 Orders placed on a restaurant's website need a rider. The owner wants Rapido and Shadowfax (and later Porter, ONDC logistics and similar) "behind a clean provider interface". No API documentation is in hand for either; online, Rapido has no public merchant API and Shadowfax publishes only its e-commerce Unified API, so the first real adapter targets a delivery middleware that already carries both. Aggregator APIs are asynchronous (webhooks for rider assignment and status), rate-limited, occasionally unavailable, and charge for waiting time at pickup. The API must never block an HTTP request on an aggregator call, and a provider outage must degrade to a manual fallback rather than lose the order.

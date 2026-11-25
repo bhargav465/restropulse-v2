@@ -7,7 +7,6 @@ export const sampleConfig = (over: Partial<SiteConfig> = {}): SiteConfig => ({
         orderTypes: { delivery: true, pickup: true, dineIn: false },
         delivery: { flatFee: 40, minOrder: 200 },
         taxRatePercent: 5,
-        payment: { online: true, cash: true },
     },
     content: {
         heroImages: ['https://cdn.example.com/hero.jpg'],

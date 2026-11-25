@@ -41,5 +41,5 @@ export default router;
 - Use `enforcePlanLimits` middleware before post-creation routes
 - Never log PII (phone, email, token values)
 - DB collection helpers from `@restropulse/db`: `findRestaurantById`, `findPostById`, `findActiveSubscription`, etc.
-- Razorpay service: check `apps/api/src/services/razorpay.ts`
+- Billing is manual (no payment gateway): owner plan requests live in `apps/api/src/routes/subscriptions.ts`, admin activation and credit grants in `apps/api/src/routes/platform-billing.ts`, shared helpers in `apps/api/src/services/billing/manual-billing.ts`
 - After implementing: run `npm run test --filter=@restropulse/api` to verify no regressions

@@ -46,7 +46,7 @@ export async function createPlan(plan: Omit<SubscriptionPlan, 'id'>): Promise<Su
  */
 export async function versionPlan(
   slug: string,
-  updates: Partial<Pick<SubscriptionPlan, 'limits' | 'pricing' | 'razorpayPlanIds' | 'features' | 'name'>>,
+  updates: Partial<Pick<SubscriptionPlan, 'limits' | 'pricing' | 'features' | 'name'>>,
 ): Promise<SubscriptionPlan> {
   const col = getSubscriptionPlansCollection();
 
@@ -73,7 +73,6 @@ export async function versionPlan(
     name: updates.name ?? current.name,
     limits: updates.limits ?? current.limits,
     pricing: updates.pricing ?? current.pricing,
-    razorpayPlanIds: updates.razorpayPlanIds ?? current.razorpayPlanIds,
     features: updates.features ?? current.features,
     createdAt: now,
     updatedAt: now,

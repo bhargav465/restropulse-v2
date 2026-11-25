@@ -40,11 +40,11 @@ export function contentSecurityPolicy(nonce: string, publicApiUrl: string): stri
     const api = new URL(publicApiUrl).origin;
     return [
         "default-src 'none'",
-        `script-src 'self' 'nonce-${nonce}' https://checkout.razorpay.com`,
+        `script-src 'self' 'nonce-${nonce}'`,
         `style-src 'self' 'nonce-${nonce}'`,
         "img-src 'self' https: data:",
-        `connect-src 'self' ${api} https://*.razorpay.com`,
-        'frame-src https://api.razorpay.com https://checkout.razorpay.com',
+        `connect-src 'self' ${api}`,
+        "frame-src 'none'",
         "font-src 'self'",
         "base-uri 'none'",
         "form-action 'self'",

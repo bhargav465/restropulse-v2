@@ -132,8 +132,9 @@ This section allows users to provide raw data to the AI engine.
     *   Displays Account Manager details (Name, Photo).
     *   **Direct Support:** WhatsApp button to chat directly with the Account Manager.
 *   **Subscription Management:**
-    *   **View Plan:** Shows current tier (Basic/Gold/Platinum), Price, and Renewal Date.
-    *   **Change Plan:** Modal to compare features across tiers and switch plans.
+    *   **View Plan:** Shows current tier (Basic/Gold/Platinum), Price, and the date the plan is paid until.
+    *   **Change Plan:** Modal to compare features across tiers and request a plan. There is no payment gateway: a request is stored as a pending plan, and the RestroPulse team arranges payment and switches it on. The owner can withdraw a pending request.
+    *   **Credits:** Shown on the plan card; top-ups are added by the RestroPulse team (no self-serve purchase).
 *   **Account Actions:**
     *   Logout.
     *   Delete Account.
@@ -160,6 +161,5 @@ This section allows users to provide raw data to the AI engine.
 
 ## Future Enhancements
 *   **Azure Blob Storage:** For storing media assets (images/videos) and menu files.
-*   **RazorPay Integration:** For handling subscription payments.
 *   **Service Worker:** Offline support and push notifications.
 *   **WebSockets:** Real-time post status updates.

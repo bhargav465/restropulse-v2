@@ -2,11 +2,11 @@
   "generatedAt": "2026-08-09T07:52:03.752Z",
   "root": "D:\\Work\\restropulse",
   "summary": {
-    "totalKeys": 87,
-    "declaredKeys": 46,
+    "totalKeys": 83,
+    "declaredKeys": 43,
     "requiredKeys": 12,
     "staleDeclaredKeys": 0,
-    "orphanUsedKeys": 31,
+    "orphanUsedKeys": 30,
     "workflowOnlyKeys": 10,
     "staleKeys": [],
     "orphanKeys": [
@@ -39,7 +39,6 @@
       "ROLLING_WINDOW_MINS",
       "SECRETS_BACKEND",
       "VITE_DEMO_MODE",
-      "VITE_RAZORPAY_KEY_ID",
       "ZOMATO_ADAPTER"
     ],
     "workflowKeys": [
@@ -1938,120 +1937,6 @@
       "manifestApps": []
     },
     {
-      "key": "RAZORPAY_KEY_ID",
-      "state": "active",
-      "required": false,
-      "runtime": true,
-      "buildTime": false,
-      "secret": true,
-      "owner": "shared",
-      "environments": [
-        "dev",
-        "prod",
-        "staging"
-      ],
-      "declaredIn": [
-        "apps/api/.env",
-        "apps/db-cli/.env",
-        "apps/db-cli/.env.example",
-        "apps/db-cli/.env.production.example",
-        "apps/db-cli/.env.staging.example",
-        "tests/integration/.env.integration.example"
-      ],
-      "usedInFiles": [
-        ".github/workflows/test-integration.yml",
-        "apps/api/src/services/razorpay.ts",
-        "apps/api/tests/unit/razorpay.test.ts",
-        "apps/db-cli/src/commands/razorpay-setup.ts"
-      ],
-      "usedInComponents": [
-        "api",
-        "db-cli",
-        "workflow"
-      ],
-      "usedInWorkflows": true,
-      "schemaRequiredBy": [],
-      "schemaOptionalBy": [
-        "api"
-      ],
-      "manifestApps": [
-        "api",
-        "db-cli"
-      ]
-    },
-    {
-      "key": "RAZORPAY_KEY_SECRET",
-      "state": "active",
-      "required": false,
-      "runtime": true,
-      "buildTime": false,
-      "secret": true,
-      "owner": "shared",
-      "environments": [
-        "dev",
-        "prod",
-        "staging"
-      ],
-      "declaredIn": [
-        "apps/api/.env",
-        "apps/db-cli/.env",
-        "apps/db-cli/.env.example",
-        "apps/db-cli/.env.production.example",
-        "apps/db-cli/.env.staging.example",
-        "tests/integration/.env.integration.example"
-      ],
-      "usedInFiles": [
-        ".github/workflows/test-integration.yml",
-        "apps/api/src/services/razorpay.ts",
-        "apps/api/tests/unit/razorpay.test.ts",
-        "apps/db-cli/src/commands/razorpay-setup.ts"
-      ],
-      "usedInComponents": [
-        "api",
-        "db-cli",
-        "workflow"
-      ],
-      "usedInWorkflows": true,
-      "schemaRequiredBy": [],
-      "schemaOptionalBy": [
-        "api"
-      ],
-      "manifestApps": [
-        "api",
-        "db-cli"
-      ]
-    },
-    {
-      "key": "RAZORPAY_WEBHOOK_SECRET",
-      "state": "active",
-      "required": false,
-      "runtime": true,
-      "buildTime": false,
-      "secret": true,
-      "owner": "api",
-      "environments": [
-        "dev"
-      ],
-      "declaredIn": [
-        "apps/api/.env"
-      ],
-      "usedInFiles": [
-        "apps/api/src/services/razorpay.ts",
-        "apps/api/tests/unit/razorpay.test.ts"
-      ],
-      "usedInComponents": [
-        "api"
-      ],
-      "usedInWorkflows": false,
-      "schemaRequiredBy": [],
-      "schemaOptionalBy": [
-        "api"
-      ],
-      "manifestApps": [
-        "api"
-      ]
-    },
-    {
       "key": "REPLICATE_API_TOKEN",
       "state": "active",
       "required": false,
@@ -2474,29 +2359,6 @@
       "usedInFiles": [
         "apps/web/utils/client-config.ts",
         "apps/web/utils/env.ts"
-      ],
-      "usedInComponents": [
-        "web"
-      ],
-      "usedInWorkflows": false,
-      "schemaRequiredBy": [],
-      "schemaOptionalBy": [],
-      "manifestApps": [
-        "web"
-      ]
-    },
-    {
-      "key": "VITE_RAZORPAY_KEY_ID",
-      "state": "orphan",
-      "required": false,
-      "runtime": false,
-      "buildTime": true,
-      "secret": true,
-      "owner": "web",
-      "environments": [],
-      "declaredIn": [],
-      "usedInFiles": [
-        "apps/web/utils/client-config.ts"
       ],
       "usedInComponents": [
         "web"

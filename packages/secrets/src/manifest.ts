@@ -1,5 +1,5 @@
 export type AppName = 'api' | 'web' | 'publisher' | 'content-engine' | 'db-cli' | 'intelligence-worker';
-export type SecretCategory = 'database' | 'auth' | 'meta' | 'ai' | 'azure' | 'payment' | 'config';
+export type SecretCategory = 'database' | 'auth' | 'meta' | 'ai' | 'azure' | 'config';
 
 export interface SecretDefinition {
   key: string;
@@ -33,10 +33,6 @@ export const SECRETS_MANIFEST: SecretDefinition[] = [
   // Durable media storage (Azure Blob). One account per env class: prod vs non-prod (dev + staging).
   // The container is derived from MONGODB_DB_NAME, so storage is tied to the database.
   { key: 'MEDIA_STORAGE_CONNECTION_STRING', kvName: 'media-storage-connection-string', description: 'Azure Blob connection string for durable generated-media storage (prod account vs non-prod account per env)', apps: ['content-engine'], required: false, category: 'azure' },
-  // Payments
-  { key: 'RAZORPAY_KEY_ID', kvName: 'razorpay-key-id', description: 'Razorpay API key ID', apps: ['api', 'db-cli'], required: false, category: 'payment' },
-  { key: 'RAZORPAY_KEY_SECRET', kvName: 'razorpay-key-secret', description: 'Razorpay API key secret', apps: ['api', 'db-cli'], required: false, category: 'payment' },
-  { key: 'RAZORPAY_WEBHOOK_SECRET', kvName: 'razorpay-webhook-secret', description: 'Razorpay webhook HMAC signing secret', apps: ['api'], required: false, category: 'payment' },
   // Azure / Observability
   { key: 'APPLICATIONINSIGHTS_CONNECTION_STRING', kvName: 'applicationinsights-connection-string', description: 'Azure Monitor connection string', apps: ['api', 'publisher', 'content-engine', 'intelligence-worker'], required: false, category: 'azure' },
   { key: 'AZURE_KEY_VAULT_URL', kvName: '', description: 'Key Vault URL when SECRETS_BACKEND=azure-kv', apps: ['api', 'publisher', 'content-engine', 'intelligence-worker'], required: false, category: 'azure' },
@@ -53,7 +49,6 @@ export const SECRETS_MANIFEST: SecretDefinition[] = [
   { key: 'VITE_RECAPTCHA_SITE_KEY', kvName: 'recaptcha-site-key', description: 'Google reCAPTCHA site key for Firebase Phone Auth', apps: ['web'], required: true, category: 'auth', buildTime: true },
   { key: 'VITE_APPINSIGHTS_CONNECTION_STRING', kvName: 'web-appinsights-connection-string', description: 'App Insights connection string for browser SDK', apps: ['web'], required: false, category: 'azure', buildTime: true },
   { key: 'VITE_GOOGLE_MAPS_API_KEY', kvName: 'web-google-maps-api-key', description: 'Google Maps Places API key', apps: ['web'], required: false, category: 'config', buildTime: true },
-  { key: 'VITE_RAZORPAY_KEY_ID', kvName: 'razorpay-key-id', description: 'Razorpay public key for checkout SDK', apps: ['web'], required: false, category: 'payment', buildTime: true },
 ];
 
 export function getAppSecretKeys(app: AppName): string[] {

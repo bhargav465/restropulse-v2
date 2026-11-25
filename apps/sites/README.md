@@ -12,8 +12,10 @@ docs/LAUNCH_ARCHITECTURE.md B2/B3).
 Pages are rendered on the server (title, description, Open Graph, canonical,
 JSON-LD Restaurant + Menu + opening hours, `/sitemap.xml`, `/robots.txt`), so
 search engines and WhatsApp/Instagram previews see the menu. `public/site.js`
-adds the cart, checkout (guest checkout, Razorpay or cash) and order tracking
-on top, against the public `/api/storefront/:slug` routes. Restaurant data is
+adds the cart, checkout (guest checkout) and order tracking on top, against
+the public `/api/storefront/:slug` routes. There is no online payment: every
+order is paid in cash (cash on delivery, at the counter for pickup, at the
+table for dine-in), and the checkout and tracking pages say so. Restaurant data is
 cached for `SITES_CACHE_TTL_MS` (60s), so a publish shows up within a minute.
 
 ```bash

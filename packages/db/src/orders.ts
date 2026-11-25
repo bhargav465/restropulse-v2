@@ -1,46 +1,30 @@
 /**
- * @restropulse/db - Online orders and payments (Phase 2, M2)
+ * @restropulse/db - Online orders (Phase 2, M2)
  *
  * Collections:
- *   orders                  one doc per order; status changes are optimistic
- *                           (filter on the current status) so two tablets can't
- *                           both move the same order.
- *   payments                one doc per online payment attempt (Razorpay order).
- *   payment_webhook_events  Razorpay event ids already handled (unique, 30-day TTL),
- *                           so a redelivered webhook is a no-op.
+ *   orders   one doc per order; status changes are optimistic (filter on the
+ *            current status) so two tablets can't both move the same order.
+ *            Orders are paid in cash at the counter, at the table or on
+ *            delivery, so there is no payments collection.
  *
- * Every order/payment query is scoped by restaurantId (string, as on Lane B docs).
+ * Every order query is scoped by restaurantId (string, as on Lane B docs).
  * Restaurant slug + ordering settings live on the restaurant document.
  */
 
 import { Collection, Db, MongoServerError } from 'mongodb';
 import type {
   Order,
-  OrderPaymentStatus,
   OrderStatus,
   OrderStatusHistoryEntry,
-  Payment,
-  PaymentEventEntry,
-  PaymentStatus,
   Restaurant,
   RestaurantOrderingSettings,
 } from '@restropulse/shared';
 import { getDB, getRestaurantsCollection, toApiFormat, toApiFormatArray, toObjectId } from './connection.js';
 
 export const ORDERS_COLLECTION = 'orders';
-export const PAYMENTS_COLLECTION = 'payments';
-export const PAYMENT_WEBHOOK_EVENTS_COLLECTION = 'payment_webhook_events';
 
 export function getOrdersCollection(): Collection {
   return getDB().collection(ORDERS_COLLECTION);
-}
-
-export function getPaymentsCollection(): Collection {
-  return getDB().collection(PAYMENTS_COLLECTION);
-}
-
-export function getPaymentWebhookEventsCollection(): Collection {
-  return getDB().collection(PAYMENT_WEBHOOK_EVENTS_COLLECTION);
 }
 
 const isDuplicateKey = (err: unknown) => err instanceof MongoServerError && err.code === 11000;
@@ -60,11 +44,6 @@ export const ORDER_INDEXES: Array<{ collection: string; spec: Record<string, 1 |
     spec: { restaurantId: 1, idempotencyKey: 1 },
     options: { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } },
   },
-  { collection: PAYMENTS_COLLECTION, spec: { providerOrderId: 1 }, options: { unique: true } },
-  { collection: PAYMENTS_COLLECTION, spec: { restaurantId: 1, orderId: 1, createdAt: -1 } },
-  { collection: PAYMENTS_COLLECTION, spec: { providerPaymentId: 1 }, options: { sparse: true } },
-  { collection: PAYMENT_WEBHOOK_EVENTS_COLLECTION, spec: { eventId: 1 }, options: { unique: true } },
-  { collection: PAYMENT_WEBHOOK_EVENTS_COLLECTION, spec: { receivedAt: 1 }, options: { expireAfterSeconds: 30 * 24 * 60 * 60 } },
   // Public site URL handle; only restaurants that have one.
   {
     collection: 'restaurants',
@@ -73,7 +52,7 @@ export const ORDER_INDEXES: Array<{ collection: string; spec: Record<string, 1 |
   },
 ];
 
-/** Create the order/payment indexes. Safe to call repeatedly (code 85/86 = already there). */
+/** Create the order indexes. Safe to call repeatedly (code 85/86 = already there). */
 export async function ensureOrderIndexes(db?: Db): Promise<void> {
   const database = db ?? getDB();
   for (const { collection, spec, options } of ORDER_INDEXES) {
@@ -187,7 +166,7 @@ export async function transitionOrder(
   from: OrderStatus,
   to: OrderStatus,
   entry: Omit<OrderStatusHistoryEntry, 'status' | 'at'>,
-  extra: { paymentStatus?: OrderPaymentStatus; cancelReason?: string } = {},
+  extra: { cancelReason?: string } = {},
 ): Promise<Order | null> {
   const now = new Date();
   const history: OrderStatusHistoryEntry = { status: to, at: now.toISOString(), ...entry };
@@ -197,79 +176,4 @@ export async function transitionOrder(
     { returnDocument: 'after' },
   );
   return toApiFormat(result) as unknown as Order | null;
-}
-
-export async function setOrderPaymentStatus(
-  restaurantId: string,
-  id: string,
-  paymentStatus: OrderPaymentStatus,
-): Promise<Order | null> {
-  const result = await getOrdersCollection().findOneAndUpdate(
-    { _id: toObjectId(id) as any, restaurantId },
-    { $set: { paymentStatus, updatedAt: new Date() } },
-    { returnDocument: 'after' },
-  );
-  return toApiFormat(result) as unknown as Order | null;
-}
-
-// ----- Payments -----
-
-export type PaymentInsert = Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>;
-
-export async function insertPayment(input: PaymentInsert): Promise<Payment> {
-  const now = new Date();
-  const doc = { ...input, createdAt: now, updatedAt: now };
-  const result = await getPaymentsCollection().insertOne(doc);
-  return toApiFormat({ ...doc, _id: result.insertedId }) as unknown as Payment;
-}
-
-export async function findPaymentByProviderOrderId(providerOrderId: string): Promise<Payment | null> {
-  const doc = await getPaymentsCollection().findOne({ providerOrderId });
-  return toApiFormat(doc) as unknown as Payment | null;
-}
-
-export async function findPaymentByProviderPaymentId(providerPaymentId: string): Promise<Payment | null> {
-  const doc = await getPaymentsCollection().findOne({ providerPaymentId });
-  return toApiFormat(doc) as unknown as Payment | null;
-}
-
-/** The newest payment attempt for an order. */
-export async function findLatestPaymentForOrder(restaurantId: string, orderId: string): Promise<Payment | null> {
-  const docs = await getPaymentsCollection().find({ restaurantId, orderId }).sort({ createdAt: -1 }).limit(1).toArray();
-  return (docs[0] ? toApiFormat(docs[0]) : null) as unknown as Payment | null;
-}
-
-export async function updatePayment(
-  id: string,
-  updates: { status?: PaymentStatus; providerPaymentId?: string; providerRefundId?: string },
-  event: Omit<PaymentEventEntry, 'at'>,
-): Promise<Payment | null> {
-  const now = new Date();
-  const $set: Record<string, unknown> = { updatedAt: now };
-  for (const [key, value] of Object.entries(updates)) if (value !== undefined) $set[key] = value;
-  const result = await getPaymentsCollection().findOneAndUpdate(
-    { _id: toObjectId(id) as any },
-    { $set, $push: { events: { at: now.toISOString(), ...event } } as any },
-    { returnDocument: 'after' },
-  );
-  return toApiFormat(result) as unknown as Payment | null;
-}
-
-/**
- * Record a provider webhook event id. Returns false when it was already
- * recorded (a redelivery), so the handler can skip it.
- */
-export async function recordPaymentWebhookEvent(eventId: string, provider: string, type: string): Promise<boolean> {
-  try {
-    await getPaymentWebhookEventsCollection().insertOne({ eventId, provider, type, receivedAt: new Date() });
-    return true;
-  } catch (err) {
-    if (isDuplicateKey(err)) return false;
-    throw err;
-  }
-}
-
-/** Forget an event id so the provider's retry is processed (used when handling failed midway). */
-export async function forgetPaymentWebhookEvent(eventId: string): Promise<void> {
-  await getPaymentWebhookEventsCollection().deleteOne({ eventId });
 }

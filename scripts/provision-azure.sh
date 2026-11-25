@@ -562,9 +562,6 @@ declare -a KV_SECRET_BASENAMES=(
   "instagram-app-id"
   "instagram-app-secret"
   "instagram-redirect-uri"
-  "razorpay-key-id"
-  "razorpay-key-secret"
-  "razorpay-webhook-secret"
   "firebase-service-account-key"
   "google-maps-api-key"
   "anthropic-api-key"
@@ -800,9 +797,6 @@ configure_app_target() {
       INSTAGRAM_APP_ID="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-instagram-app-id)" \
       INSTAGRAM_APP_SECRET="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-instagram-app-secret)" \
       INSTAGRAM_REDIRECT_URI="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-instagram-redirect-uri)" \
-      RAZORPAY_KEY_ID="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-razorpay-key-id)" \
-      RAZORPAY_KEY_SECRET="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-razorpay-key-secret)" \
-      RAZORPAY_WEBHOOK_SECRET="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-razorpay-webhook-secret)" \
       FIREBASE_SERVICE_ACCOUNT_KEY="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-firebase-service-account-key)" \
       GOOGLE_MAPS_API_KEY="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-google-maps-api-key)" \
       ANTHROPIC_API_KEY="@Microsoft.KeyVault(VaultName=$KV_NAME;SecretName=${secret_group_prefix}-anthropic-api-key)" \
@@ -1139,8 +1133,6 @@ echo "       --jwt-secret '<value>' --encryption-key '<value>' \\"
 echo "       --instagram-app-id '<value>' --instagram-app-secret '<value>' \\"
 echo "       --instagram-redirect-uri 'https://$STAGING_API_APP_URL/api/integrations/instagram/callback' \\"
 echo "       --firebase-service-account-key '<json>' \\"
-echo "       --razorpay-key-id '<value>' --razorpay-key-secret '<value>' \\"
-echo "       --razorpay-webhook-secret '<value>' \\"
 echo "       --frontend-url 'https://$SWA_URL' \\"
 echo "       --backend-url 'https://$STAGING_API_APP_URL' \\"
 echo "       --asset-server-base-url 'https://$STAGING_API_APP_URL/content/mockdata'"
