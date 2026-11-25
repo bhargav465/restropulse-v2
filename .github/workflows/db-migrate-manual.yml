@@ -1,0 +1,84 @@
+name: Database Migration (Manual)
+
+# Runs one named db-cli migration against staging or production.
+# Connection details come from Key Vault (restropulse-prod-kv, prefix
+# staging-/prod-) through the GitHub OIDC login, so no database secret is
+# stored in GitHub and none is printed. Each migration is idempotent and
+# stops without changes when it finds data it can't safely migrate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target database
+        type: choice
+        options: [staging, production]
+        required: true
+      migration:
+        description: db-cli migration to run
+        type: choice
+        options:
+          - unique-post-slot-index
+          - menu-to-catalog
+          - split-post-platforms
+          - sparse-oauth-session-id-index
+          - rename-strategy-id-to-cycle-id
+          - subscription-history
+        required: true
+      confirm:
+        description: Type the environment name again to confirm
+        type: string
+        required: true
+
+concurrency:
+  group: db-migrate-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migrate ${{ inputs.environment }} (${{ inputs.migration }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check confirmation
+        env:
+          TARGET: ${{ inputs.environment }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "$TARGET" ]; then
+            echo "::error::Confirmation \"$CONFIRM\" does not match \"$TARGET\"; nothing ran."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Build db-cli dependencies
+        run: npx turbo build --filter=@restropulse/db-cli^...
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run migration
+        working-directory: apps/db-cli
+        env:
+          TARGET: ${{ inputs.environment }}
+          MIGRATION: ${{ inputs.migration }}
+          SECRETS_BACKEND: azure-kv
+          AZURE_KEY_VAULT_URL: https://restropulse-prod-kv.vault.azure.net
+          AZURE_KEY_VAULT_KEY_PREFIX: ${{ inputs.environment == 'production' && 'prod' || 'staging' }}
+        run: |
+          # db-cli requires an env file for staging/production; all values
+          # come from Key Vault, so an empty one is enough.
+          touch ".env.${TARGET}"
+          npx tsx src/index.ts --env "$TARGET" migrate "$MIGRATION"
