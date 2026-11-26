@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { isDemoMode } from '../lib/demo';
 import { allDemoRestaurants, currentDemoRestaurantId } from '../lib/demo-restaurants';
 
-const signedIn = (): boolean => {
+/** Signed in with a restaurant picked (not mid sign-up), or '' otherwise. */
+const signedInRestaurant = (): string => {
     try {
-        return !!localStorage.getItem('rp_token');
+        if (!localStorage.getItem('rp_token') || !localStorage.getItem('rp_restaurant_id')) return '';
+        return currentDemoRestaurantId();
     } catch {
-        return false;
+        return '';
     }
 };
 
@@ -17,10 +19,11 @@ const signedIn = (): boolean => {
  * Renders nothing outside demo mode.
  */
 const DemoBadge: React.FC = () => {
-    const [loggedIn, setLoggedIn] = useState(signedIn);
+    // Re-read each second so a new sign-up, a login or a logout shows up.
+    const [restaurantId, setRestaurantId] = useState(signedInRestaurant);
     useEffect(() => {
         if (!isDemoMode()) return;
-        const timer = window.setInterval(() => setLoggedIn(signedIn()), 1000);
+        const timer = window.setInterval(() => setRestaurantId(signedInRestaurant()), 1000);
         return () => window.clearInterval(timer);
     }, []);
     if (!isDemoMode()) return null;
@@ -39,17 +42,17 @@ const DemoBadge: React.FC = () => {
         <div
             role="note"
             aria-label="Demo preview"
-            className="fixed bottom-20 left-3 z-[60] flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-2xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow ring-1 ring-amber-300 sm:bottom-3"
+            className="fixed bottom-20 left-3 z-[60] lg:left-auto lg:right-3 flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-2xl bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow ring-1 ring-amber-300 lg:bottom-3"
         >
             <span>Demo preview · sample data · nothing is sent</span>
-            {loggedIn && (
+            {restaurantId && (
                 <label className="flex items-center gap-1 font-normal">
                     <span className="sr-only">Switch sample restaurant</span>
                     <select
                         aria-label="Switch sample restaurant"
                         title="Switching reloads the demo and resets your changes"
                         className="max-w-[14rem] rounded-lg border border-amber-300 bg-white px-1 py-0.5 text-xs text-amber-900"
-                        value={currentDemoRestaurantId()}
+                        value={restaurantId}
                         onChange={(e) => switchTo(e.target.value)}
                     >
                         {allDemoRestaurants().map((r) => (
