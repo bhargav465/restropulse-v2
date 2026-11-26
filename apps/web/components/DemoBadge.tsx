@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isDemoMode } from '../lib/demo';
-import { currentDemoRestaurantId, DEMO_RESTAURANTS } from '../lib/demo-restaurants';
+import { allDemoRestaurants, currentDemoRestaurantId } from '../lib/demo-restaurants';
 
 const signedIn = (): boolean => {
     try {
@@ -52,7 +52,7 @@ const DemoBadge: React.FC = () => {
                         value={currentDemoRestaurantId()}
                         onChange={(e) => switchTo(e.target.value)}
                     >
-                        {DEMO_RESTAURANTS.map((r) => (
+                        {allDemoRestaurants().map((r) => (
                             <option key={r.id} value={r.id}>{r.name.replace('[SAMPLE] ', '')} · {r.city}</option>
                         ))}
                     </select>

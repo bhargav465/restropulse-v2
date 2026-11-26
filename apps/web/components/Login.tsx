@@ -362,7 +362,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onFallbackLogin }) => {
 
                         <p className="text-center text-xs text-slate-500">
                             {isDemoMode()
-                                ? 'Demo preview: pick a sample restaurant below, or enter any 10-digit number. The code fills in by itself.'
+                                ? 'Demo preview: pick a sample restaurant below, or enter any other 10-digit number to sign up as a new restaurant. The code fills in by itself.'
                                 : "We'll send a 6-digit verification code to your phone"}
                         </p>
 

@@ -99,6 +99,7 @@ import { PlacesAutocompleteInput } from './PlacesAutocompleteInput';
 import type { Restaurant, AccountManager, City, EmailVerificationStatus } from '@restropulse/shared';
 import { restaurantAPI, accountManagerAPI, citiesAPI, authAPI } from '../api';
 import { sendEmailVerificationLink, completeEmailVerification, isEmailSignInLink, getStoredVerificationEmail } from '../firebase';
+import { isDemoMode } from '../lib/demo';
 
 interface OnboardingProps {
     onComplete: (restaurant: Restaurant) => void;
@@ -226,6 +227,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         }
         setEmailStatus('sending');
         setEmailError(null);
+        if (isDemoMode()) {
+            // Demo preview: no email is sent; the address counts as verified.
+            setEmailStatus('verified');
+            return;
+        }
         try {
             if (userName.trim()) {
                 localStorage.setItem('rp_onboarding_name', userName.trim());
@@ -670,7 +676,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                     />
                     {!googleMapsApiKey && (
                         <p className="text-slate-500 text-xs mt-2">
-                            Google Maps API key not configured. Enter address manually.
+                            {isDemoMode()
+                                ? 'Demo preview: type any address. Nothing is looked up or saved outside this browser.'
+                                : 'Google Maps API key not configured. Enter address manually.'}
                         </p>
                     )}
                 </div>

@@ -13,11 +13,15 @@
  * to the real network. Nothing here ever reaches a server.
  */
 import type {
-    ContentStrategy, EntitlementState, FeatureFlags, Platform, Post, Restaurant, StrategyCycle, Subscription,
-    SubscriptionPlan, User,
+    AccountManager, City, ContentStrategy, EntitlementState, FeatureFlags, Platform, Post, Restaurant, StrategyCycle,
+    Subscription, SubscriptionPlan, User,
 } from '@restropulse/shared';
 import { isDemoMode, notifyDemoBackendAction } from './lib/demo';
-import { buildMenu, demoProfile, demoRestaurantForPhone, perRestaurant, type DemoRestaurantProfile } from './lib/demo-restaurants';
+import {
+    buildMenu, createSignedUpRestaurant, demoProfile, demoRestaurantForPhone, pendingSignupPhone,
+    perRestaurant, resetDemoSignups, setPendingSignupPhone, signedUpProfile, updateSignedUpRestaurant,
+    type DemoRestaurantProfile, type DemoSignupProfile,
+} from './lib/demo-restaurants';
 
 const RID = 'demo-r1';
 const DEMO_OTP = '123456';
@@ -47,6 +51,8 @@ interface DemoBackendState {
 }
 
 function buildState(id: string): DemoBackendState {
+    const signup = signedUpProfile(id);
+    if (signup) return buildFromSignup(signup);
     if (id !== RID) return buildFromProfile(demoProfile(id));
     const profile = demoProfile(RID);
     const user: User = {
@@ -175,7 +181,144 @@ function buildFromProfile(p: DemoRestaurantProfile): DemoBackendState {
     return { user, restaurant, posts, strategy, cycles };
 }
 
-// One account per sample restaurant; the signed-in one (rp_restaurant_id) is served.
+/**
+ * A restaurant that just finished onboarding: what the owner typed and
+ * nothing else. No menu, posts, offers or website yet, and Instagram not
+ * connected, like a real first sign-in. Its first strategy cycle waits for
+ * approval, as the live app prepares one right after onboarding.
+ */
+function buildFromSignup(p: DemoSignupProfile): DemoBackendState {
+    const user: User = {
+        id: `${p.id}-owner`, name: p.ownerName, email: p.signup.email, phone: `+91${p.loginPhone}`,
+        role: 'OWNER', emailVerified: true, restaurantId: p.id,
+    };
+    const connected = !!p.signup.instagramConnected;
+    const restaurant: Restaurant = {
+        id: p.id, name: p.name, cuisine: p.cuisine, description: '',
+        location: { address: p.address, lat: p.lat, lng: p.lng, mapUrl: p.signup.mapUrl },
+        accountManager: { ...p.signup.accountManager },
+        integrations: { instagram: connected },
+        instagramConnection: connected
+            ? { connected: true, username: p.instagramHandle, pageName: p.name, tokenStatus: 'valid' }
+            : { connected: false },
+        activeOffers: [], chefSpecials: [], menu: [],
+        sourceCity: p.city,
+        autoContentEnabled: false,
+    };
+    const strategy: ContentStrategy = {
+        id: `${p.id}-strategy`, restaurantId: p.id, postsPerWeek: 3,
+        focusCategories: ['CHEFS_PICK', 'OFFER_SPOTLIGHT'], bestTime: '7:00 PM', nextScheduledDate: iso(1, 19),
+        theme: `[SAMPLE] ${p.strategyTheme}`,
+    };
+    const cycles: StrategyCycle[] = [
+        { id: `${p.id}-cycle-1`, restaurantId: p.id, period: 'This week', startDate: iso(0, 0), endDate: iso(7, 0), status: 'PENDING_APPROVAL',
+          summary: `[SAMPLE] A first week to introduce ${p.name}: what you cook, who you are and where to find you.`,
+          plannedPosts: [{ category: 'CHEFS_PICK', count: 2 }, { category: 'BEHIND_THE_SCENES', count: 1 }],
+          focus: [...p.strategyFocus] },
+    ];
+    return { user, restaurant, posts: [], strategy, cycles };
+}
+
+// ---------------------------------------------------------------------------
+// Sign-up (a number that isn't one of the samples)
+// ---------------------------------------------------------------------------
+
+/** Signed in with a new number, onboarding not finished: no restaurant yet. */
+function pendingUser(phone: string): User {
+    return { id: 'demo-new-owner', name: '', email: '', phone, role: 'OWNER', emailVerified: false, restaurantId: '' };
+}
+
+const signedInRestaurantId = (): string | null => {
+    try {
+        return localStorage.getItem('rp_restaurant_id');
+    } catch {
+        return null;
+    }
+};
+
+/** The session's user: the new owner mid-onboarding, or the signed-in restaurant's owner. */
+function sessionUser(): User {
+    const pending = pendingSignupPhone();
+    if (pending && !signedInRestaurantId()) return pendingUser(pending);
+    return S().user;
+}
+
+const DEMO_CITIES: Array<{ name: string; zones: string[] }> = [
+    { name: 'Bengaluru', zones: ['Indiranagar', 'Koramangala'] },
+    { name: 'Mumbai', zones: ['Bandra', 'Lower Parel'] },
+    { name: 'New Delhi', zones: ['Hauz Khas', 'Connaught Place'] },
+    { name: 'Hyderabad', zones: ['Banjara Hills', 'Gachibowli'] },
+    { name: 'Chennai', zones: ['T. Nagar', 'Adyar'] },
+    { name: 'Kochi', zones: ['Fort Kochi', 'Kakkanad'] },
+    { name: 'Pune', zones: ['Koregaon Park', 'Baner'] },
+];
+
+const cities: City[] = DEMO_CITIES.map((c) => ({ id: c.name.toLowerCase().replace(/[^a-z]+/g, '-'), name: c.name, defaultZone: c.zones[0] }));
+
+const MANAGER_NAMES = ['Priya', 'Arjun', 'Neha', 'Karthik'];
+
+function accountManagers(city: string, zone: string | null): AccountManager[] {
+    const c = DEMO_CITIES.find((x) => x.name.toLowerCase() === city.toLowerCase());
+    if (!c) return [];
+    return c.zones
+        .filter((z) => !zone || z === zone)
+        .map((z) => {
+            const n = c.zones.indexOf(z) + DEMO_CITIES.indexOf(c);
+            const name = MANAGER_NAMES[n % MANAGER_NAMES.length];
+            return {
+                id: `demo-am-${cities.find((x) => x.name === c.name)!.id}-${c.zones.indexOf(z) + 1}`,
+                name: `[SAMPLE] ${name}`, phone: '+91 80 0000 0001', email: `${name.toLowerCase()}@restropulse.example`,
+                avatar: '', city: c.name, zone: z,
+            };
+        });
+}
+
+/** Onboarding's POST /restaurant: saves a new, empty restaurant in this browser. */
+function createRestaurant(body: any): DemoReply {
+    const phone = pendingSignupPhone();
+    if (!phone || signedInRestaurantId()) {
+        // A sample owner (already has a restaurant) re-running setup: keep theirs.
+        return { body: { success: true, data: { restaurant: S().restaurant, token: 'demo-token', refreshToken: 'demo-refresh-token' } } };
+    }
+    const text = (v: unknown, fallback = ''): string => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+    const loc = body?.location ?? {};
+    const am = body?.accountManager ?? {};
+    const profile = createSignedUpRestaurant({
+        phone,
+        userName: text(body?.userName, 'Owner'),
+        email: text(body?.email),
+        name: text(body?.name, 'My Restaurant'),
+        cuisine: text(body?.cuisine),
+        city: text(body?.sourceCity, 'Bengaluru'),
+        address: text(loc.address),
+        lat: typeof loc.lat === 'number' ? loc.lat : 0,
+        lng: typeof loc.lng === 'number' ? loc.lng : 0,
+        mapUrl: text(loc.mapUrl),
+        accountManager: { name: text(am.name), phone: text(am.phone), email: text(am.email), avatar: text(am.avatar) },
+    });
+    setPendingSignupPhone(null);
+    const restaurant = store.peek(profile.id).restaurant;
+    return { body: { success: true, data: { restaurant, token: 'demo-token', refreshToken: 'demo-refresh-token' } } };
+}
+
+/**
+ * Instagram can't really be connected from the demo. For the signed-in
+ * restaurant it marks a sample account as connected and points the popup at a
+ * static page that tells the opener it worked, like the live OAuth callback.
+ */
+function simulateInstagramConnect(): DemoReply {
+    const r = S().restaurant;
+    const username = signedUpProfile(r.id)?.instagramHandle ?? r.instagramConnection?.username ?? 'demo_kitchen_sample';
+    S().restaurant = {
+        ...r, integrations: { ...r.integrations, instagram: true },
+        instagramConnection: { connected: true, username, pageName: r.name, tokenStatus: 'valid' },
+    };
+    if (signedUpProfile(r.id)) updateSignedUpRestaurant(r.id, { instagramConnected: true });
+    const params = new URLSearchParams({ username });
+    return ok({ oauthUrl: `/demo-instagram-connect.html?${params.toString()}`, state: 'demo-state' });
+}
+
+// One account per restaurant; the signed-in one (rp_restaurant_id) is served.
 const store = perRestaurant(buildState);
 const S = store.get;
 
@@ -212,7 +355,7 @@ const plans: SubscriptionPlan[] = [
 // ---------------------------------------------------------------------------
 
 interface DemoReply { status?: number; body: unknown }
-type Handler = (m: RegExpMatchArray, body: any, method: string) => DemoReply | Promise<DemoReply>;
+type Handler = (m: RegExpMatchArray, body: any, query: URLSearchParams) => DemoReply | Promise<DemoReply>;
 
 const ok = (data?: unknown): DemoReply => ({ body: data === undefined ? { success: true } : { success: true, data } });
 const err = (status: number, message: string): DemoReply => ({ status, body: { success: false, message, error: message } });
@@ -230,16 +373,27 @@ const routes: Array<[string, RegExp, Handler]> = [
     }],
     ['POST', /^\/auth\/verify-otp$/, (_m, body) => {
         if (body?.otp !== DEMO_OTP) return err(400, `Demo preview: use code ${DEMO_OTP}.`);
-        // The number picks the sample restaurant; the client then stores its id as rp_restaurant_id.
-        const profile = demoRestaurantForPhone(typeof body?.phone === 'string' ? body.phone : '');
-        const user = { ...store.peek(profile.id).user, phone: body.phone };
+        const phone = typeof body?.phone === 'string' ? body.phone : '';
+        // A sample's number (or one signed up in this browser) signs in as that
+        // restaurant; the client then stores its id as rp_restaurant_id.
+        const profile = demoRestaurantForPhone(phone);
+        if (!profile) {
+            // Any other number is a new owner: no restaurant, so the app opens onboarding.
+            setPendingSignupPhone(phone);
+            return { body: { success: true, user: pendingUser(phone), token: 'demo-token', refreshToken: 'demo-refresh-token' } };
+        }
+        setPendingSignupPhone(null);
+        const user = { ...store.peek(profile.id).user, phone };
         return { body: { success: true, user, token: 'demo-token', refreshToken: 'demo-refresh-token' } };
     }],
-    ['POST', /^\/auth\/(login|firebase)$/, () => ({ body: { success: true, user: S().user, token: 'demo-token', refreshToken: 'demo-refresh-token' } })],
-    ['GET', /^\/auth\/session$/, () => ({ body: { success: true, user: S().user } })],
+    ['POST', /^\/auth\/(login|firebase)$/, () => ({ body: { success: true, user: sessionUser(), token: 'demo-token', refreshToken: 'demo-refresh-token' } })],
+    ['GET', /^\/auth\/session$/, () => ({ body: { success: true, user: sessionUser() } })],
     ['POST', /^\/auth\/refresh$/, () => ({ body: { success: true, token: 'demo-token' } })],
-    ['POST', /^\/auth\/logout$/, () => ok()],
-    ['POST', /^\/auth\/verify-email$/, () => { S().user = { ...S().user, emailVerified: true }; return ok(); }],
+    ['POST', /^\/auth\/logout$/, () => { setPendingSignupPhone(null); return ok(); }],
+    ['POST', /^\/auth\/verify-email$/, () => {
+        if (!pendingSignupPhone()) S().user = { ...S().user, emailVerified: true };
+        return ok();
+    }],
 
     // --- config / billing ----------------------------------------------------
     ['GET', /^\/config\/features$/, () => ok(features)],
@@ -252,7 +406,8 @@ const routes: Array<[string, RegExp, Handler]> = [
     ['DELETE', /^\/account$/, () => err(400, 'Account deletion is turned off in the demo preview.')],
 
     // --- restaurant ------------------------------------------------------------
-    ['GET', /^\/restaurant\/cities$/, () => ok([{ id: 'bengaluru', name: 'Bengaluru', defaultZone: 'Indiranagar' }])],
+    ['GET', /^\/restaurant\/cities$/, () => ok(cities)],
+    ['GET', /^\/restaurant\/account-managers$/, (_m, _body, q) => ok(accountManagers(q.get('city') ?? '', q.get('zone')))],
     ['GET', /^\/restaurant\/([^/]+)\/analytics$/, () => ok({
         postsPerWeek: [{ week: 1, posts: 3 }, { week: 2, posts: 4 }, { week: 3, posts: 4 }, { week: 4, posts: 5 }],
         contentMix: [{ type: 'IMAGE', count: 9 }, { type: 'CAROUSEL', count: 4 }, { type: 'REEL', count: 3 }],
@@ -275,7 +430,7 @@ const routes: Array<[string, RegExp, Handler]> = [
         S().restaurant = { ...S().restaurant, ...(body ?? {}), id: S().restaurant.id };
         return ok(S().restaurant);
     }],
-    ['POST', /^\/restaurant$/, () => ({ body: { success: true, data: { restaurant: S().restaurant, token: 'demo-token', refreshToken: 'demo-refresh-token' } } })],
+    ['POST', /^\/restaurant$/, (_m, body) => createRestaurant(body)],
 
     // --- posts -------------------------------------------------------------------
     ['GET', /^\/posts$/, () => ok(S().posts)],
@@ -351,15 +506,23 @@ const routes: Array<[string, RegExp, Handler]> = [
     // --- integrations ------------------------------------------------------------
     ['GET', /^\/integrations\/config$/, () => ok({ instagram: { configured: true } })],
     ['GET', /^\/integrations\/instagram\/status\/([^/]+)$/, () => ok(S().restaurant.instagramConnection ?? { connected: false })],
-    ['GET', /^\/integrations\/instagram\/profile\/([^/]+)$/, () => ok(S().restaurant.integrations.instagram
-        ? { username: 'demo_kitchen_sample', name: '[SAMPLE] RestroPulse Demo Kitchen', followers_count: 2480, media_count: 86 }
-        : null)],
+    ['GET', /^\/integrations\/instagram\/profile\/([^/]+)$/, () => {
+        const r = S().restaurant;
+        if (!r.integrations.instagram) return ok(null);
+        const fresh = !!signedUpProfile(r.id);
+        return ok({
+            username: r.instagramConnection?.username ?? 'demo_kitchen_sample', name: r.name,
+            followers_count: fresh ? 0 : 2480, media_count: fresh ? 0 : 86,
+        });
+    }],
+    ['GET', /^\/integrations\/instagram\/oauth-url$/, () => simulateInstagramConnect()],
     ['GET', /^\/integrations\/instagram\//, () => err(400, 'Connecting Instagram is turned off in the demo preview.')],
     ['POST', /^\/integrations\/instagram\/validate\/([^/]+)$/, () => ok({ valid: S().restaurant.integrations.instagram, needsReauthorization: false })],
     ['POST', /^\/integrations\/instagram\/refresh\/([^/]+)$/, () => ok()],
     ['POST', /^\/integrations\//, () => err(400, 'Connecting Instagram is turned off in the demo preview.')],
     ['DELETE', /^\/integrations\/instagram\/disconnect\/([^/]+)$/, () => {
         S().restaurant = { ...S().restaurant, integrations: { instagram: false }, instagramConnection: { connected: false } };
+        if (signedUpProfile(S().restaurant.id)) updateSignedUpRestaurant(S().restaurant.id, { instagramConnected: false });
         return ok();
     }],
 ];
@@ -381,13 +544,14 @@ function apiPath(input: RequestInfo | URL): string | null {
 }
 
 export async function handleDemoRequest(path: string, method: string, body: unknown): Promise<DemoReply> {
-    const pathname = path.split('?')[0];
+    const [pathname, search = ''] = path.split('?');
+    const query = new URLSearchParams(search);
     for (const [verb, pattern, handler] of routes) {
         if (verb !== method) continue;
         const m = pathname.match(pattern);
         if (m) {
             writeNotice(method);
-            return handler(m, body, method);
+            return handler(m, body, query);
         }
     }
     // Unknown route: a harmless empty answer so a screen shows its empty S()
@@ -426,4 +590,5 @@ export function installDemoBackend(): void {
 /** Test hook: back to the first sample S(). */
 export function resetDemoBackend(): void {
     store.reset();
+    resetDemoSignups();
 }

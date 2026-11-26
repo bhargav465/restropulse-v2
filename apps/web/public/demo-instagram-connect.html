@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Connect Instagram (demo)</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #f8fafc; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08); max-width: 380px;
+      width: calc(100% - 32px); padding: 28px; text-align: center; }
+    .badge { display: inline-block; background: #fef3c7; color: #78350f; border-radius: 999px; font-size: 12px;
+      font-weight: 600; padding: 4px 10px; margin-bottom: 14px; }
+    .tick { width: 48px; height: 48px; border-radius: 50%; background: #dcfce7; color: #16a34a; font-size: 26px;
+      line-height: 48px; margin: 0 auto 12px; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    p { font-size: 14px; color: #475569; margin: 0 0 6px; }
+    a { color: #ea580c; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">Demo preview · nothing is connected</div>
+    <div class="tick">&#10003;</div>
+    <h1>Instagram connected</h1>
+    <p id="who">A sample account stands in for yours.</p>
+    <p id="next">This window closes by itself.</p>
+  </div>
+  <script>
+    (function () {
+      // Demo builds only: stands in for Instagram's consent screen and the
+      // OAuth callback. Tells the dashboard that opened it the (sample)
+      // account is connected, then closes. Nothing leaves the browser.
+      var username = new URLSearchParams(window.location.search).get('username') || '';
+      if (username) document.getElementById('who').textContent = 'Sample account @' + username + ' stands in for yours.';
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({ type: 'instagram-oauth-callback', success: true, username: username }, window.location.origin);
+        setTimeout(function () { window.close(); }, 1500);
+      } else {
+        var next = document.getElementById('next');
+        next.textContent = '';
+        var link = document.createElement('a');
+        link.href = '/?view=dashboard';
+        link.textContent = 'Back to the dashboard';
+        next.appendChild(link);
+      }
+    })();
+  </script>
+</body>
+</html>

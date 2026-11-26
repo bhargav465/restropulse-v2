@@ -315,25 +315,185 @@ export const DEMO_RESTAURANTS: DemoRestaurantProfile[] = [
     },
 ];
 
+// ---------------------------------------------------------------------------
+// New restaurants signed up in this browser
+// ---------------------------------------------------------------------------
+//
+// A number that isn't one of the samples signs up as a brand-new restaurant
+// and goes through the real onboarding. What onboarding collects is kept in
+// this browser's localStorage only (never sent anywhere), so a reload or a
+// later sign-in with the same number finds the restaurant again. Anything
+// added after that (menu, posts, site edits) lives in memory like the samples.
+
+const SIGNUPS_KEY = 'rp_demo_signups';
+const PENDING_PHONE_KEY = 'rp_demo_pending_phone';
+
+/** Extra details onboarding collects for a new restaurant. */
+export interface DemoSignupDetails {
+    email: string;
+    accountManager: { name: string; phone: string; email: string; avatar: string };
+    mapUrl: string;
+    /** Set once the demo's simulated Instagram connection has run. */
+    instagramConnected?: boolean;
+    createdAt: string;
+}
+
+export type DemoSignupProfile = DemoRestaurantProfile & { signup: DemoSignupDetails };
+
+function readStorage(key: string): string | null {
+    try {
+        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeStorage(key: string, value: string | null): void {
+    try {
+        if (typeof localStorage === 'undefined') return;
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+    } catch {
+        /* storage blocked: the new restaurant lasts until the tab closes */
+    }
+}
+
+let memorySignups: DemoSignupProfile[] | null = null;
+
+/** Restaurants signed up in this browser, oldest first. */
+export function signedUpRestaurants(): DemoSignupProfile[] {
+    const raw = readStorage(SIGNUPS_KEY);
+    if (raw) {
+        try {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) return list as DemoSignupProfile[];
+        } catch {
+            /* corrupt entry: fall through */
+        }
+    }
+    return memorySignups ?? [];
+}
+
+function saveSignups(list: DemoSignupProfile[]): void {
+    memorySignups = list;
+    writeStorage(SIGNUPS_KEY, JSON.stringify(list));
+}
+
+/** The four samples plus any restaurant signed up in this browser. */
+export function allDemoRestaurants(): DemoRestaurantProfile[] {
+    return [...DEMO_RESTAURANTS, ...signedUpRestaurants()];
+}
+
+export function isSignedUpRestaurant(id: string): boolean {
+    return signedUpRestaurants().some((r) => r.id === id);
+}
+
+export function signedUpProfile(id: string): DemoSignupProfile | undefined {
+    return signedUpRestaurants().find((r) => r.id === id);
+}
+
+/** Changes the saved details of a restaurant signed up in this browser. */
+export function updateSignedUpRestaurant(id: string, patch: Partial<DemoSignupDetails>): void {
+    saveSignups(signedUpRestaurants().map((r) => (r.id === id ? { ...r, signup: { ...r.signup, ...patch } } : r)));
+}
+
+/** A number that signed in but hasn't finished onboarding yet. */
+export function pendingSignupPhone(): string | null {
+    return readStorage(PENDING_PHONE_KEY);
+}
+
+export function setPendingSignupPhone(phone: string | null): void {
+    writeStorage(PENDING_PHONE_KEY, phone);
+}
+
+const slugify = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+
+export interface DemoSignupInput {
+    phone: string;
+    userName: string;
+    email: string;
+    name: string;
+    cuisine: string;
+    city: string;
+    address: string;
+    lat: number;
+    lng: number;
+    mapUrl: string;
+    accountManager: DemoSignupDetails['accountManager'];
+}
+
+/** Saves a new, empty restaurant from what onboarding collected. */
+export function createSignedUpRestaurant(input: DemoSignupInput): DemoSignupProfile {
+    const digits = input.phone.replace(/\D/g, '').slice(-10);
+    const existing = signedUpRestaurants();
+    const id = `demo-new-${digits}-${existing.length + 1}`;
+    const handle = slugify(input.name).replace(/-/g, '_') || 'my_restaurant';
+    const profile: DemoSignupProfile = {
+        id,
+        loginPhone: digits,
+        name: input.name,
+        cuisine: input.cuisine,
+        city: input.city,
+        // No neighbourhood is asked for; the city stands in where the samples show one.
+        area: input.city,
+        address: input.address,
+        lat: input.lat,
+        lng: input.lng,
+        description: '',
+        blurb: 'Signed up in this browser.',
+        ownerName: input.userName,
+        instagramHandle: handle,
+        activeOffers: [],
+        chefSpecials: [],
+        menu: [],
+        offers: [],
+        slug: null,
+        ordering: resolveOrderingSettings({}),
+        delivery: resolveDeliverySettings({}),
+        content: { heroImages: [] },
+        contentPublished: false,
+        orders: [],
+        posts: [],
+        strategyTheme: `Introduce ${input.name} to ${input.city}`,
+        strategyFocus: ['Launch', 'Signature dishes'],
+        orderPrefix: `${(slugify(input.name).replace(/-/g, '').slice(0, 3) || 'new').toUpperCase()}-`,
+        signup: {
+            email: input.email,
+            accountManager: input.accountManager,
+            mapUrl: input.mapUrl,
+            createdAt: new Date().toISOString(),
+        },
+    };
+    // One restaurant per number: signing up again replaces the earlier one.
+    saveSignups([...existing.filter((r) => r.loginPhone !== digits), profile]);
+    return profile;
+}
+
 export function demoProfile(id: string): DemoRestaurantProfile {
-    return DEMO_RESTAURANTS.find((r) => r.id === id) ?? DEMO_RESTAURANTS[0];
+    return allDemoRestaurants().find((r) => r.id === id) ?? DEMO_RESTAURANTS[0];
 }
 
 /** The restaurant the demo is signed in as (the real app's `rp_restaurant_id`). */
 export function currentDemoRestaurantId(): string {
-    try {
-        const id = typeof localStorage !== 'undefined' ? localStorage.getItem('rp_restaurant_id') : null;
-        if (id && DEMO_RESTAURANTS.some((r) => r.id === id)) return id;
-    } catch {
-        /* storage blocked: fall back to the default sample */
-    }
+    const id = readStorage('rp_restaurant_id');
+    if (id && allDemoRestaurants().some((r) => r.id === id)) return id;
     return DEFAULT_DEMO_RESTAURANT_ID;
 }
 
-/** Login number -> sample restaurant. Any other number signs in as the first one. */
-export function demoRestaurantForPhone(phone: string): DemoRestaurantProfile {
+/**
+ * Login number -> restaurant: one of the samples, or one signed up in this
+ * browser. Any other number is new and goes through onboarding (null).
+ */
+export function demoRestaurantForPhone(phone: string): DemoRestaurantProfile | null {
     const digits = phone.replace(/\D/g, '').slice(-10);
-    return DEMO_RESTAURANTS.find((r) => r.loginPhone === digits) ?? DEMO_RESTAURANTS[0];
+    return allDemoRestaurants().find((r) => r.loginPhone === digits) ?? null;
+}
+
+/** Test hook: forget restaurants signed up in this browser. */
+export function resetDemoSignups(): void {
+    memorySignups = null;
+    writeStorage(SIGNUPS_KEY, null);
+    writeStorage(PENDING_PHONE_KEY, null);
 }
 
 /** Per-restaurant state for a demo twin: built lazily, kept until reset. */
