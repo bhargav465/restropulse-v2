@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { IntelligenceReport, IntelligenceScan, IntelligenceSelfMetrics, PillarScore, Restaurant } from '@restropulse/shared';
 import { intelligenceAPI } from '../../api';
@@ -122,7 +122,7 @@ const HeaderBand: React.FC<{
                 {/* Pillars */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
                     {report.pillars.map((p) => (
-                        <PillarBar key={p.key} pillar={p} onSelect={onSelectPillar} />
+                        <PillarBar key={p.key} pillar={p} onSelect={onSelectPillar} selected={selectedPillar === p.key} />
                     ))}
                 </div>
 
@@ -174,9 +174,15 @@ const PillarChecks: React.FC<{
     onNavigate: (t: DeepLinkTarget) => void;
 }> = ({ report, pillarKey, onNavigate }) => {
     const pillar = report.pillars.find((p) => p.key === pillarKey);
+    const panelRef = useRef<HTMLDivElement>(null);
+    // On a phone the checks open below the rank and buttons, often off screen,
+    // so a tap on a pillar looked like nothing happened. Bring them into view.
+    useEffect(() => {
+        panelRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    }, [pillarKey]);
     if (!pillar) return null;
     return (
-        <div className="mt-4 rounded-xl bg-canvas p-4">
+        <div ref={panelRef} className="mt-4 rounded-xl bg-canvas p-4 scroll-mb-28">
             <div className="flex items-center justify-between gap-2 mb-1">
                 <h4 className="text-sm font-semibold text-ink">
                     {PILLAR_LABELS[pillar.key]} · <span className={gradeTextClass(pillar.grade)}>grade {pillar.grade}</span>

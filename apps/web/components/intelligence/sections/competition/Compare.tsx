@@ -109,8 +109,13 @@ export const CompareView: React.FC<{
                             aria-expanded={expanded === row.placeId}
                             className="w-full grid grid-cols-[2fr_1fr_1fr] sm:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 py-3 px-1 text-left hover:bg-canvas/60 rounded-lg items-center"
                         >
-                            <span className={`text-sm truncate ${row.isSelf ? 'font-semibold text-primary-strong' : 'text-ink'}`}>
-                                {row.isSelf ? `${row.name} (you)` : row.name}
+                            <span className="flex min-w-0 items-center gap-1">
+                                <span className={`text-sm truncate ${row.isSelf ? 'font-semibold text-primary-strong' : 'text-ink'}`}>
+                                    {row.isSelf ? `${row.name} (you)` : row.name}
+                                </span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`shrink-0 text-muted transition-transform ${expanded === row.placeId ? 'rotate-180' : ''}`}>
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
                             </span>
                             <span className="text-right text-sm"><SourceValue row={row} mode={mode} pick={(d) => d.rating.toFixed(1)} /></span>
                             <span className="text-right text-sm"><SourceValue row={row} mode={mode} pick={(d) => d.reviewCount.toLocaleString('en-IN')} /></span>

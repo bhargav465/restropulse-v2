@@ -16,6 +16,27 @@ import { aovBandLabel } from '../aov';
 
 type BucketKey = 'DIRECT' | 'OVERALL';
 
+/** True below Tailwind's sm breakpoint (a phone). False where matchMedia is missing. */
+const useIsPhone = (): boolean => {
+    const query = '(max-width: 639px)';
+    const read = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches;
+    const [isPhone, setIsPhone] = useState(read);
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+        const mq = window.matchMedia(query);
+        const onChange = () => setIsPhone(mq.matches);
+        mq.addEventListener?.('change', onChange);
+        return () => mq.removeEventListener?.('change', onChange);
+    }, []);
+    return isPhone;
+};
+
+const Chevron: React.FC<{ open: boolean }> = ({ open }) => (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`inline-block ml-0.5 transition-transform ${open ? 'rotate-180' : ''}`}>
+        <path d="M6 9l6 6 6-6" />
+    </svg>
+);
+
 const Card: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="bg-surface rounded-2xl p-4 sm:p-6 border border-line">{children}</div>
 );
@@ -106,6 +127,7 @@ export const TopThreatsView: React.FC<{
 }> = ({ buckets, watchlist, max, error, onAdd, selfPlaceId, base }) => {
     const [tab, setTab] = useState<BucketKey>('DIRECT');
     const [expanded, setExpanded] = useState<string | null>(null);
+    const isPhone = useIsPhone();
 
     // RP-011: reports written before the report-builder fix still carry the
     // merchant inside its own buckets. Filter here too so old reports render
@@ -163,13 +185,43 @@ export const TopThreatsView: React.FC<{
                                     <th className="font-semibold py-2 pr-3 text-right">Reviews</th>
                                     <th className="font-semibold py-2 pr-3 text-right hidden sm:table-cell">Distance</th>
                                     <th className="font-semibold py-2 pr-3" title="How strongly this restaurant competes with you — closer, better-rated and busier means higher.">Rivalry</th>
-                                    <th className="font-semibold py-2" />
+                                    {!isPhone && <th className="font-semibold py-2" />}
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((c, i) => {
                                     const isOpen = expanded === c.placeId;
                                     const isTracked = tracked.has(c.placeId);
+                                    // Shown in the last column on wider screens and under
+                                    // the name on a phone, where that column ran off screen.
+                                    const actions = (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpanded(isOpen ? null : c.placeId)}
+                                                className="text-xs font-semibold text-primary-strong hover:underline mr-3"
+                                                aria-expanded={isOpen}
+                                            >
+                                                {isOpen ? 'Hide' : 'Details'}
+                                                <Chevron open={isOpen} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onAdd(c)}
+                                                disabled={isTracked || atCapacity}
+                                                title={
+                                                    isTracked
+                                                        ? 'You already track this restaurant'
+                                                        : atCapacity
+                                                          ? `You’re tracking the maximum (${max})`
+                                                          : 'Track this restaurant'
+                                                }
+                                                className="text-xs font-semibold text-primary-strong hover:underline disabled:text-muted disabled:no-underline disabled:cursor-not-allowed"
+                                            >
+                                                {isTracked ? 'Tracking' : 'Watch'}
+                                            </button>
+                                        </>
+                                    );
                                     return (
                                         <React.Fragment key={c.placeId}>
                                             <tr className="border-t border-line">
@@ -186,42 +238,22 @@ export const TopThreatsView: React.FC<{
                                                             </p>
                                                         );
                                                     })()}
+                                                    {isPhone && <div className="mt-1.5 whitespace-nowrap">{actions}</div>}
                                                 </td>
                                                 <td className="py-2.5 pr-3 text-muted hidden sm:table-cell">{c.cuisine}</td>
                                                 <td className="py-2.5 pr-3 text-muted hidden sm:table-cell">{aovBandLabel(c.priceLevel)}</td>
                                                 <td className="py-2.5 pr-3 text-right text-ink tabular-nums">★ {c.rating.toFixed(1)}</td>
                                                 <td className="py-2.5 pr-3 text-right text-muted tabular-nums">{c.totalRatings.toLocaleString('en-IN')}</td>
                                                 <td className="py-2.5 pr-3 text-right text-muted tabular-nums hidden sm:table-cell">{c.distanceKm.toFixed(1)} km</td>
-                                                <td className="py-2.5 pr-3"><ThreatBar value={c.threatScore} /></td>
-                                                <td className="py-2.5 text-right whitespace-nowrap">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setExpanded(isOpen ? null : c.placeId)}
-                                                        className="text-xs font-semibold text-primary-strong hover:underline mr-3"
-                                                        aria-expanded={isOpen}
-                                                    >
-                                                        {isOpen ? 'Hide' : 'Details'}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onAdd(c)}
-                                                        disabled={isTracked || atCapacity}
-                                                        title={
-                                                            isTracked
-                                                                ? 'You already track this restaurant'
-                                                                : atCapacity
-                                                                  ? `You’re tracking the maximum (${max})`
-                                                                  : 'Track this restaurant'
-                                                        }
-                                                        className="text-xs font-semibold text-primary-strong hover:underline disabled:text-muted disabled:no-underline disabled:cursor-not-allowed"
-                                                    >
-                                                        {isTracked ? 'Tracking' : 'Watch'}
-                                                    </button>
+                                                <td className="py-2.5 pr-3">
+                                                    <div className="hidden sm:block"><ThreatBar value={c.threatScore} /></div>
+                                                    <span className="sm:hidden text-xs font-semibold text-muted tabular-nums" title={`Threat ${Math.round(c.threatScore)}/100`}>{Math.round(c.threatScore)}</span>
                                                 </td>
+                                                {!isPhone && <td className="py-2.5 text-right whitespace-nowrap">{actions}</td>}
                                             </tr>
                                             {isOpen && (
                                                 <tr>
-                                                    <td colSpan={9} className="pb-3">
+                                                    <td colSpan={isPhone ? 8 : 9} className="pb-3">
                                                         <ExpandRow c={c} />
                                                     </td>
                                                 </tr>

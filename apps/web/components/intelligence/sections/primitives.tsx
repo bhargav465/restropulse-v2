@@ -95,7 +95,8 @@ export const ScoreDial: React.FC<{
 export const PillarBar: React.FC<{
     pillar: PillarScore;
     onSelect?: (key: PillarScore['key']) => void;
-}> = ({ pillar, onSelect }) => {
+    selected?: boolean;
+}> = ({ pillar, onSelect, selected = false }) => {
     const label = PILLAR_LABELS[pillar.key];
     return (
         <button
@@ -103,9 +104,17 @@ export const PillarBar: React.FC<{
             onClick={onSelect ? () => onSelect(pillar.key) : undefined}
             className="text-left w-full group"
             aria-label={`${label}: grade ${pillar.grade}, score ${pillar.score}`}
+            aria-expanded={onSelect ? selected : undefined}
         >
             <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-ink group-hover:text-primary-strong transition-colors">{label}</span>
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold transition-colors ${selected ? 'text-primary-strong' : 'text-ink group-hover:text-primary-strong'}`}>
+                    {label}
+                    {onSelect && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`text-muted transition-transform ${selected ? 'rotate-180' : ''}`}>
+                            <path d="M6 9l6 6 6-6" />
+                        </svg>
+                    )}
+                </span>
                 <span className={`text-xs font-bold ${gradeTextClass(pillar.grade)}`}>{pillar.grade}</span>
             </div>
             <div className="h-2 rounded-full bg-primary-soft overflow-hidden">
