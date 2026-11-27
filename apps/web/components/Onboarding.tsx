@@ -96,6 +96,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
 };
 import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { PlacesAutocompleteInput } from './PlacesAutocompleteInput';
+import { DemoAddressInput } from './DemoAddressInput';
 import type { Restaurant, AccountManager, City, EmailVerificationStatus } from '@restropulse/shared';
 import { restaurantAPI, accountManagerAPI, citiesAPI, authAPI } from '../api';
 import { sendEmailVerificationLink, completeEmailVerification, isEmailSignInLink, getStoredVerificationEmail } from '../firebase';
@@ -665,6 +666,21 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                     </div>
                 </APIProvider>
             ) : (
+                isDemoMode() ? (
+                <div>
+                    <label className="block text-slate-500 text-sm mb-2">Restaurant address</label>
+                    <DemoAddressInput
+                        value={address}
+                        onChange={(v) => {
+                            setAddress(v);
+                            setLocationConfirmed(false);
+                        }}
+                        onSelect={handlePlaceSelect}
+                        city={city}
+                        restaurantName={restaurantName}
+                    />
+                </div>
+                ) : (
                 <div>
                     <label className="block text-slate-500 text-sm mb-2">Restaurant address</label>
                     <input
@@ -682,6 +698,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                         </p>
                     )}
                 </div>
+                )
             )}
         </div>
     );

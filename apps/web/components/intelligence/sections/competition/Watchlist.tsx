@@ -115,13 +115,16 @@ export const WatchlistView: React.FC<{
     const count = cards.length;
     const atCapacity = count >= max;
     const tracked = new Set(cards.map((c) => c.entry.placeId));
+    // Match on name too: a tracked rival saved under another id for the same
+    // restaurant must not be offered again.
+    const trackedNames = new Set(cards.map((c) => c.entry.name.trim().toLowerCase()));
 
     const filtered = useMemo(
         () =>
             candidates
-                .filter((c) => !tracked.has(c.placeId))
+                .filter((c) => !tracked.has(c.placeId) && !trackedNames.has(c.name.trim().toLowerCase()))
                 .filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
-        [candidates, tracked, search],
+        [candidates, tracked, trackedNames, search],
     );
 
     return (
